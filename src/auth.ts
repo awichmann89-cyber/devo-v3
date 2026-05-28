@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@prisma/client";
+import authConfig from "@/auth.config";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -11,13 +11,7 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
-  // Auf Vercel / hinter Proxies steht der echte Host im X-Forwarded-Host Header.
-  // Auth.js verweigert das ohne explizites Vertrauen.
-  trustHost: true,
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -45,32 +39,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user, trigger }) {
-      if (user) {
-        token.role = (user as { role: Role }).role;
-        token.id = user.id as string;
-      }
-      // Bei jedem Refresh oder Update prüfen, ob der User noch existiert
-      // (relevant nach DB-Reset). Wenn nicht: Token invalidieren.
-      if (trigger === "update" || (!user && token.id)) {
-        const exists = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: { id: true, role: true },
-        });
-        if (!exists) {
-          return null;
-        }
-        token.role = exists.role;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user && token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as Role;
-      }
-      return session;
-    },
-  },
 });
