@@ -1,0 +1,189 @@
+import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import Link from "next/link";
+import { ArrowLeft, Boxes } from "lucide-react";
+import { formatCurrency, formatDate, serialize } from "@/lib/utils";
+import {
+  deviceStatusLabel,
+  deviceStatusVariant,
+  projectStatusLabel,
+  projectStatusVariant,
+} from "@/lib/labels";
+import { DeviceDialog } from "../device-dialog";
+import { QrCodeDisplay } from "./qr-display";
+import { DeleteDeviceButton } from "./delete-button";
+import { SerialNumbersSection } from "./serial-numbers-section";
+
+export default async function DeviceDetailPage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params;
+
+  const [device, categories, locations] = await Promise.all([
+    prisma.device.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        serialNumbers: { orderBy: { createdAt: "asc" } },
+        packUnitItems: {
+          include: {
+            packUnit: {
+              include: {
+                assignments: {
+                  include: { project: true },
+                  orderBy: { project: { planningStart: "desc" } },
+                  take: 5,
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.location.findMany({ orderBy: { name: "asc" } }),
+  ]);
+
+  if (!device) notFound();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/material?tab=devices"><ArrowLeft className="h-4 w-4" /> Zurück</Link>
+        </Button>
+      </div>
+
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">{device.name}</h1>
+            <Badge variant={deviceStatusVariant(device.status)}>{deviceStatusLabel(device.status)}</Badge>
+          </div>
+          {(device.manufacturer || device.model) && (
+            <p className="text-sm text-muted-foreground">
+              {[device.manufacturer, device.model].filter(Boolean).join(" ")}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <DeviceDialog
+            categories={categories}
+            locations={locations}
+            device={serialize(device)}
+            editTrigger
+          />
+          <DeleteDeviceButton id={device.id} name={device.name} />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <Field label="Hersteller" value={device.manufacturer} />
+              <Field label="Modell" value={device.model} />
+              <Field label="Kategorie" value={device.category?.name} />
+              <Field label="Lagerbestand" value={`${device.stockQuantity} Stück`} />
+              <Field label="Tagespreis (pro Stück)" value={formatCurrency(Number(device.dailyRate))} />
+              <Field
+                label="Wiederbeschaffung"
+                value={device.replacementValue ? formatCurrency(Number(device.replacementValue)) : null}
+              />
+              <Field label="Gewicht (pro Stück)" value={device.weight ? `${device.weight} kg` : null} />
+              <Field label="Leistung (pro Stück)" value={device.powerWatts ? `${device.powerWatts} W` : null} />
+            </dl>
+            {device.description && (
+              <div className="mt-4 border-t pt-4 text-sm">
+                <div className="text-muted-foreground mb-1">Beschreibung</div>
+                <p>{device.description}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
+          <CardContent className="flex flex-col items-center gap-3">
+            <QrCodeDisplay text={device.id} label={device.name} />
+            <p className="text-xs text-muted-foreground text-center">
+              Scannt direkt zum Gerät
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <SerialNumbersSection
+        deviceId={device.id}
+        stockQuantity={device.stockQuantity}
+        serialNumbers={serialize(device.serialNumbers)}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Boxes className="h-4 w-4" /> In Packeinheiten
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {device.packUnitItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Dieses Gerät ist keiner Packeinheit zugeordnet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Packeinheit</TableHead>
+                  <TableHead className="text-right">Stück pro Packeinheit</TableHead>
+                  <TableHead>Buchungen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {device.packUnitItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-mono text-sm">
+                      <Link href={`/pack-units/${item.packUnit.id}`} className="hover:underline">
+                        {item.packUnit.code}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{item.packUnit.name}</TableCell>
+                    <TableCell className="text-right">{item.quantity}×</TableCell>
+                    <TableCell>
+                      {item.packUnit.assignments.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {item.packUnit.assignments.map((a) => (
+                            <Link key={a.id} href={`/projects/${a.project.id}`}>
+                              <Badge variant={projectStatusVariant(a.project.status)} className="text-[10px]">
+                                {a.project.name} ({formatDate(a.project.planningStart)})
+                              </Badge>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value || "—"}</dd>
+    </>
+  );
+}

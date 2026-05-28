@@ -1,0 +1,138 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
+import { packUnitSchema, packUnitItemSchema } from "@/lib/validators";
+import { generateNextPackUnitCode } from "@/lib/id-generator";
+
+function normalize(input: unknown) {
+  const data = packUnitSchema.parse(input);
+  return {
+    ...data,
+    locationId: data.locationId || null,
+    categoryId: data.categoryId || null,
+    weight: data.weight ?? null,
+  };
+}
+
+export async function createPackUnit(input: unknown) {
+  await requireRole(CAN_WRITE);
+  const data = normalize(input);
+  const code = data.code ?? (await generateNextPackUnitCode());
+  const created = await prisma.packUnit.create({
+    data: { ...data, code },
+    select: { id: true },
+  });
+  revalidatePath("/material");
+  redirect(`/pack-units/${created.id}`);
+}
+
+export async function updatePackUnit(id: string, input: unknown) {
+  await requireRole(CAN_WRITE);
+  const data = normalize(input);
+  if (!data.code) {
+    const existing = await prisma.packUnit.findUnique({ where: { id }, select: { code: true } });
+    if (!existing) throw new Error("Packeinheit nicht gefunden");
+    data.code = existing.code;
+  }
+  await prisma.packUnit.update({
+    where: { id },
+    data: { ...data, code: data.code },
+    select: { id: true },
+  });
+  revalidatePath("/material");
+  revalidatePath(`/pack-units/${id}`);
+}
+
+export async function deletePackUnit(id: string) {
+  await requireRole(CAN_WRITE);
+  await prisma.packUnit.delete({ where: { id } });
+  revalidatePath("/material");
+  redirect("/material?tab=pack-units");
+}
+
+/** Schnell-Update für den Lagerbestand einer Packeinheit. */
+export async function updatePackUnitStock(id: string, stockQuantity: number) {
+  await requireRole(CAN_WRITE);
+  if (!Number.isInteger(stockQuantity) || stockQuantity < 1) {
+    throw new Error("Lagerbestand muss eine ganze Zahl ≥ 1 sein");
+  }
+  await prisma.packUnit.update({
+    where: { id },
+    data: { stockQuantity },
+    select: { id: true },
+  });
+  revalidatePath("/material");
+  revalidatePath(`/pack-units/${id}`);
+}
+
+// ---------- PackUnit-Inhalt (Device-Items) ----------
+
+/**
+ * Fügt ein Gerät einer Packeinheit hinzu (oder erhöht die Anzahl pro Case).
+ */
+export async function addItemToPackUnit(
+  packUnitId: string,
+  input: unknown
+) {
+  await requireRole(CAN_WRITE);
+  const data = packUnitItemSchema.parse(input);
+
+  // Einzelpackeinheit darf nur ein einziges Gerät mit Anzahl 1 enthalten
+  const pu = await prisma.packUnit.findUnique({
+    where: { id: packUnitId },
+    select: { isSingleItem: true, items: { select: { deviceId: true } } },
+  });
+  if (!pu) throw new Error("Packeinheit nicht gefunden");
+  if (pu.isSingleItem) {
+    const existingDeviceId = pu.items[0]?.deviceId;
+    if (existingDeviceId && existingDeviceId !== data.deviceId) {
+      throw new Error(
+        "Einzelpackeinheit ist bereits einem Gerät zugeordnet. Erst entfernen, dann neu zuordnen."
+      );
+    }
+    if (data.quantity !== 1) {
+      throw new Error("Einzelpackeinheit erlaubt nur Anzahl 1");
+    }
+  }
+
+  await prisma.packUnitDevice.upsert({
+    where: {
+      packUnitId_deviceId: { packUnitId, deviceId: data.deviceId },
+    },
+    update: { quantity: data.quantity, notes: data.notes || null },
+    create: {
+      packUnitId,
+      deviceId: data.deviceId,
+      quantity: data.quantity,
+      notes: data.notes || null,
+    },
+    select: { id: true },
+  });
+  revalidatePath(`/pack-units/${packUnitId}`);
+  revalidatePath("/material");
+}
+
+export async function updateItemQuantity(itemId: string, quantity: number) {
+  await requireRole(CAN_WRITE);
+  if (quantity < 1) throw new Error("Anzahl muss mindestens 1 sein");
+  const item = await prisma.packUnitDevice.update({
+    where: { id: itemId },
+    data: { quantity },
+    select: { packUnitId: true },
+  });
+  revalidatePath(`/pack-units/${item.packUnitId}`);
+  revalidatePath("/material");
+}
+
+export async function removeItemFromPackUnit(itemId: string) {
+  await requireRole(CAN_WRITE);
+  const item = await prisma.packUnitDevice.delete({
+    where: { id: itemId },
+    select: { packUnitId: true },
+  });
+  revalidatePath(`/pack-units/${item.packUnitId}`);
+  revalidatePath("/material");
+}

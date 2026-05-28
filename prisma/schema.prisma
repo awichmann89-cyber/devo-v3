@@ -1,0 +1,211 @@
+// Devo - Veranstaltungstechnik Materialverwaltung
+// Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Auth ----------
+
+enum Role {
+  ADMIN
+  DISPONENT
+  READER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String
+  role          Role     @default(READER)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdProjects Project[] @relation("ProjectCreator")
+}
+
+// ---------- Stammdaten ----------
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  packUnits  PackUnit[]
+}
+
+model Category {
+  id         String     @id @default(cuid())
+  name       String     @unique
+  prefix     String?    @unique // Kürzel für Inventarnummern (z.B. "MIK")
+  parentId   String?
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Category[] @relation("CategoryHierarchy")
+
+  devices    Device[]
+  packUnits  PackUnit[]
+
+  @@index([parentId])
+}
+
+enum DeviceStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  DEFECT
+  RETIRED
+}
+
+// Device = Typ. stockQuantity sagt, wie viele physisch im Lager sind.
+// Pro Stück optional eine Seriennummer (siehe DeviceSerialNumber).
+model Device {
+  id               String       @id @default(cuid())
+  name             String
+  manufacturer     String?
+  model            String?
+  description      String?
+  status           DeviceStatus @default(AVAILABLE)
+  stockQuantity    Int          @default(1) // Anzahl physisch im Lager
+  dailyRate        Decimal      @default(0) @db.Decimal(10, 2) // EUR pro Tag pro Stück
+  replacementValue Decimal?     @db.Decimal(10, 2)
+  weight           Decimal?     @db.Decimal(8, 2) // kg pro Stück
+  powerWatts       Int?         // Stromaufnahme W pro Stück
+  notes            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Optional: individuelle Seriennummern (max stockQuantity Stück)
+  serialNumbers DeviceSerialNumber[]
+
+  // Vorkommen in Packeinheiten
+  packUnitItems PackUnitDevice[]
+
+  @@index([status])
+  @@index([categoryId])
+}
+
+// Individuelle Seriennummern pro Device-Typ
+model DeviceSerialNumber {
+  id           String   @id @default(cuid())
+  deviceId     String
+  device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  serialNumber String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@unique([deviceId, serialNumber])
+  @@index([deviceId])
+}
+
+// Packeinheit (Case, Rack, Tasche, Trolley) — Typ mit Bestand.
+model PackUnit {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique // z.B. PU-001
+  description   String?
+  weight        Decimal? @db.Decimal(8, 2) // Leergewicht des Cases
+  stockQuantity Int      @default(1) // Anzahl identischer Cases im Lager
+  isSingleItem  Boolean  @default(false) // 1:1-Container für einzelne Bookable-Items
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  items       PackUnitDevice[]
+  assignments ProjectAssignment[]
+
+  @@index([categoryId])
+}
+
+// Welche Devices sind in einer Packeinheit enthalten — mit Anzahl pro Case-Instanz.
+model PackUnitDevice {
+  id         String @id @default(cuid())
+  packUnitId String
+  packUnit   PackUnit @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1) // Wie viele dieser Devices PRO Case
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([packUnitId, deviceId])
+  @@index([packUnitId])
+  @@index([deviceId])
+}
+
+// ---------- Projekt ----------
+
+enum ProjectStatus {
+  DRAFT
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id              String        @id @default(cuid())
+  name            String
+  customer        String?
+  description     String?
+  status          ProjectStatus @default(DRAFT)
+
+  // Planungszeitraum: blockt Material für andere Projekte
+  planningStart   DateTime
+  planningEnd     DateTime
+
+  // Berechnungszeitraum: für Mietpreis
+  billingStart    DateTime
+  billingEnd      DateTime
+
+  discountPercent Decimal       @default(0) @db.Decimal(5, 2)
+  notes           String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  createdById     String?
+  createdBy       User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  assignments     ProjectAssignment[]
+
+  @@index([status])
+  @@index([planningStart, planningEnd])
+}
+
+// Buchung einer Packeinheit für ein Projekt.
+model ProjectAssignment {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  packUnitId String
+  packUnit   PackUnit @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
+
+  quantity   Int      @default(1) // Anzahl dieser Packeinheit
+  notes      String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([projectId, packUnitId])
+  @@index([packUnitId])
+  @@index([projectId])
+}
