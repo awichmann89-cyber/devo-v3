@@ -12,6 +12,9 @@ const credentialsSchema = z.object({
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
+  // Auf Vercel / hinter Proxies steht der echte Host im X-Forwarded-Host Header.
+  // Auth.js verweigert das ohne explizites Vertrauen.
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
