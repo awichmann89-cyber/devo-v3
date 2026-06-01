@@ -1,4 +1,11 @@
-import { PrismaClient, Role, ProjectStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  Role,
+  ProjectStatus,
+  ServiceItemKind,
+  BillingUnit,
+  ProjectGroupKind,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -68,8 +75,6 @@ async function main() {
   });
 
   // Geräte (Typen mit Bestand)
-  // Hinweis: ohne Inventarnummer, da Devices intern per cuid identifiziert werden.
-  // Damit der Seed idempotent ist, prüfen wir per Name + Modell.
   async function upsertDevice(args: {
     name: string;
     manufacturer?: string;
@@ -220,6 +225,80 @@ async function main() {
     create: { packUnitId: lightCase.id, deviceId: pointe.id, quantity: 4 },
   });
 
+  // Personal- und Transport-Positionen (Stammdaten)
+  const services: Array<{
+    name: string;
+    kind: ServiceItemKind;
+    unit: BillingUnit;
+    unitPrice: number;
+    description?: string;
+  }> = [
+    {
+      name: "Tagessatz Lichttechniker",
+      kind: ServiceItemKind.PERSONAL,
+      unit: BillingUnit.DAY,
+      unitPrice: 480,
+      description: "10-Stunden-Tag inkl. Pausen",
+    },
+    {
+      name: "Tagessatz Tontechniker",
+      kind: ServiceItemKind.PERSONAL,
+      unit: BillingUnit.DAY,
+      unitPrice: 480,
+    },
+    {
+      name: "Lichttechniker nach Stunden",
+      kind: ServiceItemKind.PERSONAL,
+      unit: BillingUnit.HOUR,
+      unitPrice: 55,
+    },
+    {
+      name: "Bühnenhelfer",
+      kind: ServiceItemKind.PERSONAL,
+      unit: BillingUnit.HOUR,
+      unitPrice: 35,
+    },
+    {
+      name: "Transport 7,5t LKW",
+      kind: ServiceItemKind.TRANSPORT,
+      unit: BillingUnit.FLAT,
+      unitPrice: 350,
+      description: "An- und Abfahrt im Umkreis 50 km",
+    },
+    {
+      name: "Transport Sprinter",
+      kind: ServiceItemKind.TRANSPORT,
+      unit: BillingUnit.FLAT,
+      unitPrice: 180,
+    },
+    {
+      name: "Stromaggregat 30 kVA",
+      kind: ServiceItemKind.SONSTIGES,
+      unit: BillingUnit.DAY,
+      unitPrice: 120,
+    },
+  ];
+  for (const s of services) {
+    await prisma.serviceItem.upsert({
+      where: { name: s.name },
+      update: {},
+      create: s,
+    });
+  }
+
+  // Beispiel-Kunde
+  const customer = await prisma.customer.upsert({
+    where: { name: "Musterfirma GmbH" },
+    update: {},
+    create: {
+      name: "Musterfirma GmbH",
+      contactPerson: "Frau Beispiel",
+      email: "kontakt@musterfirma.de",
+      phone: "+49 30 12345678",
+      address: "Beispielstraße 1\n12345 Berlin",
+    },
+  });
+
   // Beispiel-Projekt
   const now = new Date();
   const inAWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -231,21 +310,50 @@ async function main() {
     create: {
       id: "seed-project-1",
       name: "Sommerfest Musterfirma",
-      customer: "Musterfirma GmbH",
+      customerId: customer.id,
       description: "Open-Air Sommerfest mit Bühne und Bar",
       status: ProjectStatus.CONFIRMED,
       planningStart: now,
       planningEnd: inTenDays,
-      billingStart: inAWeek,
-      billingEnd: new Date(inAWeek.getTime() + 2 * 24 * 60 * 60 * 1000),
       createdById: admin.id,
+      billingPeriods: {
+        create: [
+          {
+            start: inAWeek,
+            end: new Date(inAWeek.getTime() + 2 * 24 * 60 * 60 * 1000),
+            notes: "Veranstaltungstag",
+          },
+        ],
+      },
     },
   });
+
+  // Beispiel-Gruppe pro Projekt
+  let tonGroup = await prisma.projectGroup.findFirst({
+    where: { projectId: proj.id, kind: ProjectGroupKind.MATERIAL, name: "Ton" },
+    select: { id: true },
+  });
+  if (!tonGroup) {
+    tonGroup = await prisma.projectGroup.create({
+      data: {
+        projectId: proj.id,
+        kind: ProjectGroupKind.MATERIAL,
+        name: "Ton",
+        sortOrder: 0,
+      },
+      select: { id: true },
+    });
+  }
 
   await prisma.projectAssignment.upsert({
     where: { projectId_packUnitId: { projectId: proj.id, packUnitId: tonCase.id } },
     update: {},
-    create: { projectId: proj.id, packUnitId: tonCase.id, quantity: 1 },
+    create: {
+      projectId: proj.id,
+      packUnitId: tonCase.id,
+      groupId: tonGroup.id,
+      quantity: 1,
+    },
   });
 
   console.log("✓ Seed abgeschlossen");

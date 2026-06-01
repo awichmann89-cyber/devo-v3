@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,10 +12,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DeviceStatus, type Category, type Device, type Location } from "@prisma/client";
 import { deviceStatusLabel, deviceStatusVariant } from "@/lib/labels";
 import { DeviceDialog } from "@/app/(app)/devices/device-dialog";
+import { deleteDevice } from "@/app/(app)/devices/actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 import { flattenCategoryTree } from "@/lib/category-tree";
 
 type DeviceVM = Device & {
@@ -35,17 +40,43 @@ export function DevicesSection({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [deleting, setDeleting] = useState<DeviceVM | null>(null);
+  const [pending, startTransition] = useTransition();
 
-  const filtered = devices.filter((d) => {
-    if (statusFilter !== "all" && d.status !== statusFilter) return false;
-    if (catFilter !== "all" && d.categoryId !== catFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const hay = `${d.name} ${d.manufacturer ?? ""} ${d.model ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+  function onConfirmDelete() {
+    if (!deleting) return;
+    startTransition(async () => {
+      try {
+        await deleteDevice(deleting.id);
+        toast.success("Gerät gelöscht");
+        setDeleting(null);
+      } catch (e) {
+        toast.error("Löschen fehlgeschlagen", {
+          description: e instanceof Error ? e.message : "",
+        });
+      }
+    });
+  }
+
+  const filtered = devices
+    .filter((d) => {
+      if (statusFilter !== "all" && d.status !== statusFilter) return false;
+      if (catFilter !== "all" && d.categoryId !== catFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const hay = `${d.name} ${d.manufacturer ?? ""} ${d.model ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      // Kategorie-Gruppen zuerst, ohne Kategorie ans Ende
+      const catA = a.category?.name ?? "￿";
+      const catB = b.category?.name ?? "￿";
+      const catCmp = catA.localeCompare(catB, "de");
+      if (catCmp !== 0) return catCmp;
+      return a.name.localeCompare(b.name, "de");
+    });
 
   return (
     <>
@@ -84,7 +115,7 @@ export function DevicesSection({
         </div>
       </div>
 
-      <Table>
+      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -94,12 +125,13 @@ export function DevicesSection({
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead className="text-right">SN</TableHead>
             <TableHead className="text-right">€ / Tag</TableHead>
+            <TableHead className="w-[90px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground">
+              <TableCell colSpan={8} className="text-center text-muted-foreground">
                 Keine Geräte gefunden
               </TableCell>
             </TableRow>
@@ -127,10 +159,45 @@ export function DevicesSection({
               <TableCell className="text-right tabular-nums">
                 {formatCurrency(Number(d.dailyRate))}
               </TableCell>
+              <TableCell>
+                <div className="flex justify-end gap-1">
+                  <Button variant="ghost" size="icon" asChild title="Bearbeiten">
+                    <Link href={`/devices/${d.id}`}>
+                      <Pencil className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Löschen"
+                    disabled={pending}
+                    onClick={() => setDeleting(d)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Gerät löschen?"
+        description={
+          deleting && (
+            <>
+              <strong>{deleting.name}</strong> wird unwiderruflich gelöscht.
+              Seriennummern und Packeinheits-Verknüpfungen werden ebenfalls entfernt.
+            </>
+          )
+        }
+        confirmLabel="Löschen"
+        pending={pending}
+        onConfirm={onConfirmDelete}
+      />
     </>
   );
 }

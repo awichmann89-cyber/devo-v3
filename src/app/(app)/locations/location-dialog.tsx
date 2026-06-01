@@ -37,6 +37,7 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    e.stopPropagation();
     startTransition(async () => {
       try {
         if (location) {

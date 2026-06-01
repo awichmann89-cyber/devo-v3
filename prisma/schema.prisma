@@ -160,20 +160,31 @@ enum ProjectStatus {
   CANCELLED
 }
 
+model Customer {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projects      Project[]
+}
+
 model Project {
   id              String        @id @default(cuid())
   name            String
-  customer        String?
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   description     String?
   status          ProjectStatus @default(DRAFT)
 
   // Planungszeitraum: blockt Material für andere Projekte
   planningStart   DateTime
   planningEnd     DateTime
-
-  // Berechnungszeitraum: für Mietpreis
-  billingStart    DateTime
-  billingEnd      DateTime
 
   discountPercent Decimal       @default(0) @db.Decimal(5, 2)
   notes           String?
@@ -185,9 +196,128 @@ model Project {
   createdBy       User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   assignments     ProjectAssignment[]
+  // Berechnungszeiträume: Tage für die Mietkalkulation (mehrere möglich)
+  billingPeriods  BillingPeriod[]
+  // Freie Markdown-Notizen mit Titel
+  projectNotes    ProjectNote[]
+  // Personal- und Transport-Positionen
+  services        ProjectService[]
+  // Gruppen für Material und Personal & Transport (separat pro Tab via kind)
+  groups          ProjectGroup[]
 
   @@index([status])
+  @@index([customerId])
   @@index([planningStart, planningEnd])
+}
+
+// Gruppen-Typ: gehört zum Material- oder zum Personal/Transport-Tab.
+// (Zwei separate Listen pro Projekt, damit z.B. "Ton" und "Aufbau" nicht vermischt werden.)
+enum ProjectGroupKind {
+  MATERIAL
+  SERVICE
+}
+
+// Gruppen-Überschrift innerhalb eines Projekts.
+// Jedes Assignment / jede Service-Position gehört zu genau einer Gruppe.
+model ProjectGroup {
+  id        String           @id @default(cuid())
+  projectId String
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  kind      ProjectGroupKind
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  assignments ProjectAssignment[]
+  services    ProjectService[]
+
+  @@index([projectId, kind, sortOrder])
+}
+
+// Art einer Service-/Personalposition (rein zur Gruppierung)
+enum ServiceItemKind {
+  PERSONAL
+  TRANSPORT
+  SONSTIGES
+}
+
+// Abrechnungseinheit einer Position
+enum BillingUnit {
+  HOUR
+  DAY
+  FLAT
+  PIECE
+}
+
+// Stammdaten-Eintrag im Katalog "Personal & Transport"
+model ServiceItem {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  description String?
+  kind        ServiceItemKind @default(PERSONAL)
+  unit        BillingUnit     @default(HOUR)
+  unitPrice   Decimal         @default(0) @db.Decimal(10, 2)
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  projectServices ProjectService[]
+
+  @@index([kind])
+  @@index([active])
+}
+
+// Buchung einer Service-Position auf ein Projekt
+model ProjectService {
+  id                String  @id @default(cuid())
+  projectId         String
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  serviceItemId     String
+  serviceItem       ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+
+  groupId           String
+  group             ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  quantity          Decimal  @default(1) @db.Decimal(10, 2)
+  unitPriceOverride Decimal? @db.Decimal(10, 2)
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([serviceItemId])
+  @@index([groupId])
+}
+
+// Freie, mit Markdown formatierbare Notizen am Projekt (z.B. Anfahrt, Briefing).
+model ProjectNote {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Einzelner Berechnungszeitraum innerhalb eines Projekts.
+// Erlaubt z.B. zwei Veranstaltungs-Wochenenden ohne die Werktage dazwischen zu berechnen.
+model BillingPeriod {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  start     DateTime
+  end       DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 // Buchung einer Packeinheit für ein Projekt.
@@ -199,6 +329,9 @@ model ProjectAssignment {
   packUnitId String
   packUnit   PackUnit @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
 
+  groupId    String
+  group      ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
   quantity   Int      @default(1) // Anzahl dieser Packeinheit
   notes      String?
 
@@ -208,4 +341,5 @@ model ProjectAssignment {
   @@unique([projectId, packUnitId])
   @@index([packUnitId])
   @@index([projectId])
+  @@index([groupId])
 }

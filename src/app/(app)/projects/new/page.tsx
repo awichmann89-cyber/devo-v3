@@ -1,7 +1,10 @@
+import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectForm } from "../project-form";
 
-export default function NewProjectPage() {
+export default async function NewProjectPage() {
+  const customers = await prisma.customer.findMany({ orderBy: { name: "asc" } });
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -12,7 +15,7 @@ export default function NewProjectPage() {
       <Card>
         <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
         <CardContent>
-          <ProjectForm />
+          <ProjectForm customers={customers} />
         </CardContent>
       </Card>
     </div>

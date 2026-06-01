@@ -53,6 +53,7 @@ export function UserDialog({ user, open: controlledOpen, onOpenChange }: Props) 
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    e.stopPropagation();
     startTransition(async () => {
       try {
         if (user) {

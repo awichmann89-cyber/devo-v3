@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, useTransition } from "react";
 import {
   Table,
   TableBody,
@@ -25,12 +25,16 @@ import {
   Boxes,
   Box,
   Pencil,
+  Trash2,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { PackUnitDialog } from "@/app/(app)/pack-units/pack-unit-dialog";
 import { flattenCategoryTree } from "@/lib/category-tree";
+import { deletePackUnit } from "@/app/(app)/pack-units/actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 import type {
   Category,
   Device,
@@ -57,6 +61,23 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [deleting, setDeleting] = useState<PackUnitWithItems | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function onConfirmDelete() {
+    if (!deleting) return;
+    startTransition(async () => {
+      try {
+        await deletePackUnit(deleting.id);
+        toast.success("Packeinheit gelöscht");
+        setDeleting(null);
+      } catch (e) {
+        toast.error("Löschen fehlgeschlagen", {
+          description: e instanceof Error ? e.message : "",
+        });
+      }
+    });
+  }
 
   function toggle(id: string) {
     const s = new Set(expanded);
@@ -65,15 +86,23 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
     setExpanded(s);
   }
 
-  const filtered = packUnits.filter((pu) => {
-    if (catFilter !== "all" && pu.categoryId !== catFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const hay = `${pu.code} ${pu.name} ${pu.description ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+  const filtered = packUnits
+    .filter((pu) => {
+      if (catFilter !== "all" && pu.categoryId !== catFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const hay = `${pu.code} ${pu.name} ${pu.description ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const catA = a.category?.name ?? "￿";
+      const catB = b.category?.name ?? "￿";
+      const catCmp = catA.localeCompare(catB, "de");
+      if (catCmp !== 0) return catCmp;
+      return a.name.localeCompare(b.name, "de");
+    });
 
   const hasFilter = !!search || catFilter !== "all";
 
@@ -119,7 +148,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
         </div>
       </div>
 
-      <Table>
+      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[40px]"></TableHead>
@@ -129,7 +158,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead className="text-right">Inhalt</TableHead>
             <TableHead className="text-right">€ / Tag</TableHead>
-            <TableHead className="w-[60px]"></TableHead>
+            <TableHead className="w-[90px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -213,17 +242,27 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                     {formatCurrency(dailyRatePerUnit)}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      asChild
-                      title="Bearbeiten"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Link href={`/pack-units/${pu.id}`}>
-                        <Pencil className="h-4 w-4" />
-                      </Link>
-                    </Button>
+                    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                        title="Bearbeiten"
+                      >
+                        <Link href={`/pack-units/${pu.id}`}>
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Löschen"
+                        disabled={pending}
+                        onClick={() => setDeleting(pu)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
                 {isOpen && hasItems && (
@@ -289,6 +328,23 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
           })}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Packeinheit löschen?"
+        description={
+          deleting && (
+            <>
+              <strong>{deleting.name}</strong> wird unwiderruflich gelöscht. Die enthaltenen
+              Geräte bleiben bestehen — sie werden nur aus dieser Packeinheit gelöst.
+            </>
+          )
+        }
+        confirmLabel="Löschen"
+        pending={pending}
+        onConfirm={onConfirmDelete}
+      />
     </>
   );
 }

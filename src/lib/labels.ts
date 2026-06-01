@@ -1,4 +1,4 @@
-import { DeviceStatus, ProjectStatus, Role } from "@prisma/client";
+import { BillingUnit, DeviceStatus, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
 
 export function deviceStatusLabel(status: DeviceStatus): string {
   return {
@@ -46,4 +46,31 @@ export function roleLabel(role: Role): string {
     DISPONENT: "Disponent",
     READER: "Leser",
   }[role];
+}
+
+export function serviceItemKindLabel(kind: ServiceItemKind): string {
+  return {
+    PERSONAL: "Personal",
+    TRANSPORT: "Transport",
+    SONSTIGES: "Sonstiges",
+  }[kind];
+}
+
+export function billingUnitLabel(unit: BillingUnit): string {
+  return {
+    HOUR: "Stunde",
+    DAY: "Tag",
+    FLAT: "Pauschale",
+    PIECE: "Stück",
+  }[unit];
+}
+
+// Kurzform für Tabellen-Spalten ("€ / ...")
+export function billingUnitShort(unit: BillingUnit): string {
+  return {
+    HOUR: "h",
+    DAY: "Tag",
+    FLAT: "Pausch.",
+    PIECE: "Stück",
+  }[unit];
 }

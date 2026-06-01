@@ -5,43 +5,67 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, FileText, Boxes } from "lucide-react";
+import { ArrowLeft, FileText, Boxes, StickyNote, Truck } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 import { ProjectForm } from "../project-form";
 import { AssignmentsSection } from "./assignments-section";
+import { NotesSection } from "./notes-section";
+import { ServicesSection } from "./services-section";
 import { DeleteProjectButton } from "./delete-button";
 import { PdfExportButtons } from "./pdf-export";
 import { getOverlappingAssignments } from "@/lib/availability";
+import { auth } from "@/auth";
+import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
 
 export default async function ProjectDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
 
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: {
-      assignments: {
-        include: {
-          packUnit: {
-            include: {
-              items: { include: { device: { include: { category: true } } } },
+  const [project, session, serviceCatalog] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        billingPeriods: { orderBy: { start: "asc" } },
+        projectNotes: { orderBy: { updatedAt: "desc" } },
+        groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
+        services: {
+          include: { serviceItem: true },
+          orderBy: [{ serviceItem: { kind: "asc" } }, { serviceItem: { name: "asc" } }],
+        },
+        assignments: {
+          include: {
+            packUnit: {
+              include: {
+                items: { include: { device: { include: { category: true } } } },
+              },
             },
           },
+          orderBy: { packUnit: { code: "asc" } },
         },
-        orderBy: { packUnit: { code: "asc" } },
+        createdBy: { select: { name: true, email: true } },
       },
-      createdBy: { select: { name: true, email: true } },
-    },
-  });
+    }),
+    auth(),
+    prisma.serviceItem.findMany({
+      where: { active: true },
+      orderBy: [{ kind: "asc" }, { name: "asc" }],
+    }),
+  ]);
   if (!project) notFound();
+  const canWrite = hasRole(session?.user.role, CAN_WRITE);
 
-  const allPackUnits = await prisma.packUnit.findMany({
-    include: {
-      items: { include: { device: true } },
-      location: true,
-    },
-    orderBy: { code: "asc" },
-  });
+  const [allPackUnits, customers] = await Promise.all([
+    prisma.packUnit.findMany({
+      include: {
+        items: { include: { device: true } },
+        location: true,
+        category: true,
+      },
+      orderBy: { code: "asc" },
+    }),
+    prisma.customer.findMany({ orderBy: { name: "asc" } }),
+  ]);
 
   // Konflikte (überlappende Buchungen, inkl. eigene)
   const overlap = await getOverlappingAssignments(
@@ -73,7 +97,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     }
   }
 
-  const billingDays = daysBetween(project.billingStart, project.billingEnd);
+  // Tage über alle Berechnungszeiträume aufsummieren
+  const billingDays = project.billingPeriods.reduce(
+    (sum, p) => sum + daysBetween(p.start, p.end),
+    0
+  );
 
   // Tagespreis pro Packeinheit = Summe(Inhalt × Anzahl × dailyRate)
   function packUnitRate(items: { device: { dailyRate: { toString(): string } }; quantity: number }[]) {
@@ -83,12 +111,27 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     );
   }
 
-  const subtotal = project.assignments.reduce((sum, a) => {
+  const materialSubtotal = project.assignments.reduce((sum, a) => {
     const rate = packUnitRate(a.packUnit.items);
     return sum + rate * a.quantity * billingDays;
   }, 0);
+
+  // Personal- und Transport-Positionen aufsummieren
+  const servicesSubtotal = project.services.reduce((sum, s) => {
+    const price = s.unitPriceOverride
+      ? Number(s.unitPriceOverride)
+      : Number(s.serviceItem.unitPrice);
+    return sum + Number(s.quantity) * price;
+  }, 0);
+
+  const subtotal = materialSubtotal + servicesSubtotal;
   const discount = (subtotal * Number(project.discountPercent)) / 100;
   const total = subtotal - discount;
+
+  // Anteilige Beträge für die Material-Karte (verteilt den Rabatt anteilig)
+  const materialDiscount =
+    (materialSubtotal * Number(project.discountPercent)) / 100;
+  const materialTotal = materialSubtotal - materialDiscount;
 
   // Geräte-Aggregat für Kennzahl
   const deviceCount = project.assignments.reduce(
@@ -113,7 +156,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               {projectStatusLabel(project.status)}
             </Badge>
           </div>
-          {project.customer && <p className="text-muted-foreground">{project.customer}</p>}
+          {project.customer && (
+            <Link
+              href="/customers"
+              className="text-muted-foreground hover:underline hover:text-foreground"
+            >
+              {project.customer.name}
+            </Link>
+          )}
         </div>
         <div className="flex gap-2">
           <PdfExportButtons projectId={project.id} />
@@ -132,8 +182,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <Card>
           <CardHeader className="pb-2"><CardDescription>Berechnung</CardDescription></CardHeader>
           <CardContent>
-            <div className="text-sm font-medium">{formatDate(project.billingStart)}</div>
-            <div className="text-xs text-muted-foreground">{billingDays} Tag(e)</div>
+            <div className="text-sm font-medium">
+              {project.billingPeriods.length === 1
+                ? formatDate(project.billingPeriods[0].start)
+                : `${project.billingPeriods.length} Zeiträume`}
+            </div>
+            <div className="text-xs text-muted-foreground">{billingDays} Tag(e) gesamt</div>
           </CardContent>
         </Card>
         <Card>
@@ -158,11 +212,53 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         </Card>
       </div>
 
-      <Tabs defaultValue="material">
+      <Tabs defaultValue="details">
         <TabsList>
-          <TabsTrigger value="material"><Boxes className="h-4 w-4" /> Packeinheiten</TabsTrigger>
           <TabsTrigger value="details"><FileText className="h-4 w-4" /> Details</TabsTrigger>
+          <TabsTrigger value="notes">
+            <StickyNote className="h-4 w-4" /> Notizen
+            {project.projectNotes.length > 0 && (
+              <Badge variant="secondary" className="ml-1 px-1.5 text-[10px]">
+                {project.projectNotes.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="material"><Boxes className="h-4 w-4" /> Material</TabsTrigger>
+          <TabsTrigger value="services">
+            <Truck className="h-4 w-4" /> Personal & Transport
+            {project.services.length > 0 && (
+              <Badge variant="secondary" className="ml-1 px-1.5 text-[10px]">
+                {project.services.length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="details">
+          <Card>
+            <CardHeader><CardTitle>Projekt bearbeiten</CardTitle></CardHeader>
+            <CardContent>
+              <ProjectForm
+                project={serialize(project)}
+                customers={customers}
+                billingPeriods={serialize(project.billingPeriods)}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notes">
+          <NotesSection
+            projectId={project.id}
+            notes={project.projectNotes.map((n) => ({
+              id: n.id,
+              title: n.title,
+              content: n.content,
+              updatedAt: n.updatedAt.toISOString(),
+            }))}
+            canWrite={canWrite}
+          />
+        </TabsContent>
 
         <TabsContent value="material" className="space-y-4">
           <AssignmentsSection
@@ -170,19 +266,44 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             allPackUnits={serialize(allPackUnits)}
             conflictMap={serialize(conflictMap)}
             billingDays={billingDays}
-            subtotal={subtotal}
-            discount={discount}
-            total={total}
+            subtotal={materialSubtotal}
+            discount={materialDiscount}
+            total={materialTotal}
+            groups={project.groups.filter((g) => g.kind === "MATERIAL")}
           />
         </TabsContent>
 
-        <TabsContent value="details">
-          <Card>
-            <CardHeader><CardTitle>Projekt bearbeiten</CardTitle></CardHeader>
-            <CardContent>
-              <ProjectForm project={serialize(project)} />
-            </CardContent>
-          </Card>
+        <TabsContent value="services">
+          <ServicesSection
+            projectId={project.id}
+            projectServices={project.services.map((s) => ({
+              id: s.id,
+              serviceItemId: s.serviceItemId,
+              groupId: s.groupId,
+              quantity: Number(s.quantity),
+              unitPriceOverride:
+                s.unitPriceOverride === null ? null : Number(s.unitPriceOverride),
+              notes: s.notes,
+              serviceItem: {
+                id: s.serviceItem.id,
+                name: s.serviceItem.name,
+                kind: s.serviceItem.kind,
+                unit: s.serviceItem.unit,
+                unitPrice: Number(s.serviceItem.unitPrice),
+                active: s.serviceItem.active,
+              },
+            }))}
+            catalog={serviceCatalog.map((c) => ({
+              id: c.id,
+              name: c.name,
+              description: c.description,
+              kind: c.kind,
+              unit: c.unit,
+              unitPrice: Number(c.unitPrice),
+              active: c.active,
+            }))}
+            groups={project.groups.filter((g) => g.kind === "SERVICE")}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -77,6 +77,7 @@ export function DeviceDialog({
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    e.stopPropagation();
     startTransition(async () => {
       try {
         const payload = {

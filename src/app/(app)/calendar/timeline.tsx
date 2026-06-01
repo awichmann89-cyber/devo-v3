@@ -24,8 +24,6 @@ interface ProjectVM {
   status: ProjectStatus;
   planningStart: string;
   planningEnd: string;
-  billingStart: string;
-  billingEnd: string;
   deviceCount: number;
 }
 

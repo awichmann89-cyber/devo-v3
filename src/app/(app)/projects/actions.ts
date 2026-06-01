@@ -10,9 +10,9 @@ import { redirect } from "next/navigation";
 export async function createProject(input: unknown) {
   const session = await requireRole(CAN_WRITE);
   const data = projectSchema.parse(input);
+  const { billingPeriods, ...rest } = data;
 
-  // Defensive: User aus dem Session-Token kann veraltet sein (z.B. nach DB-Reset).
-  // Wenn er nicht mehr existiert, Projekt ohne Ersteller anlegen statt FK-Fehler.
+  // Defensive: User aus dem Session-Token kann veraltet sein.
   const userExists = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { id: true },
@@ -20,11 +20,18 @@ export async function createProject(input: unknown) {
 
   const created = await prisma.project.create({
     data: {
-      ...data,
-      customer: data.customer || null,
-      description: data.description || null,
-      notes: data.notes || null,
+      ...rest,
+      customerId: rest.customerId || null,
+      description: rest.description || null,
+      notes: rest.notes || null,
       createdById: userExists ? session.user.id : null,
+      billingPeriods: {
+        create: billingPeriods.map((p) => ({
+          start: p.start,
+          end: p.end,
+          notes: p.notes || null,
+        })),
+      },
     },
     select: { id: true },
   });
@@ -35,18 +42,33 @@ export async function createProject(input: unknown) {
 export async function updateProject(id: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = projectSchema.parse(input);
-  const updated = await prisma.project.update({
-    where: { id },
-    data: {
-      ...data,
-      customer: data.customer || null,
-      description: data.description || null,
-      notes: data.notes || null,
-    },
-  });
+  const { billingPeriods, ...rest } = data;
+
+  // Strategy: Project-Felder updaten, Billing-Periods komplett neu setzen.
+  // Einfacher als individuelle Diff-Logik und für moderate Mengen unkritisch.
+  await prisma.$transaction([
+    prisma.project.update({
+      where: { id },
+      data: {
+        ...rest,
+        customerId: rest.customerId || null,
+        description: rest.description || null,
+        notes: rest.notes || null,
+      },
+      select: { id: true },
+    }),
+    prisma.billingPeriod.deleteMany({ where: { projectId: id } }),
+    prisma.billingPeriod.createMany({
+      data: billingPeriods.map((p) => ({
+        projectId: id,
+        start: p.start,
+        end: p.end,
+        notes: p.notes || null,
+      })),
+    }),
+  ]);
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
-  return updated;
 }
 
 export async function deleteProject(id: string) {
@@ -94,11 +116,13 @@ export async function addAssignment(
     where: { projectId_packUnitId: { projectId, packUnitId: data.packUnitId } },
     update: {
       quantity: data.quantity,
+      groupId: data.groupId,
       notes: data.notes || null,
     },
     create: {
       projectId,
       packUnitId: data.packUnitId,
+      groupId: data.groupId,
       quantity: data.quantity,
       notes: data.notes || null,
     },
@@ -125,5 +149,19 @@ export async function updateAssignmentQuantity(
 export async function removeAssignment(projectId: string, assignmentId: string) {
   await requireRole(CAN_WRITE);
   await prisma.projectAssignment.delete({ where: { id: assignmentId } });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function moveAssignmentToGroup(
+  projectId: string,
+  assignmentId: string,
+  groupId: string
+) {
+  await requireRole(CAN_WRITE);
+  await prisma.projectAssignment.update({
+    where: { id: assignmentId },
+    data: { groupId },
+    select: { id: true },
+  });
   revalidatePath(`/projects/${projectId}`);
 }

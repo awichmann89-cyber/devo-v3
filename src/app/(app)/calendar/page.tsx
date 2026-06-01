@@ -24,6 +24,7 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
     },
     include: {
       _count: { select: { assignments: true } },
+      customer: { select: { name: true } },
     },
     orderBy: { planningStart: "asc" },
   });
@@ -49,12 +50,10 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
             projects={projects.map((p) => ({
               id: p.id,
               name: p.name,
-              customer: p.customer,
+              customer: p.customer?.name ?? null,
               status: p.status,
               planningStart: p.planningStart.toISOString(),
               planningEnd: p.planningEnd.toISOString(),
-              billingStart: p.billingStart.toISOString(),
-              billingEnd: p.billingEnd.toISOString(),
               deviceCount: p._count.assignments,
             }))}
           />

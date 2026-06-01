@@ -12,6 +12,8 @@ import {
   Users,
   PackageOpen,
   Settings,
+  Building2,
+  Truck,
 } from "lucide-react";
 
 interface NavItem {
@@ -24,8 +26,10 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projekte", icon: FolderKanban },
+  { href: "/customers", label: "Kunden", icon: Building2 },
   { href: "/calendar", label: "Kalender", icon: Calendar },
   { href: "/material", label: "Material", icon: Boxes },
+  { href: "/services", label: "Personal & Transport", icon: Truck },
   { href: "/users", label: "Benutzer", icon: Users, roles: ["ADMIN"] },
   { href: "/settings", label: "Einstellungen", icon: Settings, roles: ["ADMIN"] },
 ];

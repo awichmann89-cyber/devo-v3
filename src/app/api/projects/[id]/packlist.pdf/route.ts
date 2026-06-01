@@ -12,6 +12,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
+      customer: true,
       assignments: {
         include: {
           packUnit: {
@@ -32,7 +33,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   doc.text("Packliste", 14, 20);
   doc.setFontSize(10);
   doc.text(`Projekt: ${project.name}`, 14, 28);
-  if (project.customer) doc.text(`Kunde: ${project.customer}`, 14, 33);
+  if (project.customer) doc.text(`Kunde: ${project.customer.name}`, 14, 33);
   doc.text(
     `Planung: ${project.planningStart.toLocaleDateString("de-DE")} – ${project.planningEnd.toLocaleDateString("de-DE")}`,
     14,

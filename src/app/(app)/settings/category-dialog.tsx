@@ -90,6 +90,7 @@ export function CategoryDialog(props: Props) {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    e.stopPropagation();
     startTransition(async () => {
       try {
         const finalPrefix = (prefixTouched ? form.prefix : suggestedPrefix).toUpperCase().trim();
