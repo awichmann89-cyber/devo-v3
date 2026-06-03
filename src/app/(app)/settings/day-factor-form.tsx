@@ -41,10 +41,10 @@ export function DayFactorForm({ initial }: { initial: Record<number, number> }) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="space-y-2 max-w-sm">
         {Array.from({ length: 10 }, (_, i) => i + 1).map((d) => (
-          <div key={d} className="space-y-1">
-            <Label htmlFor={`f${d}`} className="text-xs">
+          <div key={d} className="grid grid-cols-[80px_1fr] items-center gap-3">
+            <Label htmlFor={`f${d}`} className="text-sm">
               {d} {d === 1 ? "Tag" : "Tage"}
             </Label>
             <Input
