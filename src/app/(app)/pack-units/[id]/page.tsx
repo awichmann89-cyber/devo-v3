@@ -5,12 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
-import { ArrowLeft, FileText, Package } from "lucide-react";
+import { ArrowLeft, FileText, Package, QrCode } from "lucide-react";
 import { formatCurrency, serialize } from "@/lib/utils";
 import { PackUnitForm } from "../pack-unit-form";
 import { ItemsManager } from "./items-manager";
 import { DeletePackUnitButton } from "./delete-button";
 import { StockEditor } from "./stock-editor";
+import { PackUnitQr } from "./pack-unit-qr";
 
 export default async function PackUnitDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -130,6 +131,9 @@ export default async function PackUnitDetailPage(props: {
           <TabsTrigger value="details">
             <FileText className="h-4 w-4" /> Stammdaten
           </TabsTrigger>
+          <TabsTrigger value="qr">
+            <QrCode className="h-4 w-4" /> QR-Code
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="items">
@@ -154,6 +158,20 @@ export default async function PackUnitDetailPage(props: {
                 locations={locations}
                 categories={categories}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="qr">
+          <Card>
+            <CardHeader>
+              <CardTitle>QR-Code zum Aufkleben</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-3">
+              <p className="max-w-md text-center text-sm text-muted-foreground">
+                Klebe diesen QR-Code auf das Case. Wer ihn scannt, sieht ohne Login Inhalt und Eigentümer dieser Packeinheit.
+              </p>
+              <PackUnitQr id={packUnit.id} name={packUnit.name} />
             </CardContent>
           </Card>
         </TabsContent>
