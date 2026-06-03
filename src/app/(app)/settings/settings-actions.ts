@@ -36,3 +36,21 @@ export async function saveInvoiceNumberSettings(
   await setSetting("invoiceNumberNextSequence" as SettingKey, String(next));
   revalidatePath("/settings");
 }
+
+export async function saveQuoteNumberSettings(
+  prefix: string,
+  padding: number,
+  nextSequence: number
+) {
+  await requireRole(CAN_ADMIN);
+  const p = (prefix ?? "").trim().toUpperCase().slice(0, 10);
+  if (p && !/^[A-Z0-9-]+$/.test(p)) {
+    throw new Error("Prefix darf nur Großbuchstaben, Zahlen und Bindestriche enthalten.");
+  }
+  const pad = Math.max(1, Math.min(8, Math.floor(padding) || 3));
+  const next = Math.max(1, Math.floor(nextSequence) || 1);
+  await setSetting("quoteNumberPrefix" as SettingKey, p);
+  await setSetting("quoteNumberPadding" as SettingKey, String(pad));
+  await setSetting("quoteNumberNextSequence" as SettingKey, String(next));
+  revalidatePath("/settings");
+}

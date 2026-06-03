@@ -4,6 +4,9 @@ export const SETTING_DEFAULTS = {
   invoiceNumberPrefix: "",
   invoiceNumberPadding: "3",
   invoiceNumberNextSequence: "1",
+  quoteNumberPrefix: "AN",
+  quoteNumberPadding: "3",
+  quoteNumberNextSequence: "1",
   companyName: "",
   companyStreet: "",
   companyZipCity: "",
@@ -41,6 +44,16 @@ export async function setSetting(key: SettingKey, value: string): Promise<void> 
  * Baut eine Rechnungsnummer im Format `YYYY-[PREFIX-]NNN` zusammen.
  */
 export function buildInvoiceNumber(
+  year: number,
+  sequence: number,
+  prefix: string,
+  padding: number
+): string {
+  const num = String(sequence).padStart(Math.max(1, padding), "0");
+  return prefix ? `${year}-${prefix}-${num}` : `${year}-${num}`;
+}
+
+export function buildQuoteNumber(
   year: number,
   sequence: number,
   prefix: string,

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { FolderTree, Receipt, FileText, Building2 } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
+import { QuoteNumberForm } from "./quote-number-form";
 import { LetterheadForm } from "./letterhead-form";
 import { CompanyAddressForm } from "./company-address-form";
 import { getSettings } from "@/lib/settings";
@@ -13,7 +14,7 @@ export default async function SettingsPage() {
   await requireRole(CAN_ADMIN);
 
   const year = new Date().getFullYear();
-  const [categories, settings, yearInvoices, letterheads] = await Promise.all([
+  const [categories, settings, yearInvoices, yearQuotes, letterheads] = await Promise.all([
     prisma.category.findMany({
       include: {
         _count: { select: { devices: true, packUnits: true, children: true } },
@@ -22,6 +23,10 @@ export default async function SettingsPage() {
     }),
     getSettings(),
     prisma.invoice.findMany({
+      where: { number: { startsWith: `${year}-` } },
+      select: { number: true },
+    }),
+    prisma.quote.findMany({
       where: { number: { startsWith: `${year}-` } },
       select: { number: true },
     }),
@@ -40,6 +45,14 @@ export default async function SettingsPage() {
       if (n > currentYearMax) currentYearMax = n;
     }
   }
+  let currentYearMaxQuote = 0;
+  for (const r of yearQuotes) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > currentYearMaxQuote) currentYearMaxQuote = n;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -55,6 +68,9 @@ export default async function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="invoices">
             <Receipt className="h-4 w-4" /> Rechnungsnummer
+          </TabsTrigger>
+          <TabsTrigger value="quotes">
+            <FileText className="h-4 w-4" /> Angebotsnummer
           </TabsTrigger>
           <TabsTrigger value="letterhead">
             <FileText className="h-4 w-4" /> Briefpapier
@@ -130,6 +146,27 @@ export default async function SettingsPage() {
                 initialPadding={Number(settings.invoiceNumberPadding) || 3}
                 initialNextSequence={Number(settings.invoiceNumberNextSequence) || 1}
                 currentYearMax={currentYearMax}
+                year={year}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="quotes">
+          <Card>
+            <CardHeader>
+              <CardTitle>Angebotsnummer-Format</CardTitle>
+              <CardDescription>
+                Format: <code>JAHR-PREFIX-SEQUENZ</code> (z.B.{" "}
+                <code className="font-mono">2026-AN-001</code>). Eigener Nummernkreis, läuft pro Jahr fortlaufend.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <QuoteNumberForm
+                initialPrefix={settings.quoteNumberPrefix}
+                initialPadding={Number(settings.quoteNumberPadding) || 3}
+                initialNextSequence={Number(settings.quoteNumberNextSequence) || 1}
+                currentYearMax={currentYearMaxQuote}
                 year={year}
               />
             </CardContent>

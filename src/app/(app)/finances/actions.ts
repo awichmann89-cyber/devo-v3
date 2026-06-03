@@ -33,3 +33,16 @@ export async function deleteInvoiceFromList(invoiceId: string) {
   revalidatePath("/finances/forecast");
   revalidatePath(`/projects/${inv.projectId}`);
 }
+
+/**
+ * Löscht ein Angebot von der zentralen Angebotsliste aus.
+ */
+export async function deleteQuoteFromList(quoteId: string) {
+  await requireRole(CAN_WRITE);
+  const q = await prisma.quote.delete({
+    where: { id: quoteId },
+    select: { projectId: true },
+  });
+  revalidatePath("/finances/quotes");
+  revalidatePath(`/projects/${q.projectId}`);
+}

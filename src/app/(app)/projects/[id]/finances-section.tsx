@@ -45,6 +45,8 @@ import {
   updateBereichDiscount,
   createInvoice,
   deleteInvoice,
+  createQuote,
+  deleteQuote,
 } from "./finances-actions";
 
 export interface FinancesGroupVM {
@@ -68,6 +70,15 @@ export interface FinancesInvoiceVM {
   totalGross: number | null;
 }
 
+export interface FinancesQuoteVM {
+  id: string;
+  number: string;
+  date: string;
+  expiresAt: string;
+  totalNet: number;
+  totalGross: number | null;
+}
+
 interface Props {
   projectId: string;
   projectName: string;
@@ -76,6 +87,7 @@ interface Props {
   materialDiscountPercent: number;
   servicesDiscountPercent: number;
   invoices: FinancesInvoiceVM[];
+  quotes: FinancesQuoteVM[];
 }
 
 export function FinancesSection({
@@ -86,10 +98,13 @@ export function FinancesSection({
   materialDiscountPercent,
   servicesDiscountPercent,
   invoices,
+  quotes,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [invoiceDialog, setInvoiceDialog] = useState(false);
+  const [quoteDialog, setQuoteDialog] = useState(false);
   const [deleteInv, setDeleteInv] = useState<FinancesInvoiceVM | null>(null);
+  const [deleteQ, setDeleteQ] = useState<FinancesQuoteVM | null>(null);
   const [expanded, setExpanded] = useState<Set<"MATERIAL" | "SERVICE">>(
     new Set(["MATERIAL", "SERVICE"])
   );
@@ -180,6 +195,20 @@ export function FinancesSection({
         await deleteInvoice(id);
         toast.success("Rechnung gelöscht");
         setDeleteInv(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleDeleteQuote() {
+    if (!deleteQ) return;
+    const id = deleteQ.id;
+    startTransition(async () => {
+      try {
+        await deleteQuote(id);
+        toast.success("Angebot gelöscht");
+        setDeleteQ(null);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
@@ -284,14 +313,8 @@ export function FinancesSection({
     <div className="space-y-6">
       {/* Buttons */}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button asChild variant="outline">
-          <a
-            href={`/api/projects/${projectId}/quote.pdf`}
-            target="_blank"
-            rel="noopener"
-          >
-            <FileText className="h-4 w-4" /> Angebot erstellen
-          </a>
+        <Button variant="outline" onClick={() => setQuoteDialog(true)}>
+          <FileText className="h-4 w-4" /> Angebot erstellen
         </Button>
         <Button onClick={() => setInvoiceDialog(true)}>
           <Receipt className="h-4 w-4" /> Rechnung erstellen
@@ -385,6 +408,66 @@ export function FinancesSection({
         </Card>
       )}
 
+      {quotes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Erstellte Angebote</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nummer</TableHead>
+                  <TableHead>Datum</TableHead>
+                  <TableHead>Gültig bis</TableHead>
+                  <TableHead className="text-right">Netto</TableHead>
+                  <TableHead className="text-right">Brutto</TableHead>
+                  <TableHead className="w-[120px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {quotes.map((q) => (
+                  <TableRow key={q.id}>
+                    <TableCell className="font-mono">{q.number}</TableCell>
+                    <TableCell>{formatDate(q.date)}</TableCell>
+                    <TableCell>{formatDate(q.expiresAt)}</TableCell>
+                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
+                      {formatCurrency(q.totalNet)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                      {formatCurrency(q.totalGross ?? q.totalNet)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                          <a
+                            href={`/api/projects/${projectId}/quotes/${q.id}/pdf`}
+                            target="_blank"
+                            rel="noopener"
+                            title="PDF öffnen"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteQ(q)}
+                          title="Angebot löschen"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {invoices.length > 0 && (
         <Card>
           <CardHeader>
@@ -453,6 +536,14 @@ export function FinancesSection({
         defaultTotal={grandTotal}
       />
 
+      <QuoteDialog
+        open={quoteDialog}
+        onOpenChange={setQuoteDialog}
+        projectId={projectId}
+        projectName={projectName}
+        defaultTotal={grandTotal}
+      />
+
       <ConfirmDialog
         open={deleteInv !== null}
         onOpenChange={(o) => !o && setDeleteInv(null)}
@@ -470,6 +561,24 @@ export function FinancesSection({
         confirmLabel="Löschen"
         pending={pending}
         onConfirm={handleDeleteInvoice}
+      />
+
+      <ConfirmDialog
+        open={deleteQ !== null}
+        onOpenChange={(o) => !o && setDeleteQ(null)}
+        title="Angebot löschen?"
+        description={
+          deleteQ && (
+            <>
+              Angebot <strong>{deleteQ.number}</strong> über{" "}
+              <strong>{formatCurrency(deleteQ.totalGross ?? deleteQ.totalNet)}</strong> brutto wird gelöscht.
+              Die Nummer wird nicht wiederverwendet.
+            </>
+          )
+        }
+        confirmLabel="Löschen"
+        pending={pending}
+        onConfirm={handleDeleteQuote}
       />
     </div>
   );
@@ -569,6 +678,108 @@ function InvoiceDialog({
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Rechnung erstellen
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function QuoteDialog({
+  open,
+  onOpenChange,
+  projectId,
+  projectName,
+  defaultTotal,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  projectId: string;
+  projectName: string;
+  defaultTotal: number;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  function defaultExpiresAt(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  }
+  const [expiresAt, setExpiresAt] = useState<string>(defaultExpiresAt);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!expiresAt) {
+      toast.error("Ablaufdatum erforderlich");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const q = await createQuote(
+          projectId,
+          new Date(expiresAt),
+          defaultTotal
+        );
+        toast.success(`Angebot ${q.number} angelegt`);
+        window.open(
+          `/api/projects/${projectId}/quotes/${q.id}/pdf`,
+          "_blank"
+        );
+        onOpenChange(false);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Angebot erstellen</DialogTitle>
+          <DialogDescription>
+            Für Projekt <strong>{projectName}</strong>. Es wird automatisch eine
+            fortlaufende Angebotsnummer vergeben.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="expiresAt">Gültig bis</Label>
+            <Input
+              id="expiresAt"
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Wird auf dem Angebot als „gültig bis …" ausgewiesen.
+            </p>
+          </div>
+          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Angebotsbetrag</span>
+              <span className="font-mono font-medium tabular-nums">
+                {new Intl.NumberFormat("de-DE", {
+                  style: "currency",
+                  currency: "EUR",
+                }).format(defaultTotal)}
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={pending}
+            >
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Angebot erstellen
             </Button>
           </DialogFooter>
         </form>

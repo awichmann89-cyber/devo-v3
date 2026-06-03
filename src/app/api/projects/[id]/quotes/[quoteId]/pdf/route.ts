@@ -15,14 +15,14 @@ const INDENT_3 = "            "; // Item
 
 export async function GET(
   _req: Request,
-  props: { params: Promise<{ id: string; invoiceId: string }> }
+  props: { params: Promise<{ id: string; quoteId: string }> }
 ) {
   const session = await auth();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
-  const { id, invoiceId } = await props.params;
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
+  const { id, quoteId } = await props.params;
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
     include: {
       project: {
         include: {
@@ -39,10 +39,10 @@ export async function GET(
       },
     },
   });
-  if (!invoice || invoice.projectId !== id) {
+  if (!quote || quote.projectId !== id) {
     return new NextResponse("Not found", { status: 404 });
   }
-  const project = invoice.project;
+  const project = quote.project;
   const settings = await getSettings();
 
   const days = project.billingPeriods.reduce(
@@ -191,13 +191,13 @@ export async function GET(
 
   doc.setFontSize(14);
   doc.setFont(undefined as unknown as string, "bold");
-  doc.text(`Rechnung ${invoice.number}`, ADDR_X, 95);
+  doc.text(`Angebot ${quote.number}`, ADDR_X, 95);
   doc.setFont(undefined as unknown as string, "normal");
   doc.setFontSize(10);
   let metaY = 102;
-  doc.text(`Rechnungsdatum: ${invoice.date.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
+  doc.text(`Angebotsdatum: ${quote.date.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
   metaY += 5;
-  doc.text(`Zahlbar bis: ${invoice.dueDate.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
+  doc.text(`Gültig bis: ${quote.expiresAt.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
   metaY += 5;
   doc.text(`Projekt: ${project.name}`, ADDR_X, metaY);
   metaY += 5;
@@ -498,7 +498,7 @@ export async function GET(
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.text(
-    "Zahlbar ohne Abzug innerhalb der angegebenen Frist auf das hinterlegte Konto.",
+    `Dieses Angebot ist gültig bis zum ${quote.expiresAt.toLocaleDateString("de-DE")}.`,
     14,
     endY + 4
   );
@@ -510,7 +510,7 @@ export async function GET(
   return new NextResponse(finalBytes as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="rechnung-${invoice.number}.pdf"`,
+      "Content-Disposition": `inline; filename="angebot-${quote.number}.pdf"`,
     },
   });
 }

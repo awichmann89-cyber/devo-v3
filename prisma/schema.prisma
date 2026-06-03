@@ -295,6 +295,8 @@ model Project {
   groups          ProjectGroup[]
   // Erzeugte Rechnungen
   invoices        Invoice[]
+  // Erzeugte Angebote
+  quotes          Quote[]
 
   @@index([status])
   @@index([customerId])
@@ -374,6 +376,24 @@ model Invoice {
   @@index([projectId])
   @@index([date])
   @@index([paidAt])
+}
+
+// Angebot an einem Projekt — eigenständige Nummer, Gültigkeit/Ablaufdatum statt Fälligkeit.
+model Quote {
+  id         String   @id @default(cuid())
+  number     String   @unique
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  date       DateTime @default(now())
+  expiresAt  DateTime
+  totalNet   Decimal  @db.Decimal(10, 2)
+  totalGross Decimal? @db.Decimal(10, 2)
+  vatPercent Decimal  @default(0) @db.Decimal(5, 2)
+  createdAt  DateTime @default(now())
+
+  @@index([projectId])
+  @@index([date])
+  @@index([expiresAt])
 }
 
 // Art einer Service-/Personalposition (rein zur Gruppierung)

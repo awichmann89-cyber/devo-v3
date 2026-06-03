@@ -23,11 +23,6 @@ export function PdfExportButtons({ projectId }: { projectId: string }) {
             Packliste
           </a>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a href={`/api/projects/${projectId}/quote.pdf`} target="_blank" rel="noopener">
-            Mietangebot
-          </a>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

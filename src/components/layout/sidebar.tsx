@@ -21,6 +21,7 @@ import {
   Wallet,
   Receipt,
   TrendingUp,
+  FileText,
 } from "lucide-react";
 
 interface NavItem {
@@ -51,6 +52,7 @@ const NAV: NavEntry[] = [
     label: "Finanzen",
     icon: Wallet,
     children: [
+      { href: "/finances/quotes", label: "Angebote", icon: FileText },
       { href: "/finances/invoices", label: "Rechnungen", icon: Receipt },
       { href: "/finances/forecast", label: "Forecast", icon: TrendingUp },
     ],

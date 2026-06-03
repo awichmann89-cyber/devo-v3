@@ -32,6 +32,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         projectNotes: { orderBy: { updatedAt: "desc" } },
         groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
         invoices: { orderBy: { date: "desc" } },
+        quotes: { orderBy: { date: "desc" } },
         services: {
           include: { serviceItem: true },
           orderBy: [{ serviceItem: { kind: "asc" } }, { serviceItem: { name: "asc" } }],
@@ -345,6 +346,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               totalNet: Number(inv.totalNet),
               totalGross: inv.totalGross !== null ? Number(inv.totalGross) : null,
               paidAt: inv.paidAt ? inv.paidAt.toISOString() : null,
+            }))}
+            quotes={project.quotes.map((q) => ({
+              id: q.id,
+              number: q.number,
+              date: q.date.toISOString(),
+              expiresAt: q.expiresAt.toISOString(),
+              totalNet: Number(q.totalNet),
+              totalGross: q.totalGross !== null ? Number(q.totalGross) : null,
             }))}
           />
         </TabsContent>
