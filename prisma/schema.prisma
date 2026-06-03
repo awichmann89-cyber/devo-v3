@@ -46,7 +46,6 @@ model Location {
 model Category {
   id         String     @id @default(cuid())
   name       String     @unique
-  prefix     String?    @unique // Kürzel für Inventarnummern (z.B. "MIK")
   parentId   String?
   parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children   Category[] @relation("CategoryHierarchy")

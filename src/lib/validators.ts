@@ -16,13 +16,6 @@ export const locationSchema = z.object({
 
 export const categorySchema = z.object({
   name: z.string().min(1, "Name erforderlich").max(100),
-  prefix: z
-    .string()
-    .min(1)
-    .max(10)
-    .regex(/^[A-Z0-9]+$/, "Nur Großbuchstaben und Zahlen")
-    .optional()
-    .nullable(),
   parentId: z.string().optional().nullable(),
 });
 

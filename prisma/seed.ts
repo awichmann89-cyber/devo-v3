@@ -55,23 +55,23 @@ async function main() {
   // Kategorien
   const ton = await prisma.category.upsert({
     where: { name: "Ton" },
-    update: { prefix: "TON" },
-    create: { name: "Ton", prefix: "TON" },
+    update: {},
+    create: { name: "Ton" },
   });
   const licht = await prisma.category.upsert({
     where: { name: "Licht" },
-    update: { prefix: "LIC" },
-    create: { name: "Licht", prefix: "LIC" },
+    update: {},
+    create: { name: "Licht" },
   });
   const video = await prisma.category.upsert({
     where: { name: "Video" },
-    update: { prefix: "VID" },
-    create: { name: "Video", prefix: "VID" },
+    update: {},
+    create: { name: "Video" },
   });
   await prisma.category.upsert({
     where: { name: "Rigging" },
-    update: { prefix: "RIG" },
-    create: { name: "Rigging", prefix: "RIG" },
+    update: {},
+    create: { name: "Rigging" },
   });
 
   // Geräte (Typen mit Bestand)

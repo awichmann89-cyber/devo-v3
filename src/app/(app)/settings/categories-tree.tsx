@@ -21,7 +21,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 type CategoryNode = {
   id: string;
   name: string;
-  prefix: string | null;
   parentId: string | null;
   _count: { devices: number; packUnits: number; children: number };
 };
@@ -118,12 +117,6 @@ export function CategoriesTree({ categories }: Props) {
           </div>
 
           <span className="font-medium">{c.name}</span>
-
-          {c.prefix && (
-            <Badge variant="secondary" className="font-mono text-[10px]">
-              {c.prefix}-
-            </Badge>
-          )}
 
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             {c._count.devices > 0 && (

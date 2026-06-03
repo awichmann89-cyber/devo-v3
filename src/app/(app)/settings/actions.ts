@@ -9,7 +9,6 @@ function normalize(input: unknown) {
   const data = categorySchema.parse(input);
   return {
     name: data.name.trim(),
-    prefix: data.prefix ? data.prefix.toUpperCase() : null,
     parentId: data.parentId || null,
   };
 }

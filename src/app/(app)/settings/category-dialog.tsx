@@ -27,18 +27,8 @@ import { flattenCategoryTree } from "@/lib/category-tree";
 type CategoryNode = {
   id: string;
   name: string;
-  prefix?: string | null;
   parentId: string | null;
 };
-
-function suggestPrefix(name: string): string {
-  const normalized = name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toUpperCase();
-  return normalized.slice(0, 3);
-}
 
 type Props = {
   open: boolean;
@@ -56,17 +46,12 @@ export function CategoryDialog(props: Props) {
   const initial = isEdit
     ? {
         name: props.category.name,
-        prefix: props.category.prefix ?? "",
         parentId: props.category.parentId ?? "",
       }
-    : { name: "", prefix: "", parentId: props.parent?.id ?? "" };
+    : { name: "", parentId: props.parent?.id ?? "" };
 
   const [form, setForm] = useState(initial);
-  const [prefixTouched, setPrefixTouched] = useState(isEdit && !!props.category.prefix);
   const [pending, startTransition] = useTransition();
-
-  // Auto-Suggest für Prefix solange der Nutzer ihn nicht selbst angefasst hat
-  const suggestedPrefix = !prefixTouched ? suggestPrefix(form.name) : form.prefix;
 
   // Beim Editieren: eigene Kategorie + alle Nachfahren als Parent ausschließen
   const forbiddenParentIds = useMemo(() => {
@@ -93,10 +78,8 @@ export function CategoryDialog(props: Props) {
     e.stopPropagation();
     startTransition(async () => {
       try {
-        const finalPrefix = (prefixTouched ? form.prefix : suggestedPrefix).toUpperCase().trim();
         const payload = {
           name: form.name.trim(),
-          prefix: finalPrefix || null,
           parentId: form.parentId || null,
         };
         if (isEdit) {
@@ -129,39 +112,17 @@ export function CategoryDialog(props: Props) {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-[1fr_140px] gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="z.B. Mikrofone"
-                required
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="prefix">Kürzel</Label>
-              <Input
-                id="prefix"
-                value={prefixTouched ? form.prefix : suggestedPrefix}
-                onChange={(e) => {
-                  setPrefixTouched(true);
-                  setForm({ ...form, prefix: e.target.value.toUpperCase() });
-                }}
-                placeholder="MIK"
-                maxLength={10}
-                className="font-mono uppercase"
-                pattern="[A-Z0-9]+"
-                title="Nur Großbuchstaben und Zahlen"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="z.B. Mikrofone"
+              required
+              autoFocus
+            />
           </div>
-          <p className="-mt-2 text-xs text-muted-foreground">
-            Das Kürzel wird für Inventarnummern von Geräten dieser Kategorie verwendet
-            (z.B. {(prefixTouched ? form.prefix : suggestedPrefix) || "MIK"}-001).
-          </p>
           <div className="space-y-2">
             <Label htmlFor="parent">Übergeordnete Kategorie</Label>
             <Select
