@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { daysBetween } from "@/lib/utils";
+import { DayFactorMap, getDayFactor } from "@/lib/settings";
 
 /**
  * Berechnet den Gesamtwert (netto, vor MwSt.) eines Projekts unter Berücksichtigung
@@ -21,11 +22,15 @@ type ProjectForPricing = Prisma.ProjectGetPayload<{
   };
 }>;
 
-export function calculateProjectTotal(project: ProjectForPricing): number {
+export function calculateProjectTotal(
+  project: ProjectForPricing,
+  factorMap: DayFactorMap
+): number {
   const days = project.billingPeriods.reduce(
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
+  const factor = getDayFactor(days, factorMap);
 
   // Pro-Gruppe-Netto sammeln
   const groupNet = new Map<string, number>();
@@ -35,7 +40,7 @@ export function calculateProjectTotal(project: ProjectForPricing): number {
       for (const a of project.assignments) {
         if (a.groupId !== g.id) continue;
         for (const it of a.packUnit.items) {
-          sub += Number(it.device.dailyRate) * it.quantity * a.quantity * days;
+          sub += Number(it.device.dailyRate) * it.quantity * a.quantity * factor;
         }
       }
     } else {

@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth-helpers";
 import { Card, CardContent } from "@/components/ui/card";
 import { ForecastView, ForecastRowVM } from "./forecast-view";
 import { calculateProjectTotal } from "@/lib/project-pricing";
+import { getSettings, parseDayFactorMap } from "@/lib/settings";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -31,6 +32,8 @@ export default async function ForecastPage(props: {
   fromEnd.setHours(0, 0, 0, 0);
   const toEnd = new Date(to);
   toEnd.setHours(23, 59, 59, 999);
+
+  const factorMap = parseDayFactorMap((await getSettings()).dayFactorMap);
 
   // Alle Projekte im Range laden (inkl. CANCELLED — Filter passiert clientseitig)
   const allProjects = await prisma.project.findMany({
@@ -64,7 +67,7 @@ export default async function ForecastPage(props: {
       return billingEnd >= fromEnd && billingStart <= toEnd;
     })
     .map(({ p, billingStart, billingEnd }) => {
-      const total = calculateProjectTotal(p);
+      const total = calculateProjectTotal(p, factorMap);
       const invoiced = p.invoices.reduce(
         (s, inv) => s + Number(inv.totalNet),
         0

@@ -37,6 +37,20 @@ export async function saveInvoiceNumberSettings(
   revalidatePath("/settings");
 }
 
+export async function saveDayFactorMap(factors: Record<number, number>) {
+  await requireRole(CAN_ADMIN);
+  const clean: Record<number, number> = {};
+  for (let d = 1; d <= 10; d++) {
+    const v = Number(factors[d]);
+    if (!isFinite(v) || v < 0) {
+      throw new Error(`Faktor für ${d} Tag(e) ungültig.`);
+    }
+    clean[d] = v;
+  }
+  await setSetting("dayFactorMap" as SettingKey, JSON.stringify(clean));
+  revalidatePath("/settings");
+}
+
 export async function saveQuoteNumberSettings(
   prefix: string,
   padding: number,

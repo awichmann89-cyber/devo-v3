@@ -2,10 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FolderTree, Receipt, FileText, Building2 } from "lucide-react";
+import { FolderTree, Receipt, FileText, Building2, CalendarClock } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
+import { DayFactorForm } from "./day-factor-form";
+import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
 import { CompanyAddressForm } from "./company-address-form";
 import { getSettings } from "@/lib/settings";
@@ -71,6 +73,9 @@ export default async function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="quotes">
             <FileText className="h-4 w-4" /> Angebotsnummer
+          </TabsTrigger>
+          <TabsTrigger value="dayfactor">
+            <CalendarClock className="h-4 w-4" /> Tage-Faktor
           </TabsTrigger>
           <TabsTrigger value="letterhead">
             <FileText className="h-4 w-4" /> Briefpapier
@@ -148,6 +153,21 @@ export default async function SettingsPage() {
                 currentYearMax={currentYearMax}
                 year={year}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="dayfactor">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tage-Faktor</CardTitle>
+              <CardDescription>
+                Statt mit der reinen Anzahl Tage wird das Material mit einem Faktor multipliziert.
+                Beispiel: 2 Tage = Faktor 1,5 (statt 2,0). Mapping gilt für 1 bis 10 Tage.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DayFactorForm initial={parseDayFactorMap(settings.dayFactorMap)} />
             </CardContent>
           </Card>
         </TabsContent>

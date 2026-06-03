@@ -6,7 +6,7 @@ import autoTable, { RowInput } from "jspdf-autotable";
 import { daysBetween } from "@/lib/utils";
 import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
-import { getSettings } from "@/lib/settings";
+import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
 
 const fmt = (n: number) => n.toFixed(2).replace(".", ",") + " €";
 const INDENT_1 = "    "; // Bereich
@@ -49,6 +49,8 @@ export async function GET(
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
+  const factor = getDayFactor(days, parseDayFactorMap(settings.dayFactorMap));
+  const factorLabel = `${days} (${String(factor).replace(".", ",")})`;
 
   // ===== Material aggregieren pro Gruppe =====
   type MaterialRow = {
@@ -118,7 +120,7 @@ export async function GET(
   const groupNetMap = new Map<string, { sub: number; disc: number; net: number }>();
   for (const g of materialGroups) {
     const rows = materialByGroup.get(g.id) ?? [];
-    const sub = rows.reduce((s, r) => s + r.dailyRate * r.quantity * days, 0);
+    const sub = rows.reduce((s, r) => s + r.dailyRate * r.quantity * factor, 0);
     const disc = (sub * Number(g.discountPercent)) / 100;
     groupNetMap.set(g.id, { sub, disc, net: sub - disc });
   }
@@ -260,7 +262,7 @@ export async function GET(
         row(INDENT_1 + group.name, "", "", "", "", { bold: true, bg: GROUP_BG })
       );
       for (const r of rows) {
-        const line = r.dailyRate * r.quantity * days;
+        const line = r.dailyRate * r.quantity * factor;
         const make = [r.manufacturer, r.model].filter(Boolean).join(" ");
         // Make-Zeile nur, wenn sie zusätzliche Info bringt
         const label =
@@ -272,7 +274,7 @@ export async function GET(
             label,
             String(r.quantity),
             fmt(r.dailyRate),
-            String(days),
+            factorLabel,
             fmt(line)
           )
         );
@@ -322,7 +324,7 @@ export async function GET(
       );
     }
     body.push(
-      row(INDENT_1 + "Material netto", "", "", "", fmt(materialBereichNet), {
+      row(INDENT_1 + "Zwischensumme Material", "", "", "", fmt(materialBereichNet), {
         bold: true,
         bg: TOTAL_BG,
       })
@@ -389,7 +391,7 @@ export async function GET(
     }
     body.push(
       row(
-        INDENT_1 + "Personal & Transport netto",
+        INDENT_1 + "Zwischensumme Personal & Transport",
         "",
         "",
         "",
@@ -406,7 +408,7 @@ export async function GET(
         { content: "Bezeichnung", styles: { halign: "left" } },
         { content: "Menge", styles: { halign: "right" } },
         { content: "€ / Einheit", styles: { halign: "right" } },
-        { content: "Tage", styles: { halign: "right" } },
+        { content: "Tage (Faktor)", styles: { halign: "right" } },
         { content: "Summe", styles: { halign: "right" } },
       ],
     ],
@@ -418,7 +420,7 @@ export async function GET(
       0: { cellWidth: "auto" },
       1: { cellWidth: 18 },
       2: { cellWidth: 24 },
-      3: { cellWidth: 14 },
+      3: { cellWidth: 22 },
       4: { cellWidth: 28 },
     },
     // Oben (Folgeseiten) und unten genug Platz für Briefpapier-Header/Footer reservieren

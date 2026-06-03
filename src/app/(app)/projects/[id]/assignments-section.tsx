@@ -93,6 +93,7 @@ interface Props {
   allPackUnits: PackUnitLite[];
   conflictMap: Record<string, StockInfo>;
   billingDays: number;
+  billingFactor: number;
   subtotal: number;
   discount: number;
   total: number;
@@ -118,6 +119,7 @@ export function AssignmentsSection({
   allPackUnits,
   conflictMap,
   billingDays,
+  billingFactor,
   subtotal,
   discount,
   total,
@@ -496,7 +498,7 @@ export function AssignmentsSection({
               groups.map((group) => {
                 const groupAssignments = assignmentsByGroup.get(group.id) ?? [];
                 const groupSubtotal = groupAssignments.reduce((sum, a) => {
-                  return sum + packUnitRate(a.packUnit.items) * a.quantity * billingDays;
+                  return sum + packUnitRate(a.packUnit.items) * a.quantity * billingFactor;
                 }, 0);
                 const otherGroups = groups.filter((g) => g.id !== group.id);
                 const isActive = activeGroupId === group.id;
@@ -573,7 +575,7 @@ export function AssignmentsSection({
                               <TableHead className="text-right">Geräte/Case</TableHead>
                               <TableHead className="text-right">Anzahl</TableHead>
                               <TableHead className="text-right">€ / Tag</TableHead>
-                              <TableHead className="text-right">Tage</TableHead>
+                              <TableHead className="text-right">Tage (Faktor)</TableHead>
                               <TableHead className="text-right">Gesamt</TableHead>
                               <TableHead className="w-[80px]"></TableHead>
                             </TableRow>
@@ -588,7 +590,7 @@ export function AssignmentsSection({
                               const freeAfter = stockQty - totalDemand;
                               const rate = packUnitRate(a.packUnit.items);
                               const devCount = devicesPerUnit(a.packUnit.items);
-                              const lineTotal = rate * a.quantity * billingDays;
+                              const lineTotal = rate * a.quantity * billingFactor;
                               const isExpanded = expanded.has(a.id);
                               return (
                                 <Fragment key={a.id}>
@@ -667,7 +669,9 @@ export function AssignmentsSection({
                                     <TableCell className="text-right tabular-nums">
                                       {formatCurrency(rate)}
                                     </TableCell>
-                                    <TableCell className="text-right">{billingDays}</TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {billingDays} <span className="text-muted-foreground">({billingFactor.toString().replace(".", ",")})</span>
+                                    </TableCell>
                                     <TableCell className="text-right tabular-nums font-medium">
                                       {formatCurrency(lineTotal)}
                                     </TableCell>

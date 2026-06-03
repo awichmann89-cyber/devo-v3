@@ -8,6 +8,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
+import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
 import { ProjectForm } from "../project-form";
 import { AssignmentsSection } from "./assignments-section";
 import { NotesSection } from "./notes-section";
@@ -104,6 +105,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
+  const factorMap = parseDayFactorMap((await getSettings()).dayFactorMap);
+  const billingFactor = getDayFactor(billingDays, factorMap);
 
   function packUnitRate(items: { device: { dailyRate: { toString(): string } }; quantity: number }[]) {
     return items.reduce(
@@ -114,7 +117,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
 
   const materialSubtotal = project.assignments.reduce((sum, a) => {
     const rate = packUnitRate(a.packUnit.items);
-    return sum + rate * a.quantity * billingDays;
+    return sum + rate * a.quantity * billingFactor;
   }, 0);
 
   const servicesSubtotal = project.services.reduce((sum, s) => {
@@ -131,7 +134,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     if (kind === "MATERIAL") {
       for (const a of project!.assignments) {
         if (a.groupId !== groupId) continue;
-        sub += packUnitRate(a.packUnit.items) * a.quantity * billingDays;
+        sub += packUnitRate(a.packUnit.items) * a.quantity * billingFactor;
       }
     } else {
       for (const s of project!.services) {
@@ -308,10 +311,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             allPackUnits={serialize(allPackUnits)}
             conflictMap={serialize(conflictMap)}
             billingDays={billingDays}
+            billingFactor={billingFactor}
             subtotal={subtotal}
             discount={discount}
             total={total}
-            groups={serialize(project.groups)}
+            groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
           />
         </TabsContent>
 
@@ -320,7 +324,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             projectId={project.id}
             projectServices={serialize(project.services) as never}
             catalog={serialize(serviceCatalog) as never}
-            groups={serialize(project.groups)}
+            groups={serialize(project.groups.filter((g) => g.kind === "SERVICE"))}
           />
         </TabsContent>
 

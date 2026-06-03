@@ -11,6 +11,7 @@ export const SETTING_DEFAULTS = {
   companyStreet: "",
   companyZipCity: "",
   vatPercent: "19",
+  dayFactorMap: '{"1":1,"2":1.5,"3":2,"4":2.5,"5":3,"6":3.5,"7":4,"8":4.5,"9":5,"10":5.5}',
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -61,4 +62,44 @@ export function buildQuoteNumber(
 ): string {
   const num = String(sequence).padStart(Math.max(1, padding), "0");
   return prefix ? `${year}-${prefix}-${num}` : `${year}-${num}`;
+}
+
+export type DayFactorMap = Record<number, number>;
+
+const FALLBACK_FACTORS: DayFactorMap = {
+  1: 1, 2: 1.5, 3: 2, 4: 2.5, 5: 3, 6: 3.5, 7: 4, 8: 4.5, 9: 5, 10: 5.5,
+};
+
+/** Parsed Faktoren aus dem Settings-JSON; defekte/fehlende Schlüssel werden mit Fallback-Werten ergänzt. */
+export function parseDayFactorMap(json: string): DayFactorMap {
+  const map: DayFactorMap = { ...FALLBACK_FACTORS };
+  try {
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    for (const k of Object.keys(parsed)) {
+      const day = Number(k);
+      const factor = Number(parsed[k]);
+      if (
+        Number.isInteger(day) &&
+        day >= 1 &&
+        day <= 10 &&
+        isFinite(factor) &&
+        factor >= 0
+      ) {
+        map[day] = factor;
+      }
+    }
+  } catch {
+    // ignore, return fallback
+  }
+  return map;
+}
+
+/**
+ * Liefert den Mietfaktor für eine Anzahl Tage.
+ * Mapping 1-10 aus Settings; für Tage > 10 wird linear fortgesetzt: Faktor[10] + (Tage - 10).
+ */
+export function getDayFactor(days: number, map: DayFactorMap): number {
+  if (days <= 0) return 0;
+  if (days >= 1 && days <= 10) return map[days] ?? days;
+  return (map[10] ?? 5.5) + (days - 10);
 }
