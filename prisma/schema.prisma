@@ -378,6 +378,8 @@ model Invoice {
   totalNet   Decimal  @db.Decimal(10, 2)
   // Brutto-Betrag (Netto + MwSt zum damaligen Steuersatz)
   totalGross Decimal? @db.Decimal(10, 2)
+  // MwSt-Satz in Prozent zum Zeitpunkt der Erstellung
+  vatPercent Decimal  @default(0) @db.Decimal(5, 2)
   // Zahlungseingang — null wenn noch nicht bezahlt
   paidAt    DateTime?
   createdAt DateTime @default(now())
