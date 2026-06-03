@@ -15,8 +15,29 @@ function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
+const APP_TZ = "Europe/Berlin";
+
+/** YYYYMMDD im Anwendungs-Timezone (Europe/Berlin), unabhängig vom Server-TZ. */
 function dateOnly(d: Date): string {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}${get("month")}${get("day")}`;
+}
+
+/** Datum in Europe/Berlin um N Tage verschieben (preserved als ISO-Date-Only). */
+function addBerlinDays(d: Date, days: number): Date {
+  const yyyymmdd = dateOnly(d);
+  const y = Number(yyyymmdd.slice(0, 4));
+  const m = Number(yyyymmdd.slice(4, 6));
+  const day = Number(yyyymmdd.slice(6, 8));
+  // Konstruiere im UTC-Mittag, dann addiere Tage — vermeidet TZ-Shifts.
+  const utc = new Date(Date.UTC(y, m - 1, day + days, 12));
+  return utc;
 }
 
 function timestampUtc(d: Date): string {
@@ -47,8 +68,7 @@ export function buildIcs(calendarName: string, events: IcsEvent[]): string {
     `X-WR-CALNAME:${escapeText(calendarName)}`,
   ];
   for (const ev of events) {
-    const endExclusive = new Date(ev.end);
-    endExclusive.setDate(endExclusive.getDate() + 1);
+    const endExclusive = addBerlinDays(ev.end, 1);
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${ev.uid}`);
     lines.push(`DTSTAMP:${stamp}`);
