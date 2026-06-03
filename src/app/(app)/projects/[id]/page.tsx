@@ -124,16 +124,16 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   }, 0);
 
   function groupNet(groupId: string, kind: "MATERIAL" | "SERVICE"): number {
-    const g = project.groups.find((x) => x.id === groupId);
+    const g = project!.groups.find((x) => x.id === groupId);
     if (!g) return 0;
     let sub = 0;
     if (kind === "MATERIAL") {
-      for (const a of project.assignments) {
+      for (const a of project!.assignments) {
         if (a.groupId !== groupId) continue;
         sub += packUnitRate(a.packUnit.items) * a.quantity * billingDays;
       }
     } else {
-      for (const s of project.services) {
+      for (const s of project!.services) {
         if (s.groupId !== groupId) continue;
         const price = s.unitPriceOverride
           ? Number(s.unitPriceOverride)
