@@ -83,11 +83,7 @@ export function PackUnitForm({ packUnit, locations, categories, onCancel }: Prop
       </div>
 
       {isEdit ? (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="code">Code</Label>
-            <Input id="code" value={form.code} readOnly disabled className="font-mono" />
-          </div>
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="stock">Lagerbestand</Label>
             <Input

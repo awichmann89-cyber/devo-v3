@@ -3,14 +3,12 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
-import { ArrowLeft, FileText, Package, QrCode } from "lucide-react";
+import { ArrowLeft, Package } from "lucide-react";
 import { formatCurrency, serialize } from "@/lib/utils";
-import { PackUnitForm } from "../pack-unit-form";
 import { ItemsManager } from "./items-manager";
 import { DeletePackUnitButton } from "./delete-button";
-import { StockEditor } from "./stock-editor";
+import { EditPackUnitButton } from "./edit-button";
 import { PackUnitQr } from "./pack-unit-qr";
 
 export default async function PackUnitDetailPage(props: {
@@ -39,8 +37,6 @@ export default async function PackUnitDetailPage(props: {
 
   if (!packUnit) notFound();
 
-  // Für jedes Gerät im Lager: Gesamt-Allokation über alle Packeinheiten berechnen.
-  // Demand pro Gerät = Σ (packUnit.stockQuantity × item.quantity) über alle Vorkommen.
   const devicesWithAllocation = await prisma.device.findMany({
     select: {
       id: true,
@@ -93,50 +89,61 @@ export default async function PackUnitDetailPage(props: {
               <Badge variant="secondary">Einzelpackeinheit</Badge>
             )}
           </div>
-          <p className="text-muted-foreground">{packUnit.description ?? "Keine Beschreibung"}</p>
+          {packUnit.category?.name && (
+            <p className="text-sm text-muted-foreground">
+              {packUnit.category.name}
+            </p>
+          )}
         </div>
-        <DeletePackUnitButton id={packUnit.id} name={packUnit.name} />
+        <div className="flex gap-2">
+          <EditPackUnitButton
+            packUnit={serialize(packUnit)}
+            locations={locations}
+            categories={categories}
+          />
+          <DeletePackUnitButton id={packUnit.id} name={packUnit.name} />
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Lagerort</CardTitle></CardHeader>
-          <CardContent>{packUnit.location?.name ?? "—"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Lagerbestand</CardTitle></CardHeader>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
           <CardContent>
-            <StockEditor
-              packUnitId={packUnit.id}
-              stockQuantity={stock}
-              devicesPerUnit={devicesPerUnit}
-            />
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <Field label="Kategorie" value={packUnit.category?.name} />
+              <Field label="Lagerort" value={packUnit.location?.name} />
+              <Field label="Lagerbestand" value={`${stock} Stück`} />
+              <Field label="Geräte pro Einheit" value={`${devicesPerUnit} Stück`} />
+              <Field label="Tagespreis (pro Stück)" value={formatCurrency(dailyRatePerUnit)} />
+              <Field label="Gewicht (pro Stück)" value={weightPerUnit > 0 ? `${weightPerUnit.toFixed(1)} kg` : null} />
+            </dl>
+            {packUnit.description && (
+              <div className="mt-4 border-t pt-4 text-sm">
+                <div className="text-muted-foreground mb-1">Beschreibung</div>
+                <p>{packUnit.description}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Tagespreis (pro Stück)</CardTitle></CardHeader>
-          <CardContent>{formatCurrency(dailyRatePerUnit)}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Gewicht (pro Stück)</CardTitle></CardHeader>
-          <CardContent>{weightPerUnit > 0 ? `${weightPerUnit.toFixed(1)} kg` : "—"}</CardContent>
+          <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
+          <CardContent className="flex flex-col items-center gap-3">
+            <PackUnitQr id={packUnit.id} name={packUnit.name} />
+            <p className="text-xs text-muted-foreground text-center">
+              Scannt zur öffentlichen Inhaltsübersicht
+            </p>
+          </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="items">
-        <TabsList>
-          <TabsTrigger value="items">
-            <Package className="h-4 w-4" /> Inhalt ({packUnit.items.length} Geräte-Typen)
-          </TabsTrigger>
-          <TabsTrigger value="details">
-            <FileText className="h-4 w-4" /> Stammdaten
-          </TabsTrigger>
-          <TabsTrigger value="qr">
-            <QrCode className="h-4 w-4" /> QR-Code
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="items">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-4 w-4" /> Inhalt
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           <ItemsManager
             packUnitId={packUnit.id}
             stockQuantity={stock}
@@ -145,37 +152,17 @@ export default async function PackUnitDetailPage(props: {
             allocationByDeviceId={allocationByDeviceId}
             isSingleItem={packUnit.isSingleItem}
           />
-        </TabsContent>
-
-        <TabsContent value="details">
-          <Card>
-            <CardHeader>
-              <CardTitle>Packeinheit bearbeiten</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PackUnitForm
-                packUnit={serialize(packUnit)}
-                locations={locations}
-                categories={categories}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="qr">
-          <Card>
-            <CardHeader>
-              <CardTitle>QR-Code zum Aufkleben</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-3">
-              <p className="max-w-md text-center text-sm text-muted-foreground">
-                Klebe diesen QR-Code auf das Case. Wer ihn scannt, sieht ohne Login Inhalt und Eigentümer dieser Packeinheit.
-              </p>
-              <PackUnitQr id={packUnit.id} name={packUnit.name} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value || "—"}</dd>
+    </>
   );
 }
