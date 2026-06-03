@@ -16,6 +16,7 @@ export function DeleteProjectButton({ id, name }: { id: string; name: string }) 
       try {
         await deleteProject(id);
       } catch (e) {
+        if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
         toast.error("Löschen fehlgeschlagen", { description: e instanceof Error ? e.message : "" });
       }
     });

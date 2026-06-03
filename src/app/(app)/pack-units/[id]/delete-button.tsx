@@ -16,6 +16,7 @@ export function DeletePackUnitButton({ id, name }: { id: string; name: string })
       try {
         await deletePackUnit(id);
       } catch (e) {
+        if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
         toast.error("Löschen fehlgeschlagen", { description: e instanceof Error ? e.message : "" });
       }
     });

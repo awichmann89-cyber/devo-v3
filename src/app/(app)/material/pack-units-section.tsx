@@ -84,6 +84,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
         toast.success("Packeinheit gelöscht");
         setDeleting(null);
       } catch (e) {
+        if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
         toast.error("Löschen fehlgeschlagen", {
           description: e instanceof Error ? e.message : "",
         });

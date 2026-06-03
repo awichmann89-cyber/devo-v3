@@ -158,6 +158,7 @@ export function ProjectForm({
           await createProject(payload);
         }
       } catch (e) {
+        if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
         toast.error("Fehler", { description: e instanceof Error ? e.message : String(e) });
       }
     });
