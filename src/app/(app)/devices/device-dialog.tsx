@@ -42,8 +42,6 @@ interface Props {
   editTrigger?: boolean;
 }
 
-
-
 export function DeviceDialog({
   categories,
   locations,
@@ -59,6 +57,9 @@ export function DeviceDialog({
 
   const [createSinglePackUnit, setCreateSinglePackUnit] = useState(false);
   const [singlePackUnitLocationId, setSinglePackUnitLocationId] = useState("");
+  const [inspectionExempt, setInspectionExempt] = useState(
+    device?.inspectionExempt ?? false
+  );
   const [form, setForm] = useState({
     name: device?.name ?? "",
     manufacturer: device?.manufacturer ?? "",
@@ -87,6 +88,7 @@ export function DeviceDialog({
           replacementValue: form.replacementValue ? Number(form.replacementValue) : null,
           weight: form.weight ? Number(form.weight) : null,
           powerWatts: form.powerWatts ? Number(form.powerWatts) : null,
+          inspectionExempt,
           categoryId: form.categoryId || null,
         };
         if (isEdit) {
@@ -280,6 +282,23 @@ export function DeviceDialog({
             />
           </div>
 
+          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+            <Checkbox
+              id="d-exempt"
+              checked={inspectionExempt}
+              onCheckedChange={(v) => setInspectionExempt(v === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-1 leading-tight">
+              <Label htmlFor="d-exempt" className="cursor-pointer">
+                Muss nicht geprüft werden
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Dieses Gerät ist nicht prüfpflichtig (DGUV V3 entfällt). Im Prüfungsmodus wird es als nicht erforderlich gekennzeichnet.
+              </p>
+            </div>
+          </div>
+
           {!isEdit && (
             <div className="rounded-md border bg-muted/30 p-3 space-y-3">
               <label className="flex items-start gap-2 cursor-pointer">
@@ -294,9 +313,7 @@ export function DeviceDialog({
                     Auch als Einzelpackeinheit anlegen
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Erzeugt zusätzlich eine 1:1-Packeinheit (gleicher Name, gleicher
-                    Lagerbestand), die nur dieses Gerät enthält. Praktisch für Traversen,
-                    Stative oder einzelne Subwoofer, die als Buchungseinheit dienen.
+                    Erzeugt zusätzlich eine 1:1-Packeinheit (gleicher Name, gleicher Lagerbestand), die nur dieses Gerät enthält. Praktisch für Traversen, Stative oder einzelne Subwoofer, die als Buchungseinheit dienen.
                   </div>
                 </div>
               </label>

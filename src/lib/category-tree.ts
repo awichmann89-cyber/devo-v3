@@ -41,3 +41,44 @@ export function flattenCategoryTree<T extends CategoryLike>(
   walk(null, 0);
   return result;
 }
+
+/**
+ * Gruppiert eine Item-Liste nach `categoryId` und liefert die Gruppen
+ * in Tree-Reihenfolge (Eltern vor Kindern, alphabetisch). Items ohne
+ * Kategorie werden in einer "Ohne Kategorie"-Gruppe am Ende eingereiht.
+ *
+ * Liefert nur Gruppen mit mindestens einem Item.
+ */
+export function groupItemsByCategory<
+  T extends { categoryId: string | null },
+  C extends CategoryLike,
+>(
+  items: T[],
+  categories: C[]
+): Array<{
+  key: string;
+  name: string;
+  depth: number;
+  items: T[];
+}> {
+  const byCategoryId = new Map<string | null, T[]>();
+  for (const it of items) {
+    const arr = byCategoryId.get(it.categoryId) ?? [];
+    arr.push(it);
+    byCategoryId.set(it.categoryId, arr);
+  }
+
+  const ordered = flattenCategoryTree(categories);
+  const result: Array<{ key: string; name: string; depth: number; items: T[] }> = [];
+  for (const cat of ordered) {
+    const arr = byCategoryId.get(cat.id);
+    if (arr && arr.length > 0) {
+      result.push({ key: cat.id, name: cat.name, depth: cat.depth, items: arr });
+    }
+  }
+  const noCat = byCategoryId.get(null);
+  if (noCat && noCat.length > 0) {
+    result.push({ key: "__none__", name: "Ohne Kategorie", depth: 0, items: noCat });
+  }
+  return result;
+}

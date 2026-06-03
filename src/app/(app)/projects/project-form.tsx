@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,8 +18,9 @@ import { ProjectStatus, type BillingPeriod, type Customer, type Project } from "
 import { projectStatusLabel } from "@/lib/labels";
 import { useRouter } from "next/navigation";
 import { CustomerDialog } from "@/app/(app)/customers/customer-dialog";
+import { useAutoSave } from "@/lib/use-auto-save";
+import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 
-/** Date → "YYYY-MM-DDTHH:mm" für <input type="datetime-local">. */
 function toLocalInput(d: Date | string | undefined | null): string {
   if (!d) return "";
   const date = typeof d === "string" ? new Date(d) : d;
@@ -41,9 +41,7 @@ export function ProjectForm({
 }: {
   project?: Project;
   customers: Customer[];
-  /** Vorhandene Berechnungszeiträume bei Edit, sonst undefined */
   billingPeriods?: BillingPeriod[];
-  /** Wenn übergeben (z.B. im Dialog), wird das statt router.back() aufgerufen */
   onCancel?: () => void;
 }) {
   const router = useRouter();
@@ -58,7 +56,6 @@ export function ProjectForm({
     notes: project?.notes ?? "",
   });
 
-  // Berechnungszeiträume separat halten (dynamische Liste)
   const [periods, setPeriods] = useState<BillingPeriodInput[]>(() => {
     if (billingPeriods && billingPeriods.length > 0) {
       return billingPeriods.map((p) => ({
@@ -87,8 +84,6 @@ export function ProjectForm({
     Array<{ id: string; name: string; address: string | null }>
   >([]);
 
-  // Server-Customers + frisch angelegte (noch nicht in den Props) zusammenführen.
-  // Verhindert ein kurzes Aufblitzen "leerer Auswahl" beim Anlegen.
   const allCustomers = useMemo(() => {
     const map = new Map<
       string,
@@ -117,6 +112,28 @@ export function ProjectForm({
     setForm((f) => ({ ...f, customerId: customer.id }));
   }
 
+  const isEditMode = !!project;
+  const autoSavePayload = useMemo(
+    () => ({
+      name: form.name,
+      customerId: form.customerId || null,
+      description: form.description || null,
+      status: form.status,
+      discountPercent: Number(form.discountPercent) || 0,
+      notes: form.notes || null,
+    }),
+    [form.name, form.customerId, form.description, form.status, form.discountPercent, form.notes]
+  );
+  const { status: autoSaveStatus, error: autoSaveError } = useAutoSave(
+    autoSavePayload,
+    async (payload) => {
+      if (!project) return;
+      if (!payload.name.trim()) return;
+      await updateProject(project.id, payload);
+    },
+    { delay: 800, enabled: isEditMode }
+  );
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
@@ -139,7 +156,6 @@ export function ProjectForm({
           router.refresh();
         } else {
           await createProject(payload);
-          // redirect erfolgt in der Action
         }
       } catch (e) {
         toast.error("Fehler", { description: e instanceof Error ? e.message : String(e) });
@@ -149,7 +165,6 @@ export function ProjectForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-8">
-      {/* ───────────────── Section 1: Allgemein ───────────────── */}
       <section className="space-y-4">
         <SectionHeader title="Allgemein" />
 
@@ -161,6 +176,25 @@ export function ProjectForm({
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="status">Status</Label>
+          <Select
+            value={form.status}
+            onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.values(ProjectStatus).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {projectStatusLabel(s)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
@@ -206,28 +240,9 @@ export function ProjectForm({
             </p>
           )}
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
-          <Select
-            value={form.status}
-            onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.values(ProjectStatus).map((s) => (
-                <SelectItem key={s} value={s}>
-                  {projectStatusLabel(s)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </section>
 
-      {/* ───────────────── Section 2: Zeiträume ───────────────── */}
+      {!project && (
       <section className="space-y-4">
         <SectionHeader
           title="Zeiträume"
@@ -320,46 +335,7 @@ export function ProjectForm({
           </Button>
         </div>
       </section>
-
-      {/* ───────────────── Section 3: Konditionen & Notizen ───────────────── */}
-      <section className="space-y-4">
-        <SectionHeader title="Konditionen & Notizen" />
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="disc">Rabatt %</Label>
-            <Input
-              id="disc"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              value={form.discountPercent}
-              onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="desc">Beschreibung</Label>
-          <Textarea
-            id="desc"
-            value={form.description ?? ""}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            rows={3}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notizen (intern)</Label>
-          <Textarea
-            id="notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            rows={2}
-          />
-        </div>
-      </section>
+      )}
 
       <CustomerDialog
         open={customerDialogOpen}
@@ -367,18 +343,24 @@ export function ProjectForm({
         onCreated={handleCustomerCreated}
       />
 
-      <div className="flex justify-end gap-2 border-t pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => (onCancel ? onCancel() : router.back())}
-        >
-          Abbrechen
-        </Button>
-        <Button type="submit" disabled={pending}>
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {project ? "Speichern" : "Anlegen"}
-        </Button>
+      <div className="flex items-center justify-end gap-2 border-t pt-4">
+        {isEditMode ? (
+          <AutoSaveIndicator status={autoSaveStatus} error={autoSaveError} />
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => (onCancel ? onCancel() : router.back())}
+            >
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Anlegen
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );

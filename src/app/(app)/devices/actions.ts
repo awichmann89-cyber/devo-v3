@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { deviceSchema, serialNumberSchema } from "@/lib/validators";
@@ -43,9 +44,7 @@ export async function createDevice(
         isSingleItem: true,
         categoryId: created.categoryId,
         locationId: options.singlePackUnitLocationId || null,
-        items: {
-          create: { deviceId: created.id, quantity: 1 },
-        },
+        items: { create: { deviceId: created.id, quantity: 1 } },
       },
       select: { id: true },
     });
@@ -57,18 +56,10 @@ export async function createDevice(
 export async function updateDevice(id: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = normalize(input);
-  await prisma.device.update({
-    where: { id },
-    data,
-    select: { id: true },
-  });
+  await prisma.device.update({ where: { id }, data, select: { id: true } });
 
-  // Einzelpackeinheiten, die dieses Gerät enthalten, im Lagerbestand mitziehen.
   const linkedSingle = await prisma.packUnitDevice.findMany({
-    where: {
-      deviceId: id,
-      packUnit: { isSingleItem: true },
-    },
+    where: { deviceId: id, packUnit: { isSingleItem: true } },
     select: { packUnitId: true },
   });
   if (linkedSingle.length > 0) {
@@ -96,26 +87,47 @@ export async function deleteDevice(id: string) {
 export async function addSerialNumber(deviceId: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = serialNumberSchema.parse(input);
-  await prisma.deviceSerialNumber.create({
-    data: {
-      deviceId,
-      serialNumber: data.serialNumber.trim(),
-      notes: data.notes || null,
-    },
-    select: { id: true },
-  });
+  try {
+    await prisma.deviceSerialNumber.create({
+      data: {
+        deviceId,
+        serialNumber: data.serialNumber.trim(),
+        barcode: data.barcode?.trim() ? data.barcode.trim() : null,
+        notes: data.notes || null,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      throw new Error("Barcode oder Seriennummer existiert bereits.");
+    }
+    throw e;
+  }
   revalidatePath(`/devices/${deviceId}`);
+  revalidatePath("/material/inspection");
 }
 
 export async function updateSerialNumber(serialId: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = serialNumberSchema.parse(input);
-  const existing = await prisma.deviceSerialNumber.update({
-    where: { id: serialId },
-    data: { serialNumber: data.serialNumber.trim(), notes: data.notes || null },
-    select: { deviceId: true },
-  });
-  revalidatePath(`/devices/${existing.deviceId}`);
+  try {
+    const existing = await prisma.deviceSerialNumber.update({
+      where: { id: serialId },
+      data: {
+        serialNumber: data.serialNumber.trim(),
+        barcode: data.barcode?.trim() ? data.barcode.trim() : null,
+        notes: data.notes || null,
+      },
+      select: { deviceId: true },
+    });
+    revalidatePath(`/devices/${existing.deviceId}`);
+    revalidatePath("/material/inspection");
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      throw new Error("Barcode oder Seriennummer existiert bereits.");
+    }
+    throw e;
+  }
 }
 
 export async function deleteSerialNumber(serialId: string) {

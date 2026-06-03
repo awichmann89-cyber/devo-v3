@@ -27,11 +27,13 @@ import {
   Pencil,
   Trash2,
   X,
+  Folder,
+  FolderOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { PackUnitDialog } from "@/app/(app)/pack-units/pack-unit-dialog";
-import { flattenCategoryTree } from "@/lib/category-tree";
+import { flattenCategoryTree, groupItemsByCategory } from "@/lib/category-tree";
 import { deletePackUnit } from "@/app/(app)/pack-units/actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -63,6 +65,16 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
   const [catFilter, setCatFilter] = useState<string>("all");
   const [deleting, setDeleting] = useState<PackUnitWithItems | null>(null);
   const [pending, startTransition] = useTransition();
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+
+  function toggleCat(key: string) {
+    setCollapsedCats((prev) => {
+      const s = new Set(prev);
+      if (s.has(key)) s.delete(key);
+      else s.add(key);
+      return s;
+    });
+  }
 
   function onConfirmDelete() {
     if (!deleting) return;
@@ -96,13 +108,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
       }
       return true;
     })
-    .sort((a, b) => {
-      const catA = a.category?.name ?? "￿";
-      const catB = b.category?.name ?? "￿";
-      const catCmp = catA.localeCompare(catB, "de");
-      if (catCmp !== 0) return catCmp;
-      return a.name.localeCompare(b.name, "de");
-    });
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
   const hasFilter = !!search || catFilter !== "all";
 
@@ -153,7 +159,6 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
           <TableRow>
             <TableHead className="w-[40px]"></TableHead>
             <TableHead>Name</TableHead>
-            <TableHead>Kategorie</TableHead>
             <TableHead>Lagerort</TableHead>
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead className="text-right">Inhalt</TableHead>
@@ -162,170 +167,192 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.length === 0 && (
+          {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 {packUnits.length === 0
                   ? "Noch keine Packeinheiten angelegt"
                   : "Keine Treffer für die aktuellen Filter"}
               </TableCell>
             </TableRow>
-          )}
-          {filtered.map((pu) => {
-            const stock = pu.stockQuantity ?? 1;
-            const devicesPerUnit = pu.items.reduce((s, it) => s + it.quantity, 0);
-            const dailyRatePerUnit = pu.items.reduce(
-              (s, it) => s + Number(it.device.dailyRate) * it.quantity,
-              0
-            );
-            const isOpen = expanded.has(pu.id);
-            const hasItems = pu.items.length > 0;
-            const Icon = pu.isSingleItem ? Box : Boxes;
-
-            return (
-              <Fragment key={pu.id}>
-                <TableRow className="cursor-pointer" onClick={() => hasItems && toggle(pu.id)}>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggle(pu.id);
-                      }}
-                      disabled={!hasItems}
-                    >
-                      {isOpen ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/pack-units/${pu.id}`}
-                      className="flex items-center gap-2 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                      title={pu.isSingleItem ? "Einzelpackeinheit" : "Packeinheit"}
-                    >
-                      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div>
-                        <div className="font-medium">{pu.name}</div>
-                        {pu.description && (
-                          <div className="text-xs text-muted-foreground">{pu.description}</div>
+          ) : (
+            groupItemsByCategory(filtered, categories).map((group) => {
+              const isCatCollapsed = collapsedCats.has(group.key);
+              return (
+                <Fragment key={group.key}>
+                  <TableRow
+                    className="cursor-pointer bg-muted/30 hover:bg-muted/50"
+                    onClick={() => toggleCat(group.key)}
+                  >
+                    <TableCell colSpan={7} className="py-2">
+                      <div
+                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
+                        style={{ paddingLeft: `${group.depth * 1.25}rem` }}
+                      >
+                        {isCatCollapsed ? (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                         )}
-                      </div>
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {pu.category?.name ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {pu.location?.name ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {stock}×
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-sm">
-                    <span className="tabular-nums">{devicesPerUnit}</span>
-                    {devicesPerUnit > 0 && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        (= {devicesPerUnit * stock})
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCurrency(dailyRatePerUnit)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                        title="Bearbeiten"
-                      >
-                        <Link href={`/pack-units/${pu.id}`}>
-                          <Pencil className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Löschen"
-                        disabled={pending}
-                        onClick={() => setDeleting(pu)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-                {isOpen && hasItems && (
-                  <TableRow key={pu.id + "-items"} className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={8} className="p-0">
-                      <div className="px-12 py-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Inhalt einer Packeinheit
-                          </h4>
-                          <Link
-                            href={`/pack-units/${pu.id}`}
-                            className="text-xs text-muted-foreground hover:text-foreground underline"
-                          >
-                            Inhalt verwalten →
-                          </Link>
-                        </div>
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-muted-foreground text-xs">
-                              <th className="text-left py-1 w-[80px]">Stück pro Packeinheit</th>
-                              <th className="text-left py-1">Bezeichnung</th>
-                              <th className="text-left py-1">Hersteller / Modell</th>
-                              <th className="text-left py-1">Kategorie</th>
-                              <th className="text-right py-1">€ / Tag</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pu.items.map((it) => (
-                              <tr key={it.id} className="border-t border-border/50">
-                                <td className="py-1 tabular-nums text-xs font-medium">
-                                  {it.quantity}×
-                                </td>
-                                <td className="py-1">
-                                  <Link
-                                    href={`/devices/${it.device.id}`}
-                                    className="hover:underline font-medium"
-                                  >
-                                    {it.device.name}
-                                  </Link>
-                                </td>
-                                <td className="py-1 text-muted-foreground text-xs">
-                                  {[it.device.manufacturer, it.device.model]
-                                    .filter(Boolean)
-                                    .join(" ") || "—"}
-                                </td>
-                                <td className="py-1 text-muted-foreground text-xs">
-                                  {it.device.category?.name ?? "—"}
-                                </td>
-                                <td className="py-1 text-right tabular-nums text-xs">
-                                  {formatCurrency(Number(it.device.dailyRate) * it.quantity)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        {isCatCollapsed ? (
+                          <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="truncate">{group.name}</span>
+                        <span className="ml-1 font-normal text-muted-foreground normal-case">
+                          ({group.items.length})
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
-                )}
-              </Fragment>
-            );
-          })}
+                  {!isCatCollapsed && group.items.map((pu) => {
+                    const stock = pu.stockQuantity ?? 1;
+                    const devicesPerUnit = pu.items.reduce((s, it) => s + it.quantity, 0);
+                    const dailyRatePerUnit = pu.items.reduce(
+                      (s, it) => s + Number(it.device.dailyRate) * it.quantity,
+                      0
+                    );
+                    const isOpen = expanded.has(pu.id);
+                    const hasItems = pu.items.length > 0;
+                    const Icon = pu.isSingleItem ? Box : Boxes;
+
+                    return (
+                      <Fragment key={pu.id}>
+                        <TableRow className="cursor-pointer" onClick={() => hasItems && toggle(pu.id)}>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggle(pu.id);
+                              }}
+                              disabled={!hasItems}
+                            >
+                              {isOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/pack-units/${pu.id}`}
+                              className="flex items-center gap-2 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                              title={pu.isSingleItem ? "Einzelpackeinheit" : "Packeinheit"}
+                            >
+                              <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <div>
+                                <div className="font-medium">{pu.name}</div>
+                                {pu.description && (
+                                  <div className="text-xs text-muted-foreground">{pu.description}</div>
+                                )}
+                              </div>
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {pu.location?.name ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <Badge variant="secondary" className="text-[10px]">
+                              {stock}×
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            <span className="tabular-nums">{devicesPerUnit}</span>
+                            {devicesPerUnit > 0 && (
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                (= {devicesPerUnit * stock})
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCurrency(dailyRatePerUnit)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" asChild title="Bearbeiten">
+                                <Link href={`/pack-units/${pu.id}`}>
+                                  <Pencil className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Löschen"
+                                disabled={pending}
+                                onClick={() => setDeleting(pu)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {isOpen && hasItems && (
+                          <TableRow key={pu.id + "-items"} className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={7} className="p-0">
+                              <div className="px-12 py-3">
+                                <div className="mb-2 flex items-center justify-between">
+                                  <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                    Inhalt einer Packeinheit
+                                  </h4>
+                                  <Link
+                                    href={`/pack-units/${pu.id}`}
+                                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                                  >
+                                    Inhalt verwalten →
+                                  </Link>
+                                </div>
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="text-muted-foreground text-xs">
+                                      <th className="text-left py-1 w-[80px]">Stück pro Packeinheit</th>
+                                      <th className="text-left py-1">Bezeichnung</th>
+                                      <th className="text-left py-1">Hersteller / Modell</th>
+                                      <th className="text-right py-1">€ / Tag</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {pu.items.map((it) => (
+                                      <tr key={it.id} className="border-t border-border/50">
+                                        <td className="py-1 tabular-nums text-xs font-medium">
+                                          {it.quantity}×
+                                        </td>
+                                        <td className="py-1">
+                                          <Link
+                                            href={`/devices/${it.device.id}`}
+                                            className="hover:underline font-medium"
+                                          >
+                                            {it.device.name}
+                                          </Link>
+                                        </td>
+                                        <td className="py-1 text-muted-foreground text-xs">
+                                          {[it.device.manufacturer, it.device.model]
+                                            .filter(Boolean)
+                                            .join(" ") || "—"}
+                                        </td>
+                                        <td className="py-1 text-right tabular-nums text-xs">
+                                          {formatCurrency(Number(it.device.dailyRate) * it.quantity)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </Fragment>
+              );
+            })
+          )}
         </TableBody>
       </Table>
 
@@ -336,8 +363,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
         description={
           deleting && (
             <>
-              <strong>{deleting.name}</strong> wird unwiderruflich gelöscht. Die enthaltenen
-              Geräte bleiben bestehen — sie werden nur aus dieser Packeinheit gelöst.
+              <strong>{deleting.name}</strong> wird unwiderruflich gelöscht. Die enthaltenen Geräte bleiben bestehen — sie werden nur aus dieser Packeinheit gelöst.
             </>
           )
         }

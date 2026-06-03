@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -33,7 +32,6 @@ export function Header({ user }: HeaderProps) {
 
   return (
     <header className="flex h-16 items-center justify-end gap-2 border-b bg-background px-6">
-      <ThemeToggle />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="gap-2 px-2">

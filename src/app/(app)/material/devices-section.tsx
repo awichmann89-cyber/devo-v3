@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,20 +13,38 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { DeviceStatus, type Category, type Device, type Location } from "@prisma/client";
-import { deviceStatusLabel, deviceStatusVariant } from "@/lib/labels";
+import { DeviceStatus, type Category, type Location } from "@prisma/client";
+import { deviceStatusLabel } from "@/lib/labels";
 import { DeviceDialog } from "@/app/(app)/devices/device-dialog";
 import { deleteDevice } from "@/app/(app)/devices/actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
-import { flattenCategoryTree } from "@/lib/category-tree";
+import { flattenCategoryTree, groupItemsByCategory } from "@/lib/category-tree";
 
-type DeviceVM = Device & {
+export interface DeviceVM {
+  id: string;
+  name: string;
+  manufacturer: string | null;
+  model: string | null;
+  description: string | null;
+  status: DeviceStatus;
+  stockQuantity: number;
+  dailyRate: number;
+  replacementValue: number | null;
+  weight: number | null;
+  powerWatts: number | null;
+  inspectionExempt: boolean;
+  notes: string | null;
+  categoryId: string | null;
   category: Category | null;
+  createdAt: string;
+  updatedAt: string;
+  serialsTotal: number;
+  serialsInspected: number;
   _count: { packUnitItems: number; serialNumbers: number };
-};
+}
 
 export function DevicesSection({
   devices,
@@ -42,6 +60,16 @@ export function DevicesSection({
   const [catFilter, setCatFilter] = useState<string>("all");
   const [deleting, setDeleting] = useState<DeviceVM | null>(null);
   const [pending, startTransition] = useTransition();
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+
+  function toggleCat(key: string) {
+    setCollapsedCats((prev) => {
+      const s = new Set(prev);
+      if (s.has(key)) s.delete(key);
+      else s.add(key);
+      return s;
+    });
+  }
 
   function onConfirmDelete() {
     if (!deleting) return;
@@ -69,14 +97,7 @@ export function DevicesSection({
       }
       return true;
     })
-    .sort((a, b) => {
-      // Kategorie-Gruppen zuerst, ohne Kategorie ans Ende
-      const catA = a.category?.name ?? "￿";
-      const catB = b.category?.name ?? "￿";
-      const catCmp = catA.localeCompare(catB, "de");
-      if (catCmp !== 0) return catCmp;
-      return a.name.localeCompare(b.name, "de");
-    });
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
   return (
     <>
@@ -120,65 +141,116 @@ export function DevicesSection({
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Hersteller / Modell</TableHead>
-            <TableHead>Kategorie</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead className="text-right">Bestand</TableHead>
-            <TableHead className="text-right">SN</TableHead>
+            <TableHead>Geprüft</TableHead>
             <TableHead className="text-right">€ / Tag</TableHead>
             <TableHead className="w-[90px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.length === 0 && (
+          {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground">
+              <TableCell colSpan={6} className="text-center text-muted-foreground">
                 Keine Geräte gefunden
               </TableCell>
             </TableRow>
-          )}
-          {filtered.map((d) => (
-            <TableRow key={d.id}>
-              <TableCell>
-                <Link href={`/devices/${d.id}`} className="font-medium hover:underline">
-                  {d.name}
-                </Link>
-              </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {[d.manufacturer, d.model].filter(Boolean).join(" ") || "—"}
-              </TableCell>
-              <TableCell>{d.category?.name ?? "—"}</TableCell>
-              <TableCell>
-                <Badge variant={deviceStatusVariant(d.status)}>{deviceStatusLabel(d.status)}</Badge>
-              </TableCell>
-              <TableCell className="text-right tabular-nums font-medium">
-                {d.stockQuantity}
-              </TableCell>
-              <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
-                {d._count.serialNumbers > 0 ? `${d._count.serialNumbers}/${d.stockQuantity}` : "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatCurrency(Number(d.dailyRate))}
-              </TableCell>
-              <TableCell>
-                <div className="flex justify-end gap-1">
-                  <Button variant="ghost" size="icon" asChild title="Bearbeiten">
-                    <Link href={`/devices/${d.id}`}>
-                      <Pencil className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Löschen"
-                    disabled={pending}
-                    onClick={() => setDeleting(d)}
+          ) : (
+            groupItemsByCategory(filtered, categories).map((group) => {
+              const isCollapsed = collapsedCats.has(group.key);
+              return (
+                <Fragment key={group.key}>
+                  <TableRow
+                    className="cursor-pointer bg-muted/30 hover:bg-muted/50"
+                    onClick={() => toggleCat(group.key)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                    <TableCell colSpan={6} className="py-2">
+                      <div
+                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
+                        style={{ paddingLeft: `${group.depth * 1.25}rem` }}
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                        )}
+                        {isCollapsed ? (
+                          <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="truncate">{group.name}</span>
+                        <span className="ml-1 font-normal text-muted-foreground normal-case">
+                          ({group.items.length})
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {!isCollapsed &&
+                    group.items.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Link href={`/devices/${d.id}`} className="font-medium hover:underline">
+                              {d.name}
+                            </Link>
+                            {d.inspectionExempt && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                Prüfung nicht erforderlich
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {[d.manufacturer, d.model].filter(Boolean).join(" ") || "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {d.stockQuantity}
+                        </TableCell>
+                        <TableCell>
+                          {d.inspectionExempt ? (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Nicht erforderlich
+                            </Badge>
+                          ) : d.serialsTotal === 0 ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
+                            <Badge
+                              variant={
+                                d.serialsInspected === d.serialsTotal ? "success" : "warning"
+                              }
+                              className="text-[10px]"
+                            >
+                              {d.serialsInspected} / {d.serialsTotal}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatCurrency(Number(d.dailyRate))}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" asChild title="Bearbeiten">
+                              <Link href={`/devices/${d.id}`}>
+                                <Pencil className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Löschen"
+                              disabled={pending}
+                              onClick={() => setDeleting(d)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </Fragment>
+              );
+            })
+          )}
         </TableBody>
       </Table>
 
@@ -189,8 +261,7 @@ export function DevicesSection({
         description={
           deleting && (
             <>
-              <strong>{deleting.name}</strong> wird unwiderruflich gelöscht.
-              Seriennummern und Packeinheits-Verknüpfungen werden ebenfalls entfernt.
+              <strong>{deleting.name}</strong> wird unwiderruflich gelöscht. Alle zugehörigen Seriennummern und Prüfungen werden mitgelöscht.
             </>
           )
         }

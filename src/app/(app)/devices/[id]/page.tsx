@@ -5,12 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
-import { ArrowLeft, Boxes } from "lucide-react";
+import { ArrowLeft, Boxes, ShieldOff } from "lucide-react";
 import { formatCurrency, formatDate, serialize } from "@/lib/utils";
 import {
   deviceStatusLabel,
   deviceStatusVariant,
-  projectStatusLabel,
   projectStatusVariant,
 } from "@/lib/labels";
 import { DeviceDialog } from "../device-dialog";
@@ -26,7 +25,12 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
       where: { id },
       include: {
         category: true,
-        serialNumbers: { orderBy: { createdAt: "asc" } },
+        serialNumbers: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            inspections: { orderBy: { date: "desc" }, take: 1 },
+          },
+        },
         packUnitItems: {
           include: {
             packUnit: {
@@ -61,6 +65,12 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">{device.name}</h1>
             <Badge variant={deviceStatusVariant(device.status)}>{deviceStatusLabel(device.status)}</Badge>
+            {device.inspectionExempt && (
+              <Badge variant="secondary" className="gap-1">
+                <ShieldOff className="h-3 w-3" />
+                Prüfung nicht erforderlich
+              </Badge>
+            )}
           </div>
           {(device.manufacturer || device.model) && (
             <p className="text-sm text-muted-foreground">
@@ -95,6 +105,7 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
               />
               <Field label="Gewicht (pro Stück)" value={device.weight ? `${device.weight} kg` : null} />
               <Field label="Leistung (pro Stück)" value={device.powerWatts ? `${device.powerWatts} W` : null} />
+              <Field label="DGUV V3 Prüfung" value={device.inspectionExempt ? "Nicht erforderlich" : "Erforderlich"} />
             </dl>
             {device.description && (
               <div className="mt-4 border-t pt-4 text-sm">
@@ -119,7 +130,19 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
       <SerialNumbersSection
         deviceId={device.id}
         stockQuantity={device.stockQuantity}
-        serialNumbers={serialize(device.serialNumbers)}
+        inspectionExempt={device.inspectionExempt}
+        serialNumbers={device.serialNumbers.map((s) => ({
+          id: s.id,
+          serialNumber: s.serialNumber,
+          barcode: s.barcode,
+          notes: s.notes,
+          lastInspection: s.inspections[0]
+            ? {
+                date: s.inspections[0].date.toISOString(),
+                result: s.inspections[0].result,
+              }
+            : null,
+        }))}
       />
 
       <Card>

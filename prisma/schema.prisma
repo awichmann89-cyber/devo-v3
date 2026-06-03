@@ -53,6 +53,7 @@ model Category {
 
   devices    Device[]
   packUnits  PackUnit[]
+  cables     Cable[]
 
   @@index([parentId])
 }
@@ -79,6 +80,7 @@ model Device {
   replacementValue Decimal?     @db.Decimal(10, 2)
   weight           Decimal?     @db.Decimal(8, 2) // kg pro Stück
   powerWatts       Int?         // Stromaufnahme W pro Stück
+  inspectionExempt Boolean      @default(false) // Muss nicht geprüft werden (DGUV V3 nicht erforderlich)
   notes            String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -102,11 +104,106 @@ model DeviceSerialNumber {
   deviceId     String
   device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   serialNumber String
+  barcode      String?  @unique // Optional: separater Barcode für DGUV V3 Scanner
   notes        String?
   createdAt    DateTime @default(now())
 
+  inspections  Inspection[]
+
   @@unique([deviceId, serialNumber])
   @@index([deviceId])
+}
+
+// Kabel-Typ (z.B. „DMX 5pol 10m", „Powercon TRUE1 5m"). Stockquantity = Anzahl physischer Stücke.
+model Cable {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  cableType        String?  // z.B. "DMX", "Strom", "XLR"
+  lengthMeters     Decimal? @db.Decimal(8, 2)
+  connectorA       String?  // z.B. "XLR 5pol male"
+  connectorB       String?  // z.B. "XLR 5pol female"
+  stockQuantity    Int      @default(1)
+  replacementValue Decimal? @db.Decimal(10, 2)
+  weight           Decimal? @db.Decimal(8, 2)
+  inspectionExempt Boolean  @default(false) // Muss nicht geprüft werden (DGUV V3 nicht erforderlich)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  units       CableUnit[]
+  assignments ProjectCableAssignment[]
+
+  @@index([categoryId])
+}
+
+// Einzelne physische Kabel-Einheit (für DGUV V3 Prüfung). Barcode optional —
+// wird beim Bulk-Anlegen leer gelassen und später pro Stück gepflegt.
+model CableUnit {
+  id        String   @id @default(cuid())
+  cableId   String
+  cable     Cable    @relation(fields: [cableId], references: [id], onDelete: Cascade)
+  barcode   String?  @unique
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inspections Inspection[]
+
+  @@index([cableId])
+}
+
+enum InspectionResult {
+  PASSED              // bestanden
+  PASSED_CONDITIONAL  // bestanden mit Einschränkungen
+  FAILED              // durchgefallen
+}
+
+// Prüfhistorie für DGUV V3 — gilt für DeviceSerialNumbers UND CableUnits.
+// Jede Prüfung wird als eigener Datensatz gespeichert für volle Nachvollziehbarkeit.
+model Inspection {
+  id             String           @id @default(cuid())
+  date           DateTime         @default(now())
+  result         InspectionResult
+  testerName     String?
+  notes          String?
+  // Genau eines der beiden ist gesetzt
+  deviceSerialId String?
+  deviceSerial   DeviceSerialNumber? @relation(fields: [deviceSerialId], references: [id], onDelete: Cascade)
+  cableUnitId    String?
+  cableUnit      CableUnit?       @relation(fields: [cableUnitId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+
+  @@index([deviceSerialId])
+  @@index([cableUnitId])
+  @@index([date])
+}
+
+// Buchung eines Kabel-Typs für ein Projekt (analog zu ProjectAssignment für PackUnits).
+model ProjectCableAssignment {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  cableId   String
+  cable     Cable    @relation(fields: [cableId], references: [id], onDelete: Cascade)
+
+  groupId   String
+  group     ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  quantity  Int      @default(1)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, cableId])
+  @@index([cableId])
+  @@index([projectId])
+  @@index([groupId])
 }
 
 // Packeinheit (Case, Rack, Tasche, Trolley) — Typ mit Bestand.
@@ -187,6 +284,10 @@ model Project {
   planningEnd     DateTime
 
   discountPercent Decimal       @default(0) @db.Decimal(5, 2)
+  // Rabatt auf den gesamten Material-Bereich (zusätzlich zu Gruppen-Rabatten)
+  materialDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
+  // Rabatt auf den gesamten Personal-&-Transport-Bereich
+  servicesDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
   notes           String?
 
   createdAt       DateTime      @default(now())
@@ -196,6 +297,7 @@ model Project {
   createdBy       User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   assignments     ProjectAssignment[]
+  cableAssignments ProjectCableAssignment[]
   // Berechnungszeiträume: Tage für die Mietkalkulation (mehrere möglich)
   billingPeriods  BillingPeriod[]
   // Freie Markdown-Notizen mit Titel
@@ -204,6 +306,8 @@ model Project {
   services        ProjectService[]
   // Gruppen für Material und Personal & Transport (separat pro Tab via kind)
   groups          ProjectGroup[]
+  // Erzeugte Rechnungen
+  invoices        Invoice[]
 
   @@index([status])
   @@index([customerId])
@@ -220,19 +324,67 @@ enum ProjectGroupKind {
 // Gruppen-Überschrift innerhalb eines Projekts.
 // Jedes Assignment / jede Service-Position gehört zu genau einer Gruppe.
 model ProjectGroup {
-  id        String           @id @default(cuid())
-  projectId String
-  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  kind      ProjectGroupKind
-  sortOrder Int              @default(0)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id              String           @id @default(cuid())
+  projectId       String
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  kind            ProjectGroupKind
+  sortOrder       Int              @default(0)
+  // Rabatt-Prozent auf die Zwischensumme dieser Gruppe (zusätzlich zum projektweiten Rabatt)
+  discountPercent Decimal          @default(0) @db.Decimal(5, 2)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  assignments ProjectAssignment[]
-  services    ProjectService[]
+  assignments      ProjectAssignment[]
+  services         ProjectService[]
+  cableAssignments ProjectCableAssignment[]
 
   @@index([projectId, kind, sortOrder])
+}
+
+// Generisches Key-Value-Setting-Store (z.B. Rechnungsnummer-Prefix)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Briefpapier-Vorlagen für Rechnungs-PDFs.
+// FIRST_PAGE → Hintergrund für Seite 1 (mit Logo/Adresse/Header).
+// FOLLOWING_PAGES → Hintergrund für alle weiteren Seiten.
+enum LetterheadKind {
+  FIRST_PAGE
+  FOLLOWING_PAGES
+}
+
+model LetterheadTemplate {
+  id        String         @id @default(cuid())
+  kind      LetterheadKind @unique
+  fileName  String
+  mimeType  String
+  data      Bytes
+  updatedAt DateTime       @updatedAt
+}
+
+// Rechnung an einem Projekt — mit fortlaufender Nummer und Zahlungsfrist
+model Invoice {
+  id        String   @id @default(cuid())
+  number    String   @unique
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  date      DateTime @default(now())
+  dueDate   DateTime
+  // Snapshot der Beträge zum Zeitpunkt der Erstellung
+  totalNet   Decimal  @db.Decimal(10, 2)
+  // Brutto-Betrag (Netto + MwSt zum damaligen Steuersatz)
+  totalGross Decimal? @db.Decimal(10, 2)
+  // Zahlungseingang — null wenn noch nicht bezahlt
+  paidAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([date])
+  @@index([paidAt])
 }
 
 // Art einer Service-/Personalposition (rein zur Gruppierung)
@@ -332,7 +484,7 @@ model ProjectAssignment {
   groupId    String
   group      ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  quantity   Int      @default(1) // Anzahl dieser Packeinheit
+  quantity   Int      @default(1)
   notes      String?
 
   createdAt  DateTime @default(now())

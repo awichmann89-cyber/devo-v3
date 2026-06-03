@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
-import { projectSchema, assignmentSchema } from "@/lib/validators";
+import {
+  projectSchema,
+  projectUpdateCoreSchema,
+  assignmentSchema,
+} from "@/lib/validators";
 import { findConflicts } from "@/lib/availability";
 import { redirect } from "next/navigation";
 
@@ -41,32 +45,23 @@ export async function createProject(input: unknown) {
 
 export async function updateProject(id: string, input: unknown) {
   await requireRole(CAN_WRITE);
-  const data = projectSchema.parse(input);
-  const { billingPeriods, ...rest } = data;
+  // Nur Kern-Felder hier — Zeiträume werden im eigenen Tab über
+  // `updateProjectPeriods` gepflegt. Frontend darf weitere Felder mitsenden,
+  // die werden vom Schema-Parse verworfen.
+  const data = projectUpdateCoreSchema.parse(input);
 
-  // Strategy: Project-Felder updaten, Billing-Periods komplett neu setzen.
-  // Einfacher als individuelle Diff-Logik und für moderate Mengen unkritisch.
-  await prisma.$transaction([
-    prisma.project.update({
-      where: { id },
-      data: {
-        ...rest,
-        customerId: rest.customerId || null,
-        description: rest.description || null,
-        notes: rest.notes || null,
-      },
-      select: { id: true },
-    }),
-    prisma.billingPeriod.deleteMany({ where: { projectId: id } }),
-    prisma.billingPeriod.createMany({
-      data: billingPeriods.map((p) => ({
-        projectId: id,
-        start: p.start,
-        end: p.end,
-        notes: p.notes || null,
-      })),
-    }),
-  ]);
+  await prisma.project.update({
+    where: { id },
+    data: {
+      name: data.name,
+      customerId: data.customerId || null,
+      description: data.description || null,
+      status: data.status,
+      discountPercent: data.discountPercent,
+      notes: data.notes || null,
+    },
+    select: { id: true },
+  });
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
 }

@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Timeline } from "./timeline";
-import { ProjectStatus } from "@prisma/client";
 
 export default async function CalendarPage(props: { searchParams: Promise<{ month?: string }> }) {
   const sp = await props.searchParams;
 
-  // Standard: aktueller Monat
   const now = new Date();
   let viewStart: Date;
   if (sp.month) {
@@ -15,7 +13,7 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
   } else {
     viewStart = new Date(now.getFullYear(), now.getMonth(), 1);
   }
-  const viewEnd = new Date(viewStart.getFullYear(), viewStart.getMonth() + 2, 0); // 2 Monate Range
+  const viewEnd = new Date(viewStart.getFullYear(), viewStart.getMonth() + 2, 0);
 
   const projects = await prisma.project.findMany({
     where: {

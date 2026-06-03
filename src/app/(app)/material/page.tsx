@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Boxes, Package, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Boxes, Package, MapPin, Cable as CableIcon, ScanLine } from "lucide-react";
 import { PackUnitsSection } from "./pack-units-section";
-import { DevicesSection } from "./devices-section";
+import { DevicesSection, DeviceVM } from "./devices-section";
 import { LocationsSection } from "./locations-section";
+import { CablesSection, CableVM } from "./cables-section";
 import { serialize } from "@/lib/utils";
 
 interface SearchParams {
@@ -15,7 +18,7 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
   const sp = await props.searchParams;
   const tab = sp.tab ?? "pack-units";
 
-  const [packUnits, devices, locations, categories] = await Promise.all([
+  const [packUnits, devices, locations, categories, cables] = await Promise.all([
     prisma.packUnit.findMany({
       include: {
         location: true,
@@ -28,6 +31,9 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
       include: {
         category: true,
         _count: { select: { packUnitItems: true, serialNumbers: true } },
+        serialNumbers: {
+          include: { _count: { select: { inspections: true } } },
+        },
       },
       orderBy: { name: "asc" },
     }),
@@ -36,13 +42,69 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
       orderBy: { name: "asc" },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.cable.findMany({
+      include: {
+        category: true,
+        units: {
+          include: { _count: { select: { inspections: true } } },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
   ]);
+
+  const devicesVM: DeviceVM[] = devices.map((d) => ({
+    id: d.id,
+    name: d.name,
+    manufacturer: d.manufacturer,
+    model: d.model,
+    description: d.description,
+    status: d.status,
+    stockQuantity: d.stockQuantity,
+    dailyRate: Number(d.dailyRate),
+    replacementValue: d.replacementValue ? Number(d.replacementValue) : null,
+    weight: d.weight ? Number(d.weight) : null,
+    powerWatts: d.powerWatts,
+    inspectionExempt: d.inspectionExempt,
+    notes: d.notes,
+    categoryId: d.categoryId,
+    category: d.category,
+    createdAt: d.createdAt.toISOString(),
+    updatedAt: d.updatedAt.toISOString(),
+    serialsTotal: d.serialNumbers.length,
+    serialsInspected: d.serialNumbers.filter((s) => s._count.inspections > 0).length,
+    _count: d._count,
+  }));
+
+  const cablesVM: CableVM[] = cables.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    cableType: c.cableType,
+    lengthMeters: c.lengthMeters ? Number(c.lengthMeters) : null,
+    connectorA: c.connectorA,
+    connectorB: c.connectorB,
+    stockQuantity: c.stockQuantity,
+    categoryId: c.categoryId,
+    categoryName: c.category?.name ?? null,
+    inspectionExempt: c.inspectionExempt,
+    unitsTotal: c.units.length,
+    unitsWithBarcode: c.units.filter((u) => u.barcode).length,
+    unitsInspected: c.units.filter((u) => u._count.inspections > 0).length,
+  }));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Material</h1>
-        <p className="text-muted-foreground">Packeinheiten, Geräte und Lagerorte</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Material</h1>
+          <p className="text-muted-foreground">Packeinheiten, Geräte, Kabel und Lagerorte</p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/material/inspection">
+            <ScanLine className="h-4 w-4" /> Prüfungsmodus
+          </Link>
+        </Button>
       </div>
 
       <Tabs defaultValue={tab}>
@@ -52,6 +114,9 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
           </TabsTrigger>
           <TabsTrigger value="devices">
             <Package className="h-4 w-4" /> Geräte ({devices.length})
+          </TabsTrigger>
+          <TabsTrigger value="cables">
+            <CableIcon className="h-4 w-4" /> Kabel ({cables.length})
           </TabsTrigger>
           <TabsTrigger value="locations">
             <MapPin className="h-4 w-4" /> Lagerorte ({locations.length})
@@ -80,10 +145,21 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
             </CardHeader>
             <CardContent>
               <DevicesSection
-                devices={serialize(devices)}
+                devices={devicesVM}
                 categories={categories}
                 locations={locations}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cables">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{cables.length} Kabel-Typen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CablesSection cables={cablesVM} categories={categories} />
             </CardContent>
           </Card>
         </TabsContent>

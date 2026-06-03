@@ -5,13 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, FileText, Boxes, StickyNote, Truck } from "lucide-react";
+import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 import { ProjectForm } from "../project-form";
 import { AssignmentsSection } from "./assignments-section";
 import { NotesSection } from "./notes-section";
+import { PeriodsSection } from "./periods-section";
 import { ServicesSection } from "./services-section";
+import { FinancesSection } from "./finances-section";
 import { DeleteProjectButton } from "./delete-button";
 import { PdfExportButtons } from "./pdf-export";
 import { getOverlappingAssignments } from "@/lib/availability";
@@ -29,6 +31,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         billingPeriods: { orderBy: { start: "asc" } },
         projectNotes: { orderBy: { updatedAt: "desc" } },
         groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
+        invoices: { orderBy: { date: "desc" } },
         services: {
           include: { serviceItem: true },
           orderBy: [{ serviceItem: { kind: "asc" } }, { serviceItem: { name: "asc" } }],
@@ -67,7 +70,6 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  // Konflikte (überlappende Buchungen, inkl. eigene)
   const overlap = await getOverlappingAssignments(
     project.assignments.map((a) => a.packUnitId),
     project.planningStart,
@@ -97,13 +99,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     }
   }
 
-  // Tage über alle Berechnungszeiträume aufsummieren
   const billingDays = project.billingPeriods.reduce(
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
 
-  // Tagespreis pro Packeinheit = Summe(Inhalt × Anzahl × dailyRate)
   function packUnitRate(items: { device: { dailyRate: { toString(): string } }; quantity: number }[]) {
     return items.reduce(
       (s, it) => s + Number(it.device.dailyRate) * it.quantity,
@@ -116,7 +116,6 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     return sum + rate * a.quantity * billingDays;
   }, 0);
 
-  // Personal- und Transport-Positionen aufsummieren
   const servicesSubtotal = project.services.reduce((sum, s) => {
     const price = s.unitPriceOverride
       ? Number(s.unitPriceOverride)
@@ -124,16 +123,48 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     return sum + Number(s.quantity) * price;
   }, 0);
 
+  function groupNet(groupId: string, kind: "MATERIAL" | "SERVICE"): number {
+    const g = project.groups.find((x) => x.id === groupId);
+    if (!g) return 0;
+    let sub = 0;
+    if (kind === "MATERIAL") {
+      for (const a of project.assignments) {
+        if (a.groupId !== groupId) continue;
+        sub += packUnitRate(a.packUnit.items) * a.quantity * billingDays;
+      }
+    } else {
+      for (const s of project.services) {
+        if (s.groupId !== groupId) continue;
+        const price = s.unitPriceOverride
+          ? Number(s.unitPriceOverride)
+          : Number(s.serviceItem.unitPrice);
+        sub += Number(s.quantity) * price;
+      }
+    }
+    const pct = Number(g.discountPercent ?? 0) || 0;
+    return sub - (sub * pct) / 100;
+  }
+  const materialNetAfterGroups = project.groups
+    .filter((g) => g.kind === "MATERIAL")
+    .reduce((s, g) => s + groupNet(g.id, "MATERIAL"), 0);
+  const servicesNetAfterGroups = project.groups
+    .filter((g) => g.kind === "SERVICE")
+    .reduce((s, g) => s + groupNet(g.id, "SERVICE"), 0);
+
+  const matPct = Number(project.materialDiscountPercent ?? 0) || 0;
+  const svcPct = Number(project.servicesDiscountPercent ?? 0) || 0;
+  const projPct = Number(project.discountPercent ?? 0) || 0;
+  const materialBereichNet =
+    materialNetAfterGroups - (materialNetAfterGroups * matPct) / 100;
+  const servicesBereichNet =
+    servicesNetAfterGroups - (servicesNetAfterGroups * svcPct) / 100;
+
+  const subAfterBereichDiscounts = materialBereichNet + servicesBereichNet;
+  const projectDiscountAmount = (subAfterBereichDiscounts * projPct) / 100;
   const subtotal = materialSubtotal + servicesSubtotal;
-  const discount = (subtotal * Number(project.discountPercent)) / 100;
-  const total = subtotal - discount;
+  const total = subAfterBereichDiscounts - projectDiscountAmount;
+  const discount = subtotal - total;
 
-  // Anteilige Beträge für die Material-Karte (verteilt den Rabatt anteilig)
-  const materialDiscount =
-    (materialSubtotal * Number(project.discountPercent)) / 100;
-  const materialTotal = materialSubtotal - materialDiscount;
-
-  // Geräte-Aggregat für Kennzahl
   const deviceCount = project.assignments.reduce(
     (s, a) =>
       s + a.packUnit.items.reduce((ds, it) => ds + it.quantity, 0) * a.quantity,
@@ -175,19 +206,28 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <Card>
           <CardHeader className="pb-2"><CardDescription>Planung</CardDescription></CardHeader>
           <CardContent>
-            <div className="text-sm font-medium">{formatDate(project.planningStart)}</div>
-            <div className="text-xs text-muted-foreground">bis {formatDate(project.planningEnd)}</div>
+            <div className="text-sm font-medium">
+              {formatDate(project.planningStart)} bis {formatDate(project.planningEnd)}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Berechnung</CardDescription></CardHeader>
           <CardContent>
             <div className="text-sm font-medium">
-              {project.billingPeriods.length === 1
-                ? formatDate(project.billingPeriods[0].start)
-                : `${project.billingPeriods.length} Zeiträume`}
+              {project.billingPeriods.length === 0
+                ? "—"
+                : project.billingPeriods.length === 1
+                ? `${formatDate(project.billingPeriods[0].start)} bis ${formatDate(project.billingPeriods[0].end)}`
+                : `${formatDate(project.billingPeriods[0].start)} bis ${formatDate(
+                    project.billingPeriods[project.billingPeriods.length - 1].end
+                  )}`}
             </div>
-            <div className="text-xs text-muted-foreground">{billingDays} Tag(e) gesamt</div>
+            <div className="text-xs text-muted-foreground">
+              {billingDays} Tag(e) gesamt
+              {project.billingPeriods.length > 1 &&
+                ` · ${project.billingPeriods.length} Zeiträume`}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -215,23 +255,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       <Tabs defaultValue="details">
         <TabsList>
           <TabsTrigger value="details"><FileText className="h-4 w-4" /> Details</TabsTrigger>
-          <TabsTrigger value="notes">
-            <StickyNote className="h-4 w-4" /> Notizen
-            {project.projectNotes.length > 0 && (
-              <Badge variant="secondary" className="ml-1 px-1.5 text-[10px]">
-                {project.projectNotes.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+          <TabsTrigger value="periods"><CalendarRange className="h-4 w-4" /> Zeiträume</TabsTrigger>
+          <TabsTrigger value="notes"><StickyNote className="h-4 w-4" /> Notizen</TabsTrigger>
           <TabsTrigger value="material"><Boxes className="h-4 w-4" /> Material</TabsTrigger>
-          <TabsTrigger value="services">
-            <Truck className="h-4 w-4" /> Personal & Transport
-            {project.services.length > 0 && (
-              <Badge variant="secondary" className="ml-1 px-1.5 text-[10px]">
-                {project.services.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+          <TabsTrigger value="services"><Truck className="h-4 w-4" /> Personal & Transport</TabsTrigger>
+          <TabsTrigger value="finances"><Wallet className="h-4 w-4" /> Finanzen</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
@@ -247,6 +275,19 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           </Card>
         </TabsContent>
 
+        <TabsContent value="periods">
+          <PeriodsSection
+            projectId={project.id}
+            planningStart={project.planningStart.toISOString()}
+            planningEnd={project.planningEnd.toISOString()}
+            billingPeriods={project.billingPeriods.map((p) => ({
+              start: p.start.toISOString(),
+              end: p.end.toISOString(),
+              notes: p.notes,
+            }))}
+          />
+        </TabsContent>
+
         <TabsContent value="notes">
           <NotesSection
             projectId={project.id}
@@ -260,49 +301,45 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           />
         </TabsContent>
 
-        <TabsContent value="material" className="space-y-4">
+        <TabsContent value="material">
           <AssignmentsSection
             project={serialize(project)}
             allPackUnits={serialize(allPackUnits)}
             conflictMap={serialize(conflictMap)}
             billingDays={billingDays}
-            subtotal={materialSubtotal}
-            discount={materialDiscount}
-            total={materialTotal}
-            groups={project.groups.filter((g) => g.kind === "MATERIAL")}
+            subtotal={subtotal}
+            discount={discount}
+            total={total}
+            groups={serialize(project.groups)}
           />
         </TabsContent>
 
         <TabsContent value="services">
           <ServicesSection
             projectId={project.id}
-            projectServices={project.services.map((s) => ({
-              id: s.id,
-              serviceItemId: s.serviceItemId,
-              groupId: s.groupId,
-              quantity: Number(s.quantity),
-              unitPriceOverride:
-                s.unitPriceOverride === null ? null : Number(s.unitPriceOverride),
-              notes: s.notes,
-              serviceItem: {
-                id: s.serviceItem.id,
-                name: s.serviceItem.name,
-                kind: s.serviceItem.kind,
-                unit: s.serviceItem.unit,
-                unitPrice: Number(s.serviceItem.unitPrice),
-                active: s.serviceItem.active,
-              },
+            projectServices={serialize(project.services)}
+            catalog={serialize(serviceCatalog)}
+            groups={serialize(project.groups)}
+          />
+        </TabsContent>
+
+        <TabsContent value="finances">
+          <FinancesSection
+            projectId={project.id}
+            projectName={project.name}
+            groups={serialize(project.groups)}
+            projectDiscountPercent={projPct}
+            materialDiscountPercent={matPct}
+            servicesDiscountPercent={svcPct}
+            invoices={project.invoices.map((inv) => ({
+              id: inv.id,
+              number: inv.number,
+              date: inv.date.toISOString(),
+              dueDate: inv.dueDate.toISOString(),
+              totalNet: Number(inv.totalNet),
+              totalGross: inv.totalGross !== null ? Number(inv.totalGross) : null,
+              paidAt: inv.paidAt ? inv.paidAt.toISOString() : null,
             }))}
-            catalog={serviceCatalog.map((c) => ({
-              id: c.id,
-              name: c.name,
-              description: c.description,
-              kind: c.kind,
-              unit: c.unit,
-              unitPrice: Number(c.unitPrice),
-              active: c.active,
-            }))}
-            groups={project.groups.filter((g) => g.kind === "SERVICE")}
           />
         </TabsContent>
       </Tabs>
