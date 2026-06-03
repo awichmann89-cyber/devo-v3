@@ -12,6 +12,7 @@ export const SETTING_DEFAULTS = {
   companyZipCity: "",
   vatPercent: "19",
   dayFactorMap: '{"1":1,"2":1.5,"3":2,"4":2.5,"5":3,"6":3.5,"7":4,"8":4.5,"9":5,"10":5.5}',
+  calendarFeedToken: "",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -39,6 +40,15 @@ export async function setSetting(key: SettingKey, value: string): Promise<void> 
     update: { value },
     create: { key, value },
   });
+}
+
+/** Liefert den Kalender-Token, erzeugt einen, falls noch keiner gespeichert ist. */
+export async function getOrCreateCalendarToken(): Promise<string> {
+  const existing = await getSetting("calendarFeedToken");
+  if (existing) return existing;
+  const fresh = crypto.randomUUID().replace(/-/g, "");
+  await setSetting("calendarFeedToken", fresh);
+  return fresh;
 }
 
 /**

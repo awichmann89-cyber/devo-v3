@@ -37,6 +37,14 @@ export async function saveInvoiceNumberSettings(
   revalidatePath("/settings");
 }
 
+export async function regenerateCalendarToken(): Promise<string> {
+  await requireRole(CAN_ADMIN);
+  const fresh = crypto.randomUUID().replace(/-/g, "");
+  await setSetting("calendarFeedToken" as SettingKey, fresh);
+  revalidatePath("/settings");
+  return fresh;
+}
+
 export async function saveDayFactorMap(factors: Record<number, number>) {
   await requireRole(CAN_ADMIN);
   const clean: Record<number, number> = {};

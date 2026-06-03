@@ -2,12 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FolderTree, Receipt, FileText, Building2, CalendarClock } from "lucide-react";
+import { FolderTree, Receipt, FileText, Building2, CalendarClock, Calendar } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
 import { DayFactorForm } from "./day-factor-form";
-import { parseDayFactorMap } from "@/lib/settings";
+import { CalendarFeedForm } from "./calendar-feed-form";
+import { parseDayFactorMap, getOrCreateCalendarToken } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
 import { CompanyAddressForm } from "./company-address-form";
 import { getSettings } from "@/lib/settings";
@@ -36,6 +37,7 @@ export default async function SettingsPage() {
       select: { kind: true, fileName: true, updatedAt: true },
     }),
   ]);
+  const calendarToken = await getOrCreateCalendarToken();
   const first = letterheads.find((l) => l.kind === "FIRST_PAGE") ?? null;
   const following = letterheads.find((l) => l.kind === "FOLLOWING_PAGES") ?? null;
 
@@ -76,6 +78,9 @@ export default async function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="dayfactor">
             <CalendarClock className="h-4 w-4" /> Tage-Faktor
+          </TabsTrigger>
+          <TabsTrigger value="calendar">
+            <Calendar className="h-4 w-4" /> Kalender
           </TabsTrigger>
           <TabsTrigger value="letterhead">
             <FileText className="h-4 w-4" /> Briefpapier
@@ -153,6 +158,20 @@ export default async function SettingsPage() {
                 currentYearMax={currentYearMax}
                 year={year}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="calendar">
+          <Card>
+            <CardHeader>
+              <CardTitle>Kalender-Feeds</CardTitle>
+              <CardDescription>
+                ICS-URLs zum Abonnieren in Google Kalender, Apple Kalender oder Outlook. Zwei separate Feeds für Planungs- und Berechnungszeiträume — Aktualisierung erfolgt automatisch.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CalendarFeedForm initialToken={calendarToken} />
             </CardContent>
           </Card>
         </TabsContent>
