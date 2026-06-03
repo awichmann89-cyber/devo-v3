@@ -178,6 +178,13 @@ export const projectServiceSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
 });
 
+export const assignmentSchema = z.object({
+  packUnitId: z.string().min(1),
+  quantity: z.coerce.number().int().min(1).default(1),
+  groupId: z.string().min(1),
+  notes: z.string().max(500).optional().nullable(),
+});
+
 export const projectGroupSchema = z.object({
   name: z.string().min(1, "Name erforderlich").max(100),
   kind: z.nativeEnum(ProjectGroupKind),
