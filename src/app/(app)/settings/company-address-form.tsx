@@ -53,27 +53,25 @@ export function CompanyAddressForm({
           maxLength={200}
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="companyStreet">Straße + Hausnummer</Label>
-          <Input
-            id="companyStreet"
-            value={street}
-            onChange={(e) => setStreet(e.target.value)}
-            placeholder="z.B. Musterstraße 1"
-            maxLength={200}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="companyZipCity">PLZ + Stadt</Label>
-          <Input
-            id="companyZipCity"
-            value={zipCity}
-            onChange={(e) => setZipCity(e.target.value)}
-            placeholder="z.B. 12345 Berlin"
-            maxLength={200}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="companyStreet">Straße, Hausnummer</Label>
+        <Input
+          id="companyStreet"
+          value={street}
+          onChange={(e) => setStreet(e.target.value)}
+          placeholder="z.B. Musterstraße 1"
+          maxLength={200}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="companyZipCity">PLZ, Stadt</Label>
+        <Input
+          id="companyZipCity"
+          value={zipCity}
+          onChange={(e) => setZipCity(e.target.value)}
+          placeholder="z.B. 12345 Berlin"
+          maxLength={200}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="vatPercent">Mehrwertsteuersatz (%)</Label>

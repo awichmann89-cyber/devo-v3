@@ -104,7 +104,7 @@ export default async function SettingsPage() {
             <CardHeader>
               <CardTitle>Firmenadresse (Versender)</CardTitle>
               <CardDescription>
-                Wird auf Rechnungen oben im Anschriftenfeld als Versenderzeile nach Briefnorm angezeigt (z.B.{" "}
+                Wird auf Rechnungen und Angeboten oben im Anschriftenfeld als Versenderzeile nach Briefnorm angezeigt (z.B.{" "}
                 <em>Musterfirma GmbH · Musterstr. 1 · 12345 Berlin</em>).
               </CardDescription>
             </CardHeader>
