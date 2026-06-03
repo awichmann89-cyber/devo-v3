@@ -159,16 +159,9 @@ export function DevicesSection({
                     group.items.map((d) => (
                       <TableRow key={d.id}>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Link href={`/devices/${d.id}`} className="font-medium hover:underline">
-                              {d.name}
-                            </Link>
-                            {d.inspectionExempt && (
-                              <Badge variant="secondary" className="text-[10px]">
-                                Prüfung nicht erforderlich
-                              </Badge>
-                            )}
-                          </div>
+                          <Link href={`/devices/${d.id}`} className="font-medium hover:underline">
+                            {d.name}
+                          </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {[d.manufacturer, d.model].filter(Boolean).join(" ") || "—"}
