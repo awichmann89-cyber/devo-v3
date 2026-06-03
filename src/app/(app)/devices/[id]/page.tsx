@@ -9,7 +9,7 @@ import { ArrowLeft, Boxes, ShieldOff } from "lucide-react";
 import { formatCurrency, formatDate, serialize } from "@/lib/utils";
 import { projectStatusVariant } from "@/lib/labels";
 import { DeviceDialog } from "../device-dialog";
-import { QrCodeDisplay } from "./qr-display";
+import { DeviceQr } from "./device-qr";
 import { DeleteDeviceButton } from "./delete-button";
 import { SerialNumbersSection } from "./serial-numbers-section";
 
@@ -114,9 +114,9 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
         <Card>
           <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
-            <QrCodeDisplay text={device.id} label={device.name} />
+            <DeviceQr id={device.id} name={device.name} />
             <p className="text-xs text-muted-foreground text-center">
-              Scannt direkt zum Gerät
+              Scannt zur öffentlichen Geräteübersicht
             </p>
           </CardContent>
         </Card>
