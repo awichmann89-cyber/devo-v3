@@ -1,6 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Prisma } from "@prisma/client";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -64,36 +63,25 @@ function isDecimal(v: unknown): v is Decimallish {
  * damit das Ergebnis von Server Components an Client Components
  * übergeben werden kann. Date-Objekte bleiben erhalten.
  */
-export type Serialized<T> = T extends Date
-  ? Date
-  : T extends Prisma.Decimal
-  ? number
-  : T extends Array<infer U>
-  ? Serialized<U>[]
-  : T extends object
-  ? { [K in keyof T]: Serialized<T[K]> }
-  : T;
-
-export function serialize<T>(obj: T): Serialized<T> {
-  if (obj === null || obj === undefined) return obj as Serialized<T>;
-  if (obj instanceof Date) return obj as Serialized<T>;
-  if (isDecimal(obj)) return obj.toNumber() as unknown as Serialized<T>;
-  if (Array.isArray(obj)) return obj.map((item) => serialize(item)) as unknown as Serialized<T>;
+export function serialize<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj;
+  if (isDecimal(obj)) return obj.toNumber() as unknown as T;
+  if (Array.isArray(obj)) return obj.map((item) => serialize(item)) as unknown as T;
   if (obj instanceof Map) {
-    // Map ist nicht RSC-serialisierbar → in plain object umwandeln.
     const out: Record<string, unknown> = {};
     for (const [k, v] of obj) out[String(k)] = serialize(v);
-    return out as unknown as Serialized<T>;
+    return out as unknown as T;
   }
   if (obj instanceof Set) {
-    return Array.from(obj).map((item) => serialize(item)) as unknown as Serialized<T>;
+    return Array.from(obj).map((item) => serialize(item)) as unknown as T;
   }
   if (typeof obj === "object") {
     const out: Record<string, unknown> = {};
     for (const key in obj as object) {
       out[key] = serialize((obj as Record<string, unknown>)[key]);
     }
-    return out as Serialized<T>;
+    return out as T;
   }
-  return obj as Serialized<T>;
+  return obj;
 }

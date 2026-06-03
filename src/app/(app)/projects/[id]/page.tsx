@@ -317,8 +317,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <TabsContent value="services">
           <ServicesSection
             projectId={project.id}
-            projectServices={serialize(project.services)}
-            catalog={serialize(serviceCatalog)}
+            projectServices={serialize(project.services) as never}
+            catalog={serialize(serviceCatalog) as never}
             groups={serialize(project.groups)}
           />
         </TabsContent>
@@ -327,7 +327,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           <FinancesSection
             projectId={project.id}
             projectName={project.name}
-            groups={serialize(project.groups)}
+            groups={project!.groups.map((g) => ({
+              id: g.id,
+              name: g.name,
+              kind: g.kind,
+              discountPercent: Number(g.discountPercent ?? 0),
+              subtotal: groupNet(g.id, g.kind),
+            }))}
             projectDiscountPercent={projPct}
             materialDiscountPercent={matPct}
             servicesDiscountPercent={svcPct}

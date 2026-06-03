@@ -473,7 +473,6 @@ export async function GET(
     margin: { top: 35, bottom: 55, left: 14, right: 14 },
   });
 
-  // @ts-expect-error: lastAutoTable
   let endY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
   if (endY > PAGE_HEIGHT - PAGE_BOTTOM_RESERVED) {
     doc.addPage();
@@ -493,7 +492,7 @@ export async function GET(
   const contentBytes = new Uint8Array(doc.output("arraybuffer"));
   const finalBytes = await applyLetterhead(contentBytes);
 
-  return new NextResponse(finalBytes, {
+  return new NextResponse(finalBytes as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="rechnung-${invoice.number}.pdf"`,
