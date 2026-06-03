@@ -88,7 +88,6 @@ export default async function PackUnitDetailPage(props: {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">{packUnit.name}</h1>
-            <Badge variant="outline" className="font-mono">{packUnit.code}</Badge>
             {packUnit.isSingleItem && (
               <Badge variant="secondary">Einzelpackeinheit</Badge>
             )}
