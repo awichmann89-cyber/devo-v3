@@ -36,7 +36,6 @@ export interface DeviceVM {
   weight: number | null;
   powerWatts: number | null;
   inspectionExempt: boolean;
-  notes: string | null;
   categoryId: string | null;
   category: Category | null;
   createdAt: string;

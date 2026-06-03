@@ -49,7 +49,6 @@ export const deviceSchema = z.object({
   weight: z.coerce.number().min(0).optional().nullable(),
   powerWatts: z.coerce.number().int().min(0).optional().nullable(),
   inspectionExempt: z.coerce.boolean().default(false),
-  notes: z.string().max(1000).optional().nullable(),
   categoryId: z.string().optional().nullable(),
 });
 
@@ -64,7 +63,6 @@ export const cableSchema = z.object({
   replacementValue: z.coerce.number().min(0).optional().nullable(),
   weight: z.coerce.number().min(0).optional().nullable(),
   inspectionExempt: z.coerce.boolean().default(false),
-  notes: z.string().max(1000).optional().nullable(),
   categoryId: z.string().optional().nullable(),
 });
 

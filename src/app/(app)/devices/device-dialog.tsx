@@ -72,7 +72,6 @@ export function DeviceDialog({
     weight: device?.weight?.toString() ?? "",
     powerWatts: device?.powerWatts?.toString() ?? "",
     categoryId: device?.categoryId ?? "",
-    notes: device?.notes ?? "",
   });
   const [pending, startTransition] = useTransition();
 
@@ -263,21 +262,11 @@ export function DeviceDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="desc">Beschreibung</Label>
+            <Label htmlFor="desc">Beschreibung (extern)</Label>
             <Textarea
               id="desc"
               value={form.description ?? ""}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notizen (intern)</Label>
-            <Textarea
-              id="notes"
-              value={form.notes ?? ""}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={2}
             />
           </div>

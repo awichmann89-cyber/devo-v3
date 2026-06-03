@@ -62,7 +62,6 @@ export default async function CableDetailPage(props: {
     stockQuantity: cable.stockQuantity,
     categoryId: cable.categoryId,
     description: cable.description,
-    notes: cable.notes,
     replacementValue: cable.replacementValue ? Number(cable.replacementValue) : null,
     weight: cable.weight ? Number(cable.weight) : null,
     inspectionExempt: cable.inspectionExempt,
@@ -152,12 +151,6 @@ export default async function CableDetailPage(props: {
               <div className="mt-4 border-t pt-4 text-sm">
                 <div className="text-muted-foreground mb-1">Beschreibung</div>
                 <p className="whitespace-pre-line">{cable.description}</p>
-              </div>
-            )}
-            {cable.notes && (
-              <div className="mt-4 border-t pt-4 text-sm">
-                <div className="text-muted-foreground mb-1">Notizen (intern)</div>
-                <p className="whitespace-pre-line">{cable.notes}</p>
               </div>
             )}
           </CardContent>

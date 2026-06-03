@@ -66,7 +66,6 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
     weight: d.weight ? Number(d.weight) : null,
     powerWatts: d.powerWatts,
     inspectionExempt: d.inspectionExempt,
-    notes: d.notes,
     categoryId: d.categoryId,
     category: d.category,
     createdAt: d.createdAt.toISOString(),

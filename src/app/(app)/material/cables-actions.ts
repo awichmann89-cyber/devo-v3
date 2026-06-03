@@ -30,7 +30,6 @@ export async function createCable(input: unknown) {
         : null,
       weight: data.weight ? new Prisma.Decimal(data.weight) : null,
       inspectionExempt: data.inspectionExempt,
-      notes: data.notes || null,
       categoryId: data.categoryId || null,
       units: {
         create: Array.from({ length: data.stockQuantity }, () => ({})),
@@ -77,7 +76,6 @@ export async function updateCable(id: string, input: unknown) {
         : null,
       weight: data.weight ? new Prisma.Decimal(data.weight) : null,
       inspectionExempt: data.inspectionExempt,
-      notes: data.notes || null,
       categoryId: data.categoryId || null,
     },
     select: { id: true },

@@ -81,7 +81,6 @@ model Device {
   weight           Decimal?     @db.Decimal(8, 2) // kg pro Stück
   powerWatts       Int?         // Stromaufnahme W pro Stück
   inspectionExempt Boolean      @default(false) // Muss nicht geprüft werden (DGUV V3 nicht erforderlich)
-  notes            String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -127,7 +126,6 @@ model Cable {
   replacementValue Decimal? @db.Decimal(10, 2)
   weight           Decimal? @db.Decimal(8, 2)
   inspectionExempt Boolean  @default(false) // Muss nicht geprüft werden (DGUV V3 nicht erforderlich)
-  notes            String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

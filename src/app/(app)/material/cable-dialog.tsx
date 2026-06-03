@@ -35,7 +35,6 @@ export interface CableForDialog {
   stockQuantity: number;
   categoryId: string | null;
   description?: string | null;
-  notes?: string | null;
   replacementValue?: number | null;
   weight?: number | null;
   inspectionExempt?: boolean;
@@ -62,7 +61,6 @@ export function CableDialog({ open, onOpenChange, cable, categories }: Props) {
   const [stockQuantity, setStockQuantity] = useState(1);
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
-  const [notes, setNotes] = useState("");
   const [replacementValue, setReplacementValue] = useState("");
   const [weight, setWeight] = useState("");
   const [inspectionExempt, setInspectionExempt] = useState(false);
@@ -78,7 +76,6 @@ export function CableDialog({ open, onOpenChange, cable, categories }: Props) {
       setStockQuantity(cable?.stockQuantity ?? 1);
       setCategoryId(cable?.categoryId ?? "");
       setDescription(cable?.description ?? "");
-      setNotes(cable?.notes ?? "");
       setReplacementValue(
         cable?.replacementValue ? String(cable.replacementValue) : ""
       );
@@ -105,7 +102,6 @@ export function CableDialog({ open, onOpenChange, cable, categories }: Props) {
       weight: weight ? Number(weight) : null,
       inspectionExempt,
       categoryId: categoryId || null,
-      notes: notes || null,
     };
     startTransition(async () => {
       try {
@@ -279,16 +275,6 @@ export function CableDialog({ open, onOpenChange, cable, categories }: Props) {
               id="c-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="c-notes">Notizen (intern, optional)</Label>
-            <Textarea
-              id="c-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
               rows={2}
             />
           </div>
