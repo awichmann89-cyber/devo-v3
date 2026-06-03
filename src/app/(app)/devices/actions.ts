@@ -17,6 +17,7 @@ function normalize(input: unknown) {
     powerWatts: data.powerWatts ?? null,
     manufacturer: data.manufacturer || null,
     model: data.model || null,
+    description: data.description || null,
   };
 }
 

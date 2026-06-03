@@ -40,6 +40,7 @@ export const deviceSchema = z.object({
   name: z.string().min(1, "Name erforderlich").max(150),
   manufacturer: z.string().max(100).optional().nullable(),
   model: z.string().max(100).optional().nullable(),
+  description: z.string().max(1000).optional().nullable(),
   stockQuantity: z.coerce.number().int().min(1).default(1),
   dailyRate: z.coerce.number().min(0).default(0),
   replacementValue: z.coerce.number().min(0).optional().nullable(),

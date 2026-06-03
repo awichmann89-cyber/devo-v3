@@ -27,6 +27,7 @@ export interface DeviceVM {
   name: string;
   manufacturer: string | null;
   model: string | null;
+  description: string | null;
   stockQuantity: number;
   dailyRate: number;
   replacementValue: number | null;

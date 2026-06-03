@@ -59,9 +59,9 @@ export function DeviceDialog({
     device?.inspectionExempt ?? false
   );
   const [form, setForm] = useState({
-    name: device?.name ?? "",
     manufacturer: device?.manufacturer ?? "",
     model: device?.model ?? "",
+    description: device?.description ?? "",
     stockQuantity: device?.stockQuantity?.toString() ?? "1",
     dailyRate: device?.dailyRate?.toString() ?? "0",
     replacementValue: device?.replacementValue?.toString() ?? "",
@@ -76,8 +76,10 @@ export function DeviceDialog({
     e.stopPropagation();
     startTransition(async () => {
       try {
+        const name = [form.manufacturer.trim(), form.model.trim()].filter(Boolean).join(" ") || "Gerät";
         const payload = {
           ...form,
+          name,
           stockQuantity: Number(form.stockQuantity) || 1,
           dailyRate: Number(form.dailyRate),
           replacementValue: form.replacementValue ? Number(form.replacementValue) : null,
@@ -136,23 +138,14 @@ export function DeviceDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="name">Bezeichnung</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="manu">Hersteller</Label>
               <Input
                 id="manu"
                 value={form.manufacturer ?? ""}
                 onChange={(e) => setForm({ ...form, manufacturer: e.target.value })}
+                required
               />
             </div>
             <div className="space-y-2">
@@ -161,8 +154,19 @@ export function DeviceDialog({
                 id="model"
                 value={form.model ?? ""}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
+                required
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="desc">Beschreibung (extern)</Label>
+            <Textarea
+              id="desc"
+              value={form.description ?? ""}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={2}
+            />
           </div>
 
           <div className="space-y-2">

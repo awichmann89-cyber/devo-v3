@@ -102,6 +102,12 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
               <Field label="Leistung (pro Stück)" value={device.powerWatts ? `${device.powerWatts} W` : null} />
               <Field label="DGUV V3 Prüfung" value={device.inspectionExempt ? "Nicht erforderlich" : "Erforderlich"} />
             </dl>
+            {device.description && (
+              <div className="mt-4 border-t pt-4 text-sm">
+                <div className="text-muted-foreground mb-1">Beschreibung</div>
+                <p>{device.description}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

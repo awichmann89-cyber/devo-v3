@@ -65,6 +65,7 @@ model Device {
   name             String
   manufacturer     String?
   model            String?
+  description      String?
   stockQuantity    Int          @default(1) // Anzahl physisch im Lager
   dailyRate        Decimal      @default(0) @db.Decimal(10, 2) // EUR pro Tag pro Stück
   replacementValue Decimal?     @db.Decimal(10, 2)
