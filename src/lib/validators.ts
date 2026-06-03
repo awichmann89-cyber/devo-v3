@@ -145,6 +145,15 @@ export const projectSchema = z
     message: "Planungs-Ende muss nach Start liegen",
   });
 
+export const projectUpdateCoreSchema = z.object({
+  name: z.string().min(1, "Name erforderlich").max(200),
+  customerId: z.string().optional().nullable(),
+  description: z.string().max(2000).optional().nullable(),
+  status: z.nativeEnum(ProjectStatus).default(ProjectStatus.DRAFT),
+  discountPercent: z.coerce.number().min(0).max(100).default(0),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
 export const projectPeriodsSchema = z
   .object({
     planningStart: z.coerce.date(),
