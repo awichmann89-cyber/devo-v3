@@ -58,14 +58,6 @@ model Category {
   @@index([parentId])
 }
 
-enum DeviceStatus {
-  AVAILABLE
-  IN_USE
-  MAINTENANCE
-  DEFECT
-  RETIRED
-}
-
 // Device = Typ. stockQuantity sagt, wie viele physisch im Lager sind.
 // Pro Stück optional eine Seriennummer (siehe DeviceSerialNumber).
 model Device {
@@ -73,8 +65,6 @@ model Device {
   name             String
   manufacturer     String?
   model            String?
-  description      String?
-  status           DeviceStatus @default(AVAILABLE)
   stockQuantity    Int          @default(1) // Anzahl physisch im Lager
   dailyRate        Decimal      @default(0) @db.Decimal(10, 2) // EUR pro Tag pro Stück
   replacementValue Decimal?     @db.Decimal(10, 2)
@@ -93,7 +83,6 @@ model Device {
   // Vorkommen in Packeinheiten
   packUnitItems PackUnitDevice[]
 
-  @@index([status])
   @@index([categoryId])
 }
 

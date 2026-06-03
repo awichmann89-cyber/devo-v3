@@ -29,7 +29,6 @@ export default async function PackUnitDetailPage(props: {
       },
     }),
     prisma.device.findMany({
-      where: { status: { not: "RETIRED" } },
       include: { category: true },
       orderBy: { name: "asc" },
     }),

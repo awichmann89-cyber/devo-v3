@@ -15,8 +15,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { DeviceStatus, type Category, type Location } from "@prisma/client";
-import { deviceStatusLabel } from "@/lib/labels";
+import { type Category, type Location } from "@prisma/client";
 import { DeviceDialog } from "@/app/(app)/devices/device-dialog";
 import { deleteDevice } from "@/app/(app)/devices/actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -28,8 +27,6 @@ export interface DeviceVM {
   name: string;
   manufacturer: string | null;
   model: string | null;
-  description: string | null;
-  status: DeviceStatus;
   stockQuantity: number;
   dailyRate: number;
   replacementValue: number | null;
@@ -55,8 +52,6 @@ export function DevicesSection({
   locations: Location[];
 }) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [catFilter, setCatFilter] = useState<string>("all");
   const [deleting, setDeleting] = useState<DeviceVM | null>(null);
   const [pending, startTransition] = useTransition();
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -87,8 +82,6 @@ export function DevicesSection({
 
   const filtered = devices
     .filter((d) => {
-      if (statusFilter !== "all" && d.status !== statusFilter) return false;
-      if (catFilter !== "all" && d.categoryId !== catFilter) return false;
       if (search) {
         const q = search.toLowerCase();
         const hay = `${d.name} ${d.manufacturer ?? ""} ${d.model ?? ""}`.toLowerCase();
@@ -107,29 +100,6 @@ export function DevicesSection({
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
         />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Status</SelectItem>
-            {Object.values(DeviceStatus).map((s) => (
-              <SelectItem key={s} value={s}>{deviceStatusLabel(s)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={catFilter} onValueChange={setCatFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Kategorie" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Kategorien</SelectItem>
-            {flattenCategoryTree(categories).map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                <span style={{ paddingLeft: `${c.depth * 1.25}rem` }}>
-                  {c.depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
-                  {c.name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className="ml-auto">
           <DeviceDialog categories={categories} locations={locations} />
         </div>

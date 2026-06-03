@@ -1,18 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, FolderKanban, Boxes, AlertTriangle } from "lucide-react";
-import { ProjectStatus, DeviceStatus } from "@prisma/client";
+import { Package, FolderKanban, Boxes } from "lucide-react";
+import { ProjectStatus } from "@prisma/client";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 export default async function DashboardPage() {
-  const [deviceCount, projectCount, packUnitCount, defectCount, upcomingProjects, activeProjects] =
+  const [deviceCount, projectCount, packUnitCount, upcomingProjects, activeProjects] =
     await Promise.all([
       prisma.device.count(),
       prisma.project.count(),
       prisma.packUnit.count(),
-      prisma.device.count({ where: { status: DeviceStatus.DEFECT } }),
       prisma.project.findMany({
         where: {
           status: { in: [ProjectStatus.CONFIRMED, ProjectStatus.DRAFT] },
@@ -41,13 +40,6 @@ export default async function DashboardPage() {
         <StatCard href="/material?tab=pack-units" title="Packeinheiten" value={packUnitCount} icon={Boxes} />
         <StatCard href="/material?tab=devices" title="Geräte-Typen" value={deviceCount} icon={Package} />
         <StatCard href="/projects" title="Projekte" value={projectCount} icon={FolderKanban} />
-        <StatCard
-          href="/material?tab=devices"
-          title="Defekt"
-          value={defectCount}
-          icon={AlertTriangle}
-          variant={defectCount > 0 ? "warning" : "default"}
-        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

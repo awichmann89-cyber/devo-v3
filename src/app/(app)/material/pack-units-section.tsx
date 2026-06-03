@@ -62,7 +62,6 @@ interface Props {
 export function PackUnitsSection({ packUnits, categories, locations }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState<string>("all");
   const [deleting, setDeleting] = useState<PackUnitWithItems | null>(null);
   const [pending, startTransition] = useTransition();
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -101,7 +100,6 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
 
   const filtered = packUnits
     .filter((pu) => {
-      if (catFilter !== "all" && pu.categoryId !== catFilter) return false;
       if (search) {
         const q = search.toLowerCase();
         const hay = `${pu.code} ${pu.name} ${pu.description ?? ""}`.toLowerCase();
@@ -111,7 +109,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
     })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
-  const hasFilter = !!search || catFilter !== "all";
+  const hasFilter = !!search;
 
   return (
     <>
@@ -122,30 +120,11 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
         />
-        <Select value={catFilter} onValueChange={setCatFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Kategorie" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Kategorien</SelectItem>
-            {flattenCategoryTree(categories).map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                <span style={{ paddingLeft: `${c.depth * 1.25}rem` }}>
-                  {c.depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
-                  {c.name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         {hasFilter && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setSearch("");
-              setCatFilter("all");
-            }}
+            onClick={() => setSearch("")}
           >
             <X className="h-4 w-4" /> Filter zurücksetzen
           </Button>

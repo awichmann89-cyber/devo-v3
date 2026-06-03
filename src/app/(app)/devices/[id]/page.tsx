@@ -7,11 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link";
 import { ArrowLeft, Boxes, ShieldOff } from "lucide-react";
 import { formatCurrency, formatDate, serialize } from "@/lib/utils";
-import {
-  deviceStatusLabel,
-  deviceStatusVariant,
-  projectStatusVariant,
-} from "@/lib/labels";
+import { projectStatusVariant } from "@/lib/labels";
 import { DeviceDialog } from "../device-dialog";
 import { QrCodeDisplay } from "./qr-display";
 import { DeleteDeviceButton } from "./delete-button";
@@ -64,7 +60,6 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">{device.name}</h1>
-            <Badge variant={deviceStatusVariant(device.status)}>{deviceStatusLabel(device.status)}</Badge>
             {device.inspectionExempt && (
               <Badge variant="secondary" className="gap-1">
                 <ShieldOff className="h-3 w-3" />
@@ -107,12 +102,6 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
               <Field label="Leistung (pro Stück)" value={device.powerWatts ? `${device.powerWatts} W` : null} />
               <Field label="DGUV V3 Prüfung" value={device.inspectionExempt ? "Nicht erforderlich" : "Erforderlich"} />
             </dl>
-            {device.description && (
-              <div className="mt-4 border-t pt-4 text-sm">
-                <div className="text-muted-foreground mb-1">Beschreibung</div>
-                <p>{device.description}</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 

@@ -1,24 +1,4 @@
-import { BillingUnit, DeviceStatus, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
-
-export function deviceStatusLabel(status: DeviceStatus): string {
-  return {
-    AVAILABLE: "Verfügbar",
-    IN_USE: "Im Einsatz",
-    MAINTENANCE: "Wartung",
-    DEFECT: "Defekt",
-    RETIRED: "Ausgemustert",
-  }[status];
-}
-
-export function deviceStatusVariant(status: DeviceStatus): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" {
-  return {
-    AVAILABLE: "success" as const,
-    IN_USE: "default" as const,
-    MAINTENANCE: "warning" as const,
-    DEFECT: "destructive" as const,
-    RETIRED: "outline" as const,
-  }[status];
-}
+import { BillingUnit, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
 
 export function projectStatusLabel(status: ProjectStatus): string {
   return {

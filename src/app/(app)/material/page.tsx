@@ -58,8 +58,6 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
     name: d.name,
     manufacturer: d.manufacturer,
     model: d.model,
-    description: d.description,
-    status: d.status,
     stockQuantity: d.stockQuantity,
     dailyRate: Number(d.dailyRate),
     replacementValue: d.replacementValue ? Number(d.replacementValue) : null,

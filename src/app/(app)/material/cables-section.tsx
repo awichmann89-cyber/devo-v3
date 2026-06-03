@@ -68,7 +68,6 @@ interface Props {
 
 export function CablesSection({ cables, categories }: Props) {
   const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<CableVM | null>(null);
   const [pending, startTransition] = useTransition();
@@ -84,7 +83,6 @@ export function CablesSection({ cables, categories }: Props) {
   }
 
   const filtered = cables.filter((c) => {
-    if (catFilter !== "all" && c.categoryId !== catFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -121,27 +119,11 @@ export function CablesSection({ cables, categories }: Props) {
             className="w-64 pl-8"
           />
         </div>
-        <Select value={catFilter} onValueChange={setCatFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Kategorien</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {(search || catFilter !== "all") && (
+        {search && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setSearch("");
-              setCatFilter("all");
-            }}
+            onClick={() => setSearch("")}
           >
             <X className="h-4 w-4" /> Filter zurücksetzen
           </Button>

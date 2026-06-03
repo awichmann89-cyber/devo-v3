@@ -24,12 +24,10 @@ import { Plus, Loader2, Pencil, Boxes } from "lucide-react";
 import { createDevice, updateDevice } from "./actions";
 import { toast } from "sonner";
 import {
-  DeviceStatus,
   type Category,
   type Device,
   type Location,
 } from "@prisma/client";
-import { deviceStatusLabel } from "@/lib/labels";
 import { Checkbox } from "@/components/ui/checkbox";
 import { flattenCategoryTree } from "@/lib/category-tree";
 
@@ -64,8 +62,6 @@ export function DeviceDialog({
     name: device?.name ?? "",
     manufacturer: device?.manufacturer ?? "",
     model: device?.model ?? "",
-    description: device?.description ?? "",
-    status: device?.status ?? DeviceStatus.AVAILABLE,
     stockQuantity: device?.stockQuantity?.toString() ?? "1",
     dailyRate: device?.dailyRate?.toString() ?? "0",
     replacementValue: device?.replacementValue?.toString() ?? "",
@@ -167,20 +163,6 @@ export function DeviceDialog({
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(v) => setForm({ ...form, status: v as DeviceStatus })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.values(DeviceStatus).map((s) => (
-                    <SelectItem key={s} value={s}>{deviceStatusLabel(s)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="space-y-2">
@@ -259,16 +241,6 @@ export function DeviceDialog({
                 onChange={(e) => setForm({ ...form, powerWatts: e.target.value })}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="desc">Beschreibung (extern)</Label>
-            <Textarea
-              id="desc"
-              value={form.description ?? ""}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={2}
-            />
           </div>
 
           <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
