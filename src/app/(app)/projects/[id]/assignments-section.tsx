@@ -42,6 +42,7 @@ import {
   FolderPlus,
   Folder,
   FolderOpen,
+  Printer,
 } from "lucide-react";
 import {
   addAssignment,
@@ -299,6 +300,27 @@ export function AssignmentsSection({
 
   return (
     <>
+      <div className="mb-3 flex justify-end">
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() =>
+            window.open(
+              `/api/projects/${project.id}/packlist.pdf`,
+              "_blank"
+            )
+          }
+          disabled={project.assignments.length === 0}
+          title={
+            project.assignments.length === 0
+              ? "Erst Geräte buchen"
+              : "Packliste als PDF öffnen"
+          }
+        >
+          <Printer className="h-4 w-4" /> Packliste drucken
+        </Button>
+      </div>
+      <Card className="p-4">
       <HorizontalSplit
         storageKey="devo:material-split"
         defaultLeftPx={360}
@@ -752,6 +774,7 @@ export function AssignmentsSection({
         pending={pending}
         onConfirm={handleDeleteGroup}
       />
+      </Card>
 
       <ConfirmDialog
         open={conflictPrompt !== null}

@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Pencil, Trash2, Loader2, StickyNote } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, StickyNote, Printer } from "lucide-react";
 import { toast } from "sonner";
 import {
   createProjectNote,
@@ -79,13 +79,31 @@ export function NotesSection({
 
   return (
     <div className="space-y-4">
-      {canWrite && (
-        <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() =>
+            window.open(
+              `/api/projects/${projectId}/notes.pdf`,
+              "_blank"
+            )
+          }
+          disabled={notes.length === 0}
+          title={
+            notes.length === 0
+              ? "Erst eine Notiz anlegen"
+              : "Notizen als PDF öffnen"
+          }
+        >
+          <Printer className="h-4 w-4" /> Notizen drucken
+        </Button>
+        {canWrite && (
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4" /> Neue Notiz
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {notes.length === 0 ? (
         <Card>

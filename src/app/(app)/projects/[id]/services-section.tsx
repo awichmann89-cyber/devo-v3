@@ -299,6 +299,7 @@ export function ServicesSection({
 
   return (
     <>
+      <Card className="p-4">
       <HorizontalSplit
         storageKey="devo:services-split"
         defaultLeftPx={360}
@@ -741,6 +742,7 @@ export function ServicesSection({
           </div>
         }
       />
+      </Card>
 
       <ServiceItemDialog
         open={dialogOpen}
