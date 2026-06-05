@@ -200,4 +200,34 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
                       <Link href={`/projects/${a.project.id}`} className="hover:underline font-medium">
                         {a.project.name}
                       </Link>
-                   
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(a.project.planningStart)} – {formatDate(a.project.planningEnd)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={projectStatusVariant(a.project.status)} className="text-[10px]">
+                        {a.project.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {a.quantity}×
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value || "—"}</dd>
+    </>
+  );
+}
