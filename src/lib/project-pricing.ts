@@ -6,18 +6,13 @@ import { DayFactorMap, getDayFactor } from "@/lib/settings";
  * Berechnet den Gesamtwert (netto, vor MwSt.) eines Projekts unter Berücksichtigung
  * aller Gruppen-, Bereichs- und projektweiten Rabatte.
  *
- * Die Tageberechnung ist identisch mit der im Projekt-Detail und im PDF — wir
- * verwenden den zentralen `daysBetween`-Helper aus `lib/utils`.
+ * Buchungen sind seit dem Refactor direkt Geräte (Device), keine Pack-Einheiten mehr.
  */
 type ProjectForPricing = Prisma.ProjectGetPayload<{
   include: {
     billingPeriods: true;
     groups: true;
-    assignments: {
-      include: {
-        packUnit: { include: { items: { include: { device: true } } } };
-      };
-    };
+    assignments: { include: { device: true } };
     services: { include: { serviceItem: true } };
   };
 }>;
@@ -39,9 +34,7 @@ export function calculateProjectTotal(
     if (g.kind === "MATERIAL") {
       for (const a of project.assignments) {
         if (a.groupId !== g.id) continue;
-        for (const it of a.packUnit.items) {
-          sub += Number(it.device.dailyRate) * it.quantity * a.quantity * factor;
-        }
+        sub += Number(a.device.dailyRate) * a.quantity * factor;
       }
     } else {
       for (const s of project.services) {
@@ -56,7 +49,6 @@ export function calculateProjectTotal(
     groupNet.set(g.id, sub - (sub * pct) / 100);
   }
 
-  // Bereich
   const materialSub = project.groups
     .filter((g) => g.kind === "MATERIAL")
     .reduce((s, g) => s + (groupNet.get(g.id) ?? 0), 0);

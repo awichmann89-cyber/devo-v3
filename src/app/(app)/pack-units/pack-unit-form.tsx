@@ -36,6 +36,7 @@ export function PackUnitForm({ packUnit, locations, categories, onCancel }: Prop
     description: packUnit?.description ?? "",
     weight: packUnit?.weight?.toString() ?? "",
     stockQuantity: packUnit?.stockQuantity?.toString() ?? "1",
+    packMode: (packUnit?.packMode ?? "FIXED") as "FIXED" | "VARIABLE",
     categoryId: packUnit?.categoryId ?? "",
     locationId: packUnit?.locationId ?? "",
   });
@@ -140,6 +141,25 @@ export function PackUnitForm({ packUnit, locations, categories, onCancel }: Prop
         </div>
       )}
 
+      <div className="space-y-2">
+        <Label htmlFor="packMode">Pack-Modus</Label>
+        <Select
+          value={form.packMode}
+          onValueChange={(v) => setForm({ ...form, packMode: v as "FIXED" | "VARIABLE" })}
+        >
+          <SelectTrigger id="packMode">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="FIXED">Fix — Case wird immer komplett mitgenommen</SelectItem>
+            <SelectItem value="VARIABLE">Variabel — Inhalt kann einzeln entnommen werden</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          Bei <strong>Fix</strong> wird die ganze Packeinheit auf die Packliste gesetzt — auch wenn weniger Geräte gebraucht werden (z.B. Doppelcase Lautsprecher). Bei <strong>Variabel</strong> kann der Inhalt teilweise mitgenommen werden (z.B. 6er-Set Bühnenpodest, davon nur 4 mit).
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="category">Kategorie</Label>
@@ -207,4 +227,4 @@ export function PackUnitForm({ packUnit, locations, categories, onCancel }: Prop
       </div>
     </form>
   );
-}
+}

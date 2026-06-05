@@ -74,8 +74,8 @@ export async function deleteProject(id: string) {
 }
 
 /**
- * Fügt eine Packeinheit einem Projekt hinzu. Gibt Konflikte zurück, falls vorhanden.
- * Bei force=true wird trotzdem hinzugefügt.
+ * Bucht ein Gerät auf ein Projekt. Gibt Konflikte zurück, falls vorhanden
+ * (mehr Geräte gebucht als verfügbar). Bei force=true wird trotzdem gebucht.
  */
 export async function addAssignment(
   projectId: string,
@@ -90,7 +90,7 @@ export async function addAssignment(
 
   if (!force) {
     const conflicts = await findConflicts(
-      [data.packUnitId],
+      [data.deviceId],
       project.planningStart,
       project.planningEnd,
       projectId
@@ -108,7 +108,7 @@ export async function addAssignment(
   }
 
   await prisma.projectAssignment.upsert({
-    where: { projectId_packUnitId: { projectId, packUnitId: data.packUnitId } },
+    where: { projectId_deviceId: { projectId, deviceId: data.deviceId } },
     update: {
       quantity: data.quantity,
       groupId: data.groupId,
@@ -116,7 +116,7 @@ export async function addAssignment(
     },
     create: {
       projectId,
-      packUnitId: data.packUnitId,
+      deviceId: data.deviceId,
       groupId: data.groupId,
       quantity: data.quantity,
       notes: data.notes || null,

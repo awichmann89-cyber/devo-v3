@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { buildPackList } from "@/lib/packlist";
 
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -15,18 +16,47 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       customer: true,
       assignments: {
         include: {
-          packUnit: {
-            include: {
-              location: true,
-              items: { include: { device: { include: { category: true } } } },
-            },
-          },
+          device: true,
         },
-        orderBy: { packUnit: { code: "asc" } },
       },
     },
   });
   if (!project) return new NextResponse("Not found", { status: 404 });
+
+  // Alle PackUnits laden, die mindestens eines der gebuchten Geräte enthalten
+  const bookedDeviceIds = project.assignments.map((a) => a.deviceId);
+  const candidatePackUnits = await prisma.packUnit.findMany({
+    where: {
+      items: { some: { deviceId: { in: bookedDeviceIds } } },
+    },
+    include: {
+      location: true,
+      items: { include: { device: true } },
+    },
+    orderBy: [{ packMode: "asc" }, { code: "asc" }],
+  });
+
+  const packList = buildPackList(
+    project.assignments.map((a) => ({
+      deviceId: a.deviceId,
+      quantity: a.quantity,
+      device: { name: a.device.name, weight: a.device.weight },
+    })),
+    candidatePackUnits.map((p) => ({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      packMode: p.packMode,
+      stockQuantity: p.stockQuantity,
+      weight: p.weight,
+      location: p.location ? { name: p.location.name } : null,
+      items: p.items.map((it) => ({
+        deviceId: it.deviceId,
+        quantity: it.quantity,
+        device: { name: it.device.name },
+      })),
+    }))
+  );
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.setFontSize(20);
@@ -42,11 +72,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
   let startY = 48;
 
-  for (const a of project.assignments) {
-    const pu = a.packUnit;
-    const title = `${pu.code} — ${pu.name}${a.quantity > 1 ? ` (× ${a.quantity})` : ""}`;
-    const totalDevices = pu.items.reduce((s, it) => s + it.quantity, 0) * a.quantity;
-    const sub = `${pu.items.length} Geräte-Typen, ${totalDevices} Stück${pu.location ? ` · ${pu.location.name}` : ""}`;
+  const packs = packList.filter((p) => p.kind === "PACK");
+  const loose = packList.filter((p) => p.kind === "LOOSE");
+
+  for (const p of packs) {
+    if (p.kind !== "PACK") continue;
+    const title = `${p.code} — ${p.name}${p.quantity > 1 ? ` (× ${p.quantity})` : ""}`;
+    const sub = `${p.mode === "FIXED" ? "Fix" : "Variabel"}${p.locationName ? ` · ${p.locationName}` : ""}`;
 
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
@@ -59,14 +91,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
     autoTable(doc, {
       startY: startY + 6,
-      head: [["Bezeichnung", "Hersteller / Modell", "Pro Case", "Gesamt", "Gewicht/Stück"]],
-      body: pu.items.map((it) => [
-        it.device.name,
-        [it.device.manufacturer, it.device.model].filter(Boolean).join(" ") || "—",
-        `× ${it.quantity}`,
-        String(it.quantity * a.quantity),
-        it.device.weight ? `${it.device.weight} kg` : "—",
-      ]),
+      head: [["Bezeichnung", "Pro Case", "Gesamt"]],
+      body: p.contents.map((c) => [c.deviceName, `× ${c.perUnit}`, String(c.total)]),
       theme: "striped",
       styles: { fontSize: 9 },
       headStyles: { fillColor: [60, 60, 60] },
@@ -80,25 +106,43 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     }
   }
 
+  // Lose Items
+  if (loose.length > 0) {
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Lose Geräte (ohne Case)", 14, startY);
+    doc.setFont("helvetica", "normal");
+    autoTable(doc, {
+      startY: startY + 4,
+      head: [["Bezeichnung", "Anzahl", "Gewicht/Stück"]],
+      body: loose.map((l) =>
+        l.kind === "LOOSE"
+          ? [l.deviceName, String(l.quantity), l.weightPerUnit ? `${l.weightPerUnit} kg` : "—"]
+          : ["", "", ""]
+      ),
+      theme: "striped",
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [60, 60, 60] },
+    });
+    // @ts-expect-error: lastAutoTable
+    startY = doc.lastAutoTable.finalY + 8;
+  }
+
   // Summen
-  const totalPackUnits = project.assignments.reduce((s, a) => s + a.quantity, 0);
-  const totalDevices = project.assignments.reduce(
-    (s, a) => s + a.packUnit.items.reduce((ds, it) => ds + it.quantity, 0) * a.quantity,
-    0
-  );
-  const totalWeight = project.assignments.reduce((s, a) => {
-    const puWeight = Number(a.packUnit.weight ?? 0);
-    const devicesWeight = a.packUnit.items.reduce(
-      (ds, it) => ds + Number(it.device.weight ?? 0) * it.quantity,
-      0
-    );
-    return s + (puWeight + devicesWeight) * a.quantity;
+  const totalPacks = packs.reduce((s, p) => (p.kind === "PACK" ? s + p.quantity : s), 0);
+  const totalDevices = packList.reduce((s, p) => {
+    if (p.kind === "PACK") return s + p.contents.reduce((cs, c) => cs + c.total, 0);
+    return s + p.quantity;
+  }, 0);
+  const totalWeight = packList.reduce((s, p) => {
+    if (p.kind === "PACK") return s + p.weightPerUnit * p.quantity;
+    return s + p.weightPerUnit * p.quantity;
   }, 0);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
-    `Summe: ${totalPackUnits} Packeinheiten | ${totalDevices} Geräte | ${totalWeight.toFixed(1)} kg`,
+    `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalWeight.toFixed(1)} kg`,
     14,
     startY
   );

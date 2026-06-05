@@ -39,8 +39,6 @@ interface Props {
   allDevices: DeviceVM[];
   /** Pro Gerät: aktuelle Gesamt-Allokation (Σ PU.stock × item.qty) und Bestand */
   allocationByDeviceId: Record<string, { total: number; stock: number }>;
-  /** Bei true: Packeinheit ist 1:1-Container für ein einzelnes Gerät */
-  isSingleItem?: boolean;
 }
 
 export function ItemsManager({
@@ -49,7 +47,6 @@ export function ItemsManager({
   items,
   allDevices,
   allocationByDeviceId,
-  isSingleItem,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -100,19 +97,8 @@ export function ItemsManager({
     });
   }
 
-  // Einzelpackeinheit: linke Auswahlliste ausblenden, wenn schon 1 Gerät zugeordnet
-  const hideAvailable = isSingleItem === true && items.length >= 1;
-
   return (
-    <div
-      className={
-        hideAvailable
-          ? "grid gap-4"
-          : "grid gap-4 lg:grid-cols-[320px_1fr]"
-      }
-    >
-      {!hideAvailable && (
-      <>
+    <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       {/* LINKS: Verfügbare Geräte-Typen */}
       <Card>
         <CardHeader className="pb-3">
@@ -181,22 +167,13 @@ export function ItemsManager({
           </div>
         </CardContent>
       </Card>
-      </>
-      )}
 
       {/* RECHTS: Inhalt einer Packeinheit */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {isSingleItem
-              ? "Enthaltenes Gerät"
-              : `Inhalt einer Packeinheit (${items.length} Typen)`}
+            Inhalt einer Packeinheit ({items.length} Typen)
           </CardTitle>
-          {isSingleItem && (
-            <p className="text-xs text-muted-foreground">
-              Einzelpackeinheit: enthält genau ein Gerät als 1:1-Buchungseinheit.
-            </p>
-          )}
         </CardHeader>
         <CardContent>
           {(() => {
@@ -287,9 +264,7 @@ export function ItemsManager({
                         min="1"
                         value={it.quantity}
                         onChange={(e) => handleQtyChange(it.id, Number(e.target.value))}
-                        disabled={pending || isSingleItem}
-                        readOnly={isSingleItem}
-                        title={isSingleItem ? "Einzelpackeinheit: Anzahl fest auf 1" : undefined}
+                        disabled={pending}
                         className={cn(
                           "h-8 w-16 text-right tabular-nums ml-auto",
                           isOver && "border-destructive focus-visible:ring-destructive"

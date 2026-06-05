@@ -85,9 +85,9 @@ export default async function PackUnitDetailPage(props: {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">{packUnit.name}</h1>
-            {packUnit.isSingleItem && (
-              <Badge variant="secondary">Einzelpackeinheit</Badge>
-            )}
+            <Badge variant={packUnit.packMode === "VARIABLE" ? "outline" : "secondary"}>
+              {packUnit.packMode === "VARIABLE" ? "Variabel" : "Fix"}
+            </Badge>
           </div>
           {packUnit.category?.name && (
             <p className="text-sm text-muted-foreground">
@@ -113,6 +113,7 @@ export default async function PackUnitDetailPage(props: {
               <Field label="Kategorie" value={packUnit.category?.name} />
               <Field label="Lagerort" value={packUnit.location?.name} />
               <Field label="Lagerbestand" value={`${stock} Stück`} />
+              <Field label="Pack-Modus" value={packUnit.packMode === "VARIABLE" ? "Variabel (Inhalt teilbar)" : "Fix (Case immer ganz)"} />
               <Field label="Geräte pro Einheit" value={`${devicesPerUnit} Stück`} />
               <Field label="Tagespreis (pro Stück)" value={formatCurrency(dailyRatePerUnit)} />
               <Field label="Gewicht (pro Stück)" value={weightPerUnit > 0 ? `${weightPerUnit.toFixed(1)} kg` : null} />
@@ -150,7 +151,6 @@ export default async function PackUnitDetailPage(props: {
             items={serialize(packUnit.items)}
             allDevices={serialize(allDevices)}
             allocationByDeviceId={allocationByDeviceId}
-            isSingleItem={packUnit.isSingleItem}
           />
         </CardContent>
       </Card>

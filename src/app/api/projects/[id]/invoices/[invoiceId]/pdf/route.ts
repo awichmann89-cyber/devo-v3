@@ -30,9 +30,7 @@ export async function GET(
           billingPeriods: { orderBy: { start: "asc" } },
           groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
           assignments: {
-            include: {
-              packUnit: { include: { items: { include: { device: true } } } },
-            },
+            include: { device: true },
           },
           services: { include: { serviceItem: true } },
         },
@@ -65,28 +63,28 @@ export async function GET(
   const serviceGroups = project.groups.filter((g) => g.kind === "SERVICE");
   const materialByGroup = new Map<string, MaterialRow[]>();
   for (const a of project.assignments) {
+    // Geräte, die nicht auf Dokumenten erscheinen sollen, überspringen.
+    if (!a.device.showOnDocuments) continue;
     const groupMap = materialByGroup.get(a.groupId) ?? ([] as MaterialRow[]);
     const lookup = new Map<string, MaterialRow>();
     for (const r of groupMap) {
       lookup.set(`${r.name}|${r.manufacturer}|${r.model}|${r.dailyRate}`, r);
     }
-    for (const it of a.packUnit.items) {
-      const qty = a.quantity * it.quantity;
-      const key = `${it.device.name}|${it.device.manufacturer}|${it.device.model}|${Number(it.device.dailyRate)}`;
-      const existing = lookup.get(key);
-      if (existing) existing.quantity += qty;
-      else {
-        const row: MaterialRow = {
-          name: it.device.name,
-          manufacturer: it.device.manufacturer,
-          model: it.device.model,
-          description: it.device.description,
-          dailyRate: Number(it.device.dailyRate),
-          quantity: qty,
-        };
-        lookup.set(key, row);
-        groupMap.push(row);
-      }
+    const qty = a.quantity;
+    const key = `${a.device.name}|${a.device.manufacturer}|${a.device.model}|${Number(a.device.dailyRate)}`;
+    const existing = lookup.get(key);
+    if (existing) existing.quantity += qty;
+    else {
+      const row: MaterialRow = {
+        name: a.device.name,
+        manufacturer: a.device.manufacturer,
+        model: a.device.model,
+        description: a.device.description,
+        dailyRate: Number(a.device.dailyRate),
+        quantity: qty,
+      };
+      lookup.set(key, row);
+      groupMap.push(row);
     }
     materialByGroup.set(a.groupId, groupMap);
   }

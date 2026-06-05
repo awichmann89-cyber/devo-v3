@@ -40,13 +40,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         },
         assignments: {
           include: {
-            packUnit: {
-              include: {
-                items: { include: { device: { include: { category: true } } } },
-              },
-            },
+            device: { include: { category: true } },
           },
-          orderBy: { packUnit: { code: "asc" } },
+          orderBy: { device: { name: "asc" } },
         },
         createdBy: { select: { name: true, email: true } },
       },
@@ -60,20 +56,17 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   if (!project) notFound();
   const canWrite = hasRole(session?.user.role, CAN_WRITE);
 
-  const [allPackUnits, customers] = await Promise.all([
-    prisma.packUnit.findMany({
-      include: {
-        items: { include: { device: true } },
-        location: true,
-        category: true,
-      },
-      orderBy: { code: "asc" },
+  const [allDevices, allCategories, customers] = await Promise.all([
+    prisma.device.findMany({
+      include: { category: true },
+      orderBy: { name: "asc" },
     }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const overlap = await getOverlappingAssignments(
-    project.assignments.map((a) => a.packUnitId),
+    project.assignments.map((a) => a.deviceId),
     project.planningStart,
     project.planningEnd
   );
@@ -88,7 +81,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   type StockInfo = { totalDemand: number; otherProjects: OtherProject[] };
   const conflictMap: Record<string, StockInfo> = {};
   for (const o of overlap) {
-    const entry = (conflictMap[o.packUnitId] ??= { totalDemand: 0, otherProjects: [] });
+    const entry = (conflictMap[o.deviceId] ??= { totalDemand: 0, otherProjects: [] });
     entry.totalDemand += o.quantity;
     if (o.projectId !== project.id) {
       entry.otherProjects.push({
@@ -108,16 +101,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const factorMap = parseDayFactorMap((await getSettings()).dayFactorMap);
   const billingFactor = getDayFactor(billingDays, factorMap);
 
-  function packUnitRate(items: { device: { dailyRate: { toString(): string } }; quantity: number }[]) {
-    return items.reduce(
-      (s, it) => s + Number(it.device.dailyRate) * it.quantity,
-      0
-    );
-  }
-
   const materialSubtotal = project.assignments.reduce((sum, a) => {
-    const rate = packUnitRate(a.packUnit.items);
-    return sum + rate * a.quantity * billingFactor;
+    return sum + Number(a.device.dailyRate) * a.quantity * billingFactor;
   }, 0);
 
   const servicesSubtotal = project.services.reduce((sum, s) => {
@@ -134,7 +119,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     if (kind === "MATERIAL") {
       for (const a of project!.assignments) {
         if (a.groupId !== groupId) continue;
-        sub += packUnitRate(a.packUnit.items) * a.quantity * billingFactor;
+        sub += Number(a.device.dailyRate) * a.quantity * billingFactor;
       }
     } else {
       for (const s of project!.services) {
@@ -170,8 +155,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const discount = subtotal - total;
 
   const deviceCount = project.assignments.reduce(
-    (s, a) =>
-      s + a.packUnit.items.reduce((ds, it) => ds + it.quantity, 0) * a.quantity,
+    (s, a) => s + a.quantity,
     0
   );
 
@@ -308,7 +292,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <TabsContent value="material">
           <AssignmentsSection
             project={serialize(project)}
-            allPackUnits={serialize(allPackUnits)}
+            allDevices={serialize(allDevices)}
             conflictMap={serialize(conflictMap)}
             billingDays={billingDays}
             billingFactor={billingFactor}
@@ -316,6 +300,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             discount={discount}
             total={total}
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
+            categories={serialize(allCategories)}
           />
         </TabsContent>
 

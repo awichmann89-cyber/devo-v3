@@ -80,24 +80,6 @@ export async function addItemToPackUnit(
   await requireRole(CAN_WRITE);
   const data = packUnitItemSchema.parse(input);
 
-  // Einzelpackeinheit darf nur ein einziges Gerät mit Anzahl 1 enthalten
-  const pu = await prisma.packUnit.findUnique({
-    where: { id: packUnitId },
-    select: { isSingleItem: true, items: { select: { deviceId: true } } },
-  });
-  if (!pu) throw new Error("Packeinheit nicht gefunden");
-  if (pu.isSingleItem) {
-    const existingDeviceId = pu.items[0]?.deviceId;
-    if (existingDeviceId && existingDeviceId !== data.deviceId) {
-      throw new Error(
-        "Einzelpackeinheit ist bereits einem Gerät zugeordnet. Erst entfernen, dann neu zuordnen."
-      );
-    }
-    if (data.quantity !== 1) {
-      throw new Error("Einzelpackeinheit erlaubt nur Anzahl 1");
-    }
-  }
-
   await prisma.packUnitDevice.upsert({
     where: {
       packUnitId_deviceId: { packUnitId, deviceId: data.deviceId },

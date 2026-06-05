@@ -76,7 +76,6 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
         <div className="flex gap-2">
           <DeviceDialog
             categories={categories}
-            locations={locations}
             device={serialize(device)}
             editTrigger
           />

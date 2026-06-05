@@ -102,7 +102,7 @@ export function DevicesSection({
           className="max-w-xs"
         />
         <div className="ml-auto">
-          <DeviceDialog categories={categories} locations={locations} />
+          <DeviceDialog categories={categories} />
         </div>
       </div>
 

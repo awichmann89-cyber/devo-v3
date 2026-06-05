@@ -25,6 +25,7 @@ export const packUnitSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   weight: z.coerce.number().min(0).optional().nullable(),
   stockQuantity: z.coerce.number().int().min(1).default(1),
+  packMode: z.enum(["FIXED", "VARIABLE"]).default("FIXED"),
   categoryId: z.string().optional().nullable(),
   locationId: z.string().optional().nullable(),
 });
@@ -40,6 +41,7 @@ export const deviceSchema = z.object({
   weight: z.coerce.number().min(0).optional().nullable(),
   powerWatts: z.coerce.number().int().min(0).optional().nullable(),
   inspectionExempt: z.coerce.boolean().default(false),
+  showOnDocuments: z.coerce.boolean().default(true),
   categoryId: z.string().optional().nullable(),
 });
 
@@ -177,7 +179,7 @@ export const projectServiceSchema = z.object({
 });
 
 export const assignmentSchema = z.object({
-  packUnitId: z.string().min(1),
+  deviceId: z.string().min(1),
   quantity: z.coerce.number().int().min(1).default(1),
   groupId: z.string().min(1),
   notes: z.string().max(500).optional().nullable(),

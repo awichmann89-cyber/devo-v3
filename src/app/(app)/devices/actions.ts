@@ -5,7 +5,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { deviceSchema, serialNumberSchema } from "@/lib/validators";
-import { generateNextPackUnitCode } from "@/lib/id-generator";
 
 function normalize(input: unknown) {
   const data = deviceSchema.parse(input);
@@ -21,33 +20,13 @@ function normalize(input: unknown) {
   };
 }
 
-export async function createDevice(
-  input: unknown,
-  options: { createSingleItemPackUnit?: boolean; singlePackUnitLocationId?: string | null } = {}
-) {
+export async function createDevice(input: unknown) {
   await requireRole(CAN_WRITE);
   const data = normalize(input);
-  const created = await prisma.device.create({
+  await prisma.device.create({
     data,
-    select: { id: true, name: true, stockQuantity: true, categoryId: true },
+    select: { id: true },
   });
-
-  if (options.createSingleItemPackUnit) {
-    const code = await generateNextPackUnitCode();
-    await prisma.packUnit.create({
-      data: {
-        code,
-        name: created.name,
-        description: "Einzelpackeinheit",
-        stockQuantity: created.stockQuantity,
-        isSingleItem: true,
-        categoryId: created.categoryId,
-        locationId: options.singlePackUnitLocationId || null,
-        items: { create: { deviceId: created.id, quantity: 1 } },
-      },
-      select: { id: true },
-    });
-  }
 
   revalidatePath("/material");
 }
@@ -56,20 +35,6 @@ export async function updateDevice(id: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = normalize(input);
   await prisma.device.update({ where: { id }, data, select: { id: true } });
-
-  const linkedSingle = await prisma.packUnitDevice.findMany({
-    where: { deviceId: id, packUnit: { isSingleItem: true } },
-    select: { packUnitId: true },
-  });
-  if (linkedSingle.length > 0) {
-    await prisma.packUnit.updateMany({
-      where: { id: { in: linkedSingle.map((p) => p.packUnitId) } },
-      data: { stockQuantity: data.stockQuantity },
-    });
-    for (const p of linkedSingle) {
-      revalidatePath(`/pack-units/${p.packUnitId}`);
-    }
-  }
 
   revalidatePath("/material");
   revalidatePath(`/devices/${id}`);

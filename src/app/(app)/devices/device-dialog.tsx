@@ -20,20 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2, Pencil, Boxes } from "lucide-react";
+import { Plus, Loader2, Pencil } from "lucide-react";
 import { createDevice, updateDevice } from "./actions";
 import { toast } from "sonner";
 import {
   type Category,
   type Device,
-  type Location,
 } from "@prisma/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { flattenCategoryTree } from "@/lib/category-tree";
 
 interface Props {
   categories: Category[];
-  locations: Location[];
   device?: Device;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -42,7 +40,6 @@ interface Props {
 
 export function DeviceDialog({
   categories,
-  locations,
   device,
   open: controlledOpen,
   onOpenChange,
@@ -53,10 +50,11 @@ export function DeviceDialog({
   const setOpen = onOpenChange ?? setInternalOpen;
   const isEdit = !!device;
 
-  const [createSinglePackUnit, setCreateSinglePackUnit] = useState(false);
-  const [singlePackUnitLocationId, setSinglePackUnitLocationId] = useState("");
   const [inspectionExempt, setInspectionExempt] = useState(
     device?.inspectionExempt ?? false
+  );
+  const [showOnDocuments, setShowOnDocuments] = useState(
+    device?.showOnDocuments ?? true
   );
   const [form, setForm] = useState({
     manufacturer: device?.manufacturer ?? "",
@@ -86,23 +84,15 @@ export function DeviceDialog({
           weight: form.weight ? Number(form.weight) : null,
           powerWatts: form.powerWatts ? Number(form.powerWatts) : null,
           inspectionExempt,
+          showOnDocuments,
           categoryId: form.categoryId || null,
         };
         if (isEdit) {
           await updateDevice(device!.id, payload);
           toast.success("Gerät aktualisiert");
         } else {
-          await createDevice(payload, {
-            createSingleItemPackUnit: createSinglePackUnit,
-            singlePackUnitLocationId: createSinglePackUnit
-              ? singlePackUnitLocationId || null
-              : null,
-          });
-          toast.success(
-            createSinglePackUnit
-              ? "Gerät + Einzelpackeinheit angelegt"
-              : "Gerät angelegt"
-          );
+          await createDevice(payload);
+          toast.success("Gerät angelegt");
         }
         setOpen(false);
       } catch (e) {
@@ -264,49 +254,25 @@ export function DeviceDialog({
             </div>
           </div>
 
-          {!isEdit && (
-            <div className="rounded-md border bg-muted/30 p-3 space-y-3">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <Checkbox
-                  checked={createSinglePackUnit}
-                  onCheckedChange={(v) => setCreateSinglePackUnit(v === true)}
-                  className="mt-0.5"
-                />
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5 text-sm font-medium">
-                    <Boxes className="h-3.5 w-3.5" />
-                    Auch als Einzelpackeinheit anlegen
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Erzeugt zusätzlich eine 1:1-Packeinheit (gleicher Name, gleicher Lagerbestand), die nur dieses Gerät enthält. Praktisch für Traversen, Stative oder einzelne Subwoofer, die als Buchungseinheit dienen.
-                  </div>
-                </div>
-              </label>
-              {createSinglePackUnit && (
-                <div className="space-y-2 ml-6">
-                  <Label htmlFor="single-loc">Lagerort der Einzelpackeinheit</Label>
-                  <Select
-                    value={singlePackUnitLocationId || "none"}
-                    onValueChange={(v) =>
-                      setSinglePackUnitLocationId(v === "none" ? "" : v)
-                    }
-                  >
-                    <SelectTrigger id="single-loc">
-                      <SelectValue placeholder="Lagerort wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— Kein Lagerort —</SelectItem>
-                      {locations.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>
-                          {l.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+            <Checkbox
+              id="d-show-docs"
+              checked={showOnDocuments}
+              onCheckedChange={(v) => setShowOnDocuments(v === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-1 leading-tight">
+              <Label htmlFor="d-show-docs" className="cursor-pointer">
+                Auf Angeboten & Rechnungen anzeigen
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Standardmäßig aktiviert. Deaktivieren für Kleinteile wie
+                Kabelbinder, Klebeband o.ä., die zwar im Projekt verbucht
+                werden, aber nicht auf den Kunden-Dokumenten erscheinen sollen.
+                In Berechnung und Packliste bleibt das Gerät enthalten.
+              </p>
             </div>
-          )}
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
