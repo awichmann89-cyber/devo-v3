@@ -474,8 +474,9 @@ export function AssignmentsSection({
                 <div className="rounded-md border border-dashed py-12 text-center text-sm text-muted-foreground">
                   <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
                   <Button
-                    variant="link"
-                    className="mt-1"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
                     onClick={() => setGroupDialog({ mode: "create", name: "" })}
                   >
                     <FolderPlus className="h-4 w-4" /> Erste Gruppe anlegen
