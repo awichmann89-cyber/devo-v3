@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -79,7 +80,7 @@ export function NotesSection({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end">
         <Button
           size="sm"
           variant="default"
@@ -98,12 +99,25 @@ export function NotesSection({
         >
           <Printer className="h-4 w-4" /> Notizen drucken
         </Button>
-        {canWrite && (
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Neue Notiz
-          </Button>
-        )}
       </div>
+
+      <Card className="p-4">
+        <CardHeader className="px-0 pt-0 pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base flex items-center gap-2">
+            <StickyNote className="h-4 w-4" /> Notizen
+            {notes.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {notes.length} {notes.length === 1 ? "Notiz" : "Notizen"}
+              </Badge>
+            )}
+          </CardTitle>
+          {canWrite && (
+            <Button size="sm" variant="outline" onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Neue Notiz
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
 
       {notes.length === 0 ? (
         <Card>
@@ -163,6 +177,8 @@ export function NotesSection({
           ))}
         </div>
       )}
+      </CardContent>
+      </Card>
 
       <NoteDialog
         open={dialogOpen}
