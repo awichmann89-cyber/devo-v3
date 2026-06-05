@@ -345,12 +345,14 @@ async function main() {
     });
   }
 
+  // ProjectAssignment bucht jetzt Geräte direkt — die Packeinheiten werden
+  // zur Laufzeit von lib/packlist.ts daraus aggregiert.
   await prisma.projectAssignment.upsert({
-    where: { projectId_packUnitId: { projectId: proj.id, packUnitId: tonCase.id } },
+    where: { projectId_deviceId: { projectId: proj.id, deviceId: mixer.id } },
     update: {},
     create: {
       projectId: proj.id,
-      packUnitId: tonCase.id,
+      deviceId: mixer.id,
       groupId: tonGroup.id,
       quantity: 1,
     },
