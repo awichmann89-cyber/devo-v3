@@ -18,6 +18,7 @@ import { Plus, Loader2 } from "lucide-react";
 import { createLocation, updateLocation } from "./actions";
 import { toast } from "sonner";
 import type { Location } from "@prisma/client";
+import { splitAddress, joinAddress } from "@/lib/utils";
 
 interface Props {
   location?: Location;
@@ -30,9 +31,11 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
 
+  const initialAddr = splitAddress(location?.address);
   const [name, setName] = useState(location?.name ?? "");
   const [description, setDescription] = useState(location?.description ?? "");
-  const [address, setAddress] = useState(location?.address ?? "");
+  const [addressStreet, setAddressStreet] = useState(initialAddr.street);
+  const [addressZipCity, setAddressZipCity] = useState(initialAddr.zipCity);
   const [pending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent) {
@@ -40,6 +43,7 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
     e.stopPropagation();
     startTransition(async () => {
       try {
+        const address = joinAddress(addressStreet, addressZipCity);
         if (location) {
           await updateLocation(location.id, { name, description, address });
           toast.success("Lagerort aktualisiert");
@@ -48,7 +52,8 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
           toast.success("Lagerort angelegt");
           setName("");
           setDescription("");
-          setAddress("");
+          setAddressStreet("");
+          setAddressZipCity("");
         }
         setOpen(false);
       } catch (e) {
@@ -75,22 +80,18 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="address">Adresse</Label>
-            <Input id="address" value={address ?? ""} onChange={(e) => setAddress(e.target.value)} />
+            <Label>Adresse</Label>
+            <div className="space-y-2">
+              <Input
+                value={addressStreet}
+                onChange={(e) => setAddressStreet(e.target.value)}
+                placeholder="Straße, Hausnummer"
+              />
+              <Input
+                value={addressZipCity}
+                onChange={(e) => setAddressZipCity(e.target.value)}
+                placeholder="PLZ, Ort"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Beschreibung</Label>
-            <Textarea id="description" value={description ?? ""} onChange={(e) => setDescription(e.target.value)} rows={3} />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
-            <Button type="submit" disabled={pending}>
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Speichern
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+         

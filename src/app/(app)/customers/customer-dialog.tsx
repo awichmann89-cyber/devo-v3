@@ -17,6 +17,7 @@ import { Plus, Loader2 } from "lucide-react";
 import { createCustomer, updateCustomer } from "./actions";
 import { toast } from "sonner";
 import type { Customer } from "@prisma/client";
+import { splitAddress, joinAddress } from "@/lib/utils";
 
 interface Props {
   customer?: Customer;
@@ -37,12 +38,14 @@ export function CustomerDialog({
   const setOpen = onOpenChange ?? setInternalOpen;
   const isEdit = !!customer;
 
+  const initialAddr = splitAddress(customer?.address);
   const [form, setForm] = useState({
     name: customer?.name ?? "",
     contactPerson: customer?.contactPerson ?? "",
     email: customer?.email ?? "",
     phone: customer?.phone ?? "",
-    address: customer?.address ?? "",
+    addressStreet: initialAddr.street,
+    addressZipCity: initialAddr.zipCity,
     notes: customer?.notes ?? "",
   });
   const [pending, startTransition] = useTransition();
@@ -51,12 +54,14 @@ export function CustomerDialog({
   // bei Edit zeigt er die aktuellen Werte des übergebenen Customers.
   useEffect(() => {
     if (open) {
+      const a = splitAddress(customer?.address);
       setForm({
         name: customer?.name ?? "",
         contactPerson: customer?.contactPerson ?? "",
         email: customer?.email ?? "",
         phone: customer?.phone ?? "",
-        address: customer?.address ?? "",
+        addressStreet: a.street,
+        addressZipCity: a.zipCity,
         notes: customer?.notes ?? "",
       });
     }
@@ -70,11 +75,19 @@ export function CustomerDialog({
     e.stopPropagation();
     startTransition(async () => {
       try {
+        const payload = {
+          name: form.name,
+          contactPerson: form.contactPerson,
+          email: form.email,
+          phone: form.phone,
+          address: joinAddress(form.addressStreet, form.addressZipCity),
+          notes: form.notes,
+        };
         if (customer) {
-          await updateCustomer(customer.id, form);
+          await updateCustomer(customer.id, payload);
           toast.success("Kunde aktualisiert");
         } else {
-          const created = await createCustomer(form);
+          const created = await createCustomer(payload);
           toast.success("Kunde angelegt");
           onCreated?.(created);
         }
@@ -140,36 +153,17 @@ export function CustomerDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="address">Anschrift</Label>
-            <Textarea
-              id="address"
-              value={form.address ?? ""}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notizen (intern)</Label>
-            <Textarea
-              id="notes"
-              value={form.notes ?? ""}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              rows={2}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isEdit ? "Speichern" : "Anlegen"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+            <Label>Anschrift</Label>
+            <div className="space-y-2">
+              <Input
+                value={form.addressStreet}
+                onChange={(e) => setForm({ ...form, addressStreet: e.target.value })}
+                placeholder="Straße, Hausnummer"
+              />
+              <Input
+                value={form.addressZipCity}
+                onChange={(e) => setForm({ ...form, addressZipCity: e.target.value })}
+                placeholder="PLZ, Ort"
+              />
+            </div>
+        

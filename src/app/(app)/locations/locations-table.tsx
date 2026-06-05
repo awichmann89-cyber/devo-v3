@@ -52,7 +52,9 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
           {locations.map((loc) => (
             <TableRow key={loc.id}>
               <TableCell className="font-medium">{loc.name}</TableCell>
-              <TableCell className="text-muted-foreground">{loc.address ?? "—"}</TableCell>
+              <TableCell className="text-muted-foreground whitespace-pre-line text-sm">
+                {loc.address ?? "—"}
+              </TableCell>
               <TableCell className="text-right">{loc._count.packUnits}</TableCell>
               <TableCell>
                 <div className="flex justify-end gap-1">
@@ -95,8 +97,3 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
         }
         confirmLabel="Löschen"
         pending={pending}
-        onConfirm={onConfirmDelete}
-      />
-    </>
-  );
-}

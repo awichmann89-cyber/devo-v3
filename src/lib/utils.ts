@@ -95,6 +95,46 @@ export function buildDocumentPdfFilename(
   return `${safe}.pdf`;
 }
 
+// ---------- Adress-Helpers ----------
+
+/**
+ * Zerlegt eine im DB-Feld `address` gespeicherte Adresse in zwei Zeilen:
+ *   1. Straße + Hausnummer
+ *   2. PLZ + Ort
+ *
+ * Bestehende Adressen wurden teilweise mehrzeilig gespeichert. Falls die
+ * Adresse mehr als zwei Zeilen hat, werden Zeilen 2+ als "PLZ Ort" zusammen-
+ * gefasst (damit nichts verloren geht).
+ */
+export function splitAddress(addr: string | null | undefined): {
+  street: string;
+  zipCity: string;
+} {
+  if (!addr) return { street: "", zipCity: "" };
+  const lines = addr
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return {
+    street: lines[0] ?? "",
+    zipCity: lines.slice(1).join(", ").trim(),
+  };
+}
+
+/**
+ * Setzt zwei Adress-Zeilen wieder zusammen zur DB-Repräsentation.
+ * Leere Eingaben werden zu null, damit das optionale DB-Feld sauber bleibt.
+ */
+export function joinAddress(
+  street: string,
+  zipCity: string
+): string | null {
+  const s = street.trim();
+  const z = zipCity.trim();
+  if (!s && !z) return null;
+  return [s, z].filter(Boolean).join("\n");
+}
+
 // ---------- Prisma Decimal Serialisierung ----------
 
 type Decimallish = {
@@ -107,35 +147,4 @@ function isDecimal(v: unknown): v is Decimallish {
   return (
     v !== null &&
     typeof v === "object" &&
-    typeof (v as { toNumber?: unknown }).toNumber === "function" &&
-    typeof (v as { toFixed?: unknown }).toFixed === "function"
-  );
-}
-
-/**
- * Wandelt Prisma Decimal-Objekte rekursiv in plain numbers um,
- * damit das Ergebnis von Server Components an Client Components
- * übergeben werden kann. Date-Objekte bleiben erhalten.
- */
-export function serialize<T>(obj: T): T {
-  if (obj === null || obj === undefined) return obj;
-  if (obj instanceof Date) return obj;
-  if (isDecimal(obj)) return obj.toNumber() as unknown as T;
-  if (Array.isArray(obj)) return obj.map((item) => serialize(item)) as unknown as T;
-  if (obj instanceof Map) {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of obj) out[String(k)] = serialize(v);
-    return out as unknown as T;
-  }
-  if (obj instanceof Set) {
-    return Array.from(obj).map((item) => serialize(item)) as unknown as T;
-  }
-  if (typeof obj === "object") {
-    const out: Record<string, unknown> = {};
-    for (const key in obj as object) {
-      out[key] = serialize((obj as Record<string, unknown>)[key]);
-    }
-    return out as T;
-  }
-  return obj;
-}
+    typeof (v as { toNumber?: unknown }).toNumber 

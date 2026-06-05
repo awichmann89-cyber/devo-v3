@@ -64,7 +64,7 @@ export function CompanyAddressForm({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="companyZipCity">PLZ, Stadt</Label>
+        <Label htmlFor="companyZipCity">PLZ, Ort</Label>
         <Input
           id="companyZipCity"
           value={zipCity}
