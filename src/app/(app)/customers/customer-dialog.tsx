@@ -166,4 +166,29 @@ export function CustomerDialog({
                 placeholder="PLZ, Ort"
               />
             </div>
-        
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notizen (intern)</Label>
+            <Textarea
+              id="notes"
+              value={form.notes ?? ""}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={2}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isEdit ? "Speichern" : "Anlegen"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

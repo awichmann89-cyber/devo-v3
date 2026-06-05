@@ -24,8 +24,9 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
         await deleteLocation(deleting.id);
         toast.success("Lagerort gelöscht");
         setDeleting(null);
-      } catch {
-        toast.error("Löschen fehlgeschlagen");
+      } catch (err) {
+        if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
+        toast.error("Fehler beim Löschen", { description: err instanceof Error ? err.message : "" });
       }
     });
   }
@@ -44,8 +45,8 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
         <TableBody>
           {locations.length === 0 && (
             <TableRow>
-              <TableCell colSpan={4} className="text-center text-muted-foreground">
-                Keine Lagerorte angelegt
+              <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                Noch keine Lagerorte angelegt
               </TableCell>
             </TableRow>
           )}
@@ -64,7 +65,7 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={pending || loc._count.packUnits > 0}
+                    disabled={pending}
                     onClick={() => setDeleting(loc)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -79,8 +80,8 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
       {editing && (
         <LocationDialog
           location={editing}
-          open
-          onOpenChange={(o) => !o && setEditing(null)}
+          open={!!editing}
+          onOpenChange={(open) => !open && setEditing(null)}
         />
       )}
 
@@ -97,3 +98,8 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
         }
         confirmLabel="Löschen"
         pending={pending}
+        onConfirm={onConfirmDelete}
+      />
+    </>
+  );
+}

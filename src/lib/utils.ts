@@ -48,8 +48,6 @@ export function daysBetween(start: Date, end: Date): number {
 /**
  * Baut einen einheitlichen PDF-Dateinamen im Format
  *   YYYY-DD-MM <Typ> <Kunde> - <Projekt>.pdf
- * Ist kein Kunde gesetzt, fällt der „Kunde - "-Teil weg.
- * Datei-systemkritische Zeichen (\ / : * ? " < > |) werden entfernt.
  */
 export function buildProjectPdfFilename(
   type: string,
@@ -72,12 +70,6 @@ export function buildProjectPdfFilename(
 /**
  * Baut den Dateinamen für ein Rechnungs- oder Angebots-PDF im Format
  *   <FORTLAUFENDE_NUMMER> <Typ> <GESAMTE_NUMMER> <Kunde> - <Projekt>.pdf
- *
- * Beispiel: invoiceNumber „2026-PA-001", Typ „Rechnung"
- *   → „001 Rechnung 2026-PA-001 DJK e.V. - Bundessportfest.pdf".
- * Die fortlaufende Nummer wird aus dem Trailer der Gesamtnummer extrahiert
- * (alles nach dem letzten Bindestrich, das aus Ziffern besteht). Ist das nicht
- * der Fall, wird die Gesamtnummer auch als fortlaufende Nummer verwendet.
  */
 export function buildDocumentPdfFilename(
   type: string,
@@ -101,10 +93,6 @@ export function buildDocumentPdfFilename(
  * Zerlegt eine im DB-Feld `address` gespeicherte Adresse in zwei Zeilen:
  *   1. Straße + Hausnummer
  *   2. PLZ + Ort
- *
- * Bestehende Adressen wurden teilweise mehrzeilig gespeichert. Falls die
- * Adresse mehr als zwei Zeilen hat, werden Zeilen 2+ als "PLZ Ort" zusammen-
- * gefasst (damit nichts verloren geht).
  */
 export function splitAddress(addr: string | null | undefined): {
   street: string;
@@ -147,4 +135,33 @@ function isDecimal(v: unknown): v is Decimallish {
   return (
     v !== null &&
     typeof v === "object" &&
-    typeof (v as { toNumber?: unknown }).toNumber 
+    typeof (v as { toNumber?: unknown }).toNumber === "function" &&
+    typeof (v as { toFixed?: unknown }).toFixed === "function"
+  );
+}
+
+/**
+ * Wandelt Prisma Decimal-Objekte rekursiv in plain numbers um.
+ */
+export function serialize<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj;
+  if (isDecimal(obj)) return obj.toNumber() as unknown as T;
+  if (Array.isArray(obj)) return obj.map((item) => serialize(item)) as unknown as T;
+  if (obj instanceof Map) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of obj) out[String(k)] = serialize(v);
+    return out as unknown as T;
+  }
+  if (obj instanceof Set) {
+    return Array.from(obj).map((item) => serialize(item)) as unknown as T;
+  }
+  if (typeof obj === "object") {
+    const out: Record<string, unknown> = {};
+    for (const key in obj as object) {
+      out[key] = serialize((obj as Record<string, unknown>)[key]);
+    }
+    return out as T;
+  }
+  return obj;
+}

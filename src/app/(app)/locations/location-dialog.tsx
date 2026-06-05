@@ -94,4 +94,19 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
               />
             </div>
           </div>
-         
+          <div className="space-y-2">
+            <Label htmlFor="description">Beschreibung</Label>
+            <Textarea id="description" value={description ?? ""} onChange={(e) => setDescription(e.target.value)} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Speichern
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
