@@ -1,4 +1,4 @@
-# Devo — Materialverwaltung für Veranstaltungstechnik
+# Cratel — Materialverwaltung für Veranstaltungstechnik
 
 Eine Next.js 15 / React 19 Web-App zur Verwaltung von Veranstaltungstechnik-Material.
 Geräte werden in Packeinheiten organisiert, Lagerorten zugeordnet und Projekten (Veranstaltungen) zugewiesen.

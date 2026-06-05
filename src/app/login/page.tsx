@@ -1,7 +1,8 @@
 import { Suspense } from "react";
+import Image from "next/image";
 import { LoginForm } from "./login-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PackageOpen, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   return (
@@ -9,11 +10,16 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center">
-            <div className="rounded-full bg-primary/10 p-3">
-              <PackageOpen className="h-6 w-6" />
-            </div>
+            <Image
+              src="/cratel_logo.svg"
+              alt="Cratel"
+              width={200}
+              height={60}
+              priority
+              className="h-10 w-auto"
+            />
           </div>
-          <CardTitle className="text-2xl">Devo</CardTitle>
+          <CardTitle className="sr-only">Cratel</CardTitle>
           <CardDescription>Materialverwaltung — Anmeldung</CardDescription>
         </CardHeader>
         <CardContent>

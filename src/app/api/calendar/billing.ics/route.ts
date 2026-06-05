@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   for (const p of projects) {
     p.billingPeriods.forEach((bp, idx) => {
       events.push({
-        uid: `project-${p.id}-billing-${bp.id}@devo`,
+        uid: `project-${p.id}-billing-${bp.id}@cratel`,
         start: bp.start,
         end: bp.end,
         summary:
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     });
   }
 
-  const ics = buildIcs("devo Berechnungszeiträume", events);
+  const ics = buildIcs("Cratel Berechnungszeiträume", events);
   return new NextResponse(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",

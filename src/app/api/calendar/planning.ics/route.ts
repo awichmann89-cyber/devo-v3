@@ -21,14 +21,14 @@ export async function GET(req: Request) {
   });
 
   const events: IcsEvent[] = projects.map((p) => ({
-    uid: `project-${p.id}-planning@devo`,
+    uid: `project-${p.id}-planning@cratel`,
     start: p.planningStart,
     end: p.planningEnd,
     summary: p.name,
     description: p.customer?.name ?? undefined,
   }));
 
-  const ics = buildIcs("devo Planungszeiträume", events);
+  const ics = buildIcs("Cratel Planungszeiträume", events);
   return new NextResponse(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",

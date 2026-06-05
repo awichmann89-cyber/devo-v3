@@ -1,4 +1,4 @@
-// Devo - Veranstaltungstechnik Materialverwaltung
+// Cratel - Veranstaltungstechnik Materialverwaltung
 // Prisma Schema
 
 generator client {
