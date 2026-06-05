@@ -103,14 +103,14 @@ export function Sidebar({ role }: { role: Role }) {
 
   return (
     <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
-      <div className="flex h-16 items-center gap-2 border-b px-6">
+      <div className="flex h-20 items-center gap-2 border-b px-5">
         <Image
           src="/cratel_logo.svg"
           alt="Cratel"
-          width={140}
-          height={40}
+          width={200}
+          height={60}
           priority
-          className="h-8 w-auto"
+          className="h-12 w-auto"
         />
       </div>
       <nav className="space-y-1 p-4">
