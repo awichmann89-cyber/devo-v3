@@ -50,6 +50,13 @@ export async function updateProject(id: string, input: unknown) {
   // die werden vom Schema-Parse verworfen.
   const data = projectUpdateCoreSchema.parse(input);
 
+  // Beim erstmaligen Übergang auf CONFIRMED `confirmedAt` setzen, damit die
+  // Reservierungslogik weiß, welches Projekt bei Material-Konflikten Vorrang hat.
+  const existing = await prisma.project.findUnique({
+    where: { id },
+    select: { confirmedAt: true },
+  });
+
   await prisma.project.update({
     where: { id },
     data: {
@@ -59,6 +66,10 @@ export async function updateProject(id: string, input: unknown) {
       status: data.status,
       discountPercent: data.discountPercent,
       notes: data.notes || null,
+      confirmedAt:
+        data.status === "CONFIRMED" && !existing?.confirmedAt
+          ? new Date()
+          : undefined,
     },
     select: { id: true },
   });

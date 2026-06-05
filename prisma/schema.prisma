@@ -290,6 +290,9 @@ model Project {
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  // Zeitpunkt des erstmaligen Übergangs in Status CONFIRMED — entscheidet bei
+  // Material-Konflikten, welches Projekt die physische Reservierung gewinnt.
+  confirmedAt     DateTime?
 
   createdById     String?
   createdBy       User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -497,4 +500,22 @@ model BillingPeriod {
 model ProjectAssignment {
   id         String   @id @default(cuid())
   projectId  String
-  project    Project  @relation(fields: [projectId], references: [id],
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  groupId    String
+  group      ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  quantity   Int      @default(1)
+  notes      String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([projectId, deviceId])
+  @@index([deviceId])
+  @@index([projectId])
+  @@index([groupId])
+}

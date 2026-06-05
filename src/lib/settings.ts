@@ -13,6 +13,9 @@ export const SETTING_DEFAULTS = {
   vatPercent: "19",
   dayFactorMap: '{"1":1,"2":1.5,"3":2,"4":2.5,"5":3,"6":3.5,"7":4,"8":4.5,"9":5,"10":5.5}',
   calendarFeedToken: "",
+  // Vorgegebene Fristen ab Erstellungs-Datum
+  quoteValidityDays: "14",
+  invoiceDueDays: "7",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

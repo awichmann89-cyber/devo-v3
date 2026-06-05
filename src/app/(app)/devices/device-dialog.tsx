@@ -122,12 +122,6 @@ export function DeviceDialog({
           <DialogTitle>{isEdit ? "Gerät bearbeiten" : "Neues Gerät"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          {!isEdit && (
-            <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              Seriennummern pro physischem Stück werden auf der Detailseite gepflegt.
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="manu">Hersteller</Label>
@@ -288,3 +282,4 @@ export function DeviceDialog({
     </Dialog>
   );
 }
+                                                                                                                                                                                                                                                                        

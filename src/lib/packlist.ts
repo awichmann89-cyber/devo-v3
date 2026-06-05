@@ -4,8 +4,13 @@ import { Prisma } from "@prisma/client";
  * Eine PackUnit (Case) wird auf der Packliste als Eintrag aufgeführt:
  * - FIXED: ganzes Case wird mitgenommen, alle enthaltenen Geräte werden vom Bedarf
  *   abgezogen — auch wenn dabei mehr Geräte mitkommen als ursprünglich gebucht.
- * - VARIABLE: nur soviele Cases dieser Art wie nötig, plus ggf. Einzel-Items für
- *   den Restbedarf.
+ *   useCount = max ⌈Bedarf/Inhalt⌉ über alle Items (alle Bedarfe gedeckt).
+ * - VARIABLE: es werden nur VOLLE Cases gepackt. Was nicht in ein volles Case
+ *   passt, wird als loses Gerät aufgeführt.
+ *   useCount = min ⌊Bedarf/Inhalt⌋ über alle Items.
+ *
+ * Die Packliste leitet die Anzahl der Cases ausschließlich aus dem Bedarf ab —
+ * sie ist nicht durch `stockQuantity` der PackUnit begrenzt.
  *
  * Übrig gebliebene Bedarfe ohne passende PackUnit erscheinen als "lose" Items.
  */
@@ -40,7 +45,6 @@ type PackUnitInput = {
   code: string;
   name: string;
   packMode: "FIXED" | "VARIABLE";
-  stockQuantity: number;
   weight: Prisma.Decimal | number | null;
   location: { name: string } | null;
   items: { deviceId: string; quantity: number; device: { name: string } }[];
@@ -52,11 +56,11 @@ type PackUnitInput = {
  * Algorithmus (greedy):
  * 1. Bedarf pro Gerät ermitteln.
  * 2. Für jedes PackUnit (sortiert: FIXED zuerst), prüfen ob ALLE enthaltenen
- *    Geräte mindestens 1× im Bedarf sind. Falls ja, PackUnit ein-/mehrfach
- *    einsetzen:
- *    - FIXED: solange noch mindestens 1 enthaltenes Gerät benötigt wird
- *      (und Bestand der PackUnit reicht), eines konsumieren.
- *    - VARIABLE: nur so viele wie für den max. Inhalts-Bedarf nötig (gerundet).
+ *    Geräte mindestens 1× im Bedarf sind:
+ *    - FIXED: useCount = max ⌈Bedarf/Inhalt⌉ — Case immer komplett, kann
+ *      mehr Geräte mitnehmen als nötig.
+ *    - VARIABLE: useCount = min ⌊Bedarf/Inhalt⌋ — nur volle Cases; Bedarf, der
+ *      nicht mehr in ein volles Case passt, fällt nach Punkt 3 als LOOSE raus.
  * 3. Restbedarf landet als LOOSE-Eintrag.
  */
 export function buildPackList(
@@ -83,32 +87,44 @@ export function buildPackList(
 
   for (const pu of sortedPacks) {
     if (pu.items.length === 0) continue;
-    // Wie viele dieser PackUnits können wir maximal nutzen?
-    // Limit 1: vorhandener Bestand der PackUnit
-    // Limit 2: pro enthaltenes Gerät: ⌈Bedarf / Anzahl-pro-Case⌉
-    let maxUseful = Infinity;
+
+    // Bedarf-Snapshot VOR dem Konsumieren, damit "Gesamt" pro Inhalts-Gerät
+    // korrekt sein kann (insbesondere für VARIABLE).
+    const demandBefore = new Map<string, number>();
     for (const it of pu.items) {
-      const dem = demand.get(it.deviceId) ?? 0;
+      demandBefore.set(it.deviceId, demand.get(it.deviceId) ?? 0);
+    }
+
+    // Wie viele dieser PackUnits brauchen wir?
+    // FIXED  → max ⌈Bedarf / Inhalt⌉ (jedes enthaltene Gerät muss gedeckt sein)
+    // VARIABLE → min ⌊Bedarf / Inhalt⌋ (nur volle Cases — Rest fällt als LOOSE raus)
+    // Wenn auch nur EIN enthaltenes Gerät gar nicht im Bedarf steht, wird das Pack übersprungen.
+    let useCount = pu.packMode === "FIXED" ? 0 : Number.POSITIVE_INFINITY;
+    let anyZero = false;
+    for (const it of pu.items) {
+      const dem = demandBefore.get(it.deviceId) ?? 0;
       if (dem <= 0) {
-        maxUseful = 0;
+        anyZero = true;
         break;
       }
-      const need = Math.ceil(dem / it.quantity);
-      if (need < maxUseful) maxUseful = need;
+      if (pu.packMode === "FIXED") {
+        const need = Math.ceil(dem / it.quantity);
+        if (need > useCount) useCount = need;
+      } else {
+        const fits = Math.floor(dem / it.quantity);
+        if (fits < useCount) useCount = fits;
+      }
     }
-    if (maxUseful === 0 || maxUseful === Infinity) continue;
-
-    const useCount = Math.min(pu.stockQuantity, maxUseful);
-    if (useCount === 0) continue;
+    if (anyZero || !Number.isFinite(useCount) || useCount === 0) continue;
 
     // Geräte aus Demand abziehen
+    // Bei beiden Modi: useCount Cases werden komplett gepackt (it.quantity * useCount Stück).
+    // FIXED kann den Bedarf übersteigen (das ist Sinn der Sache).
+    // VARIABLE übersteigt durch floor() nie den Bedarf — Rest bleibt als LOOSE.
     for (const it of pu.items) {
       const taken = it.quantity * useCount;
       const dem = demand.get(it.deviceId) ?? 0;
-      // FIXED: kann zu viel mitnehmen (dem - taken < 0), das ist OK
-      // VARIABLE: niemals mehr als Bedarf
-      const consume = pu.packMode === "FIXED" ? taken : Math.min(taken, dem);
-      demand.set(it.deviceId, Math.max(0, dem - consume));
+      demand.set(it.deviceId, Math.max(0, dem - taken));
     }
 
     const totalWeight = Number(pu.weight ?? 0);

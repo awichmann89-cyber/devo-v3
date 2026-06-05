@@ -28,17 +28,12 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
           },
         },
         packUnitItems: {
-          include: {
-            packUnit: {
-              include: {
-                assignments: {
-                  include: { project: true },
-                  orderBy: { project: { planningStart: "desc" } },
-                  take: 5,
-                },
-              },
-            },
-          },
+          include: { packUnit: true },
+        },
+        assignments: {
+          include: { project: true },
+          orderBy: { project: { planningStart: "desc" } },
+          take: 10,
         },
       },
     }),
@@ -157,7 +152,6 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
                   <TableHead>Code</TableHead>
                   <TableHead>Packeinheit</TableHead>
                   <TableHead className="text-right">Stück pro Packeinheit</TableHead>
-                  <TableHead>Buchungen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -170,21 +164,6 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
                     </TableCell>
                     <TableCell>{item.packUnit.name}</TableCell>
                     <TableCell className="text-right">{item.quantity}×</TableCell>
-                    <TableCell>
-                      {item.packUnit.assignments.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {item.packUnit.assignments.map((a) => (
-                            <Link key={a.id} href={`/projects/${a.project.id}`}>
-                              <Badge variant={projectStatusVariant(a.project.status)} className="text-[10px]">
-                                {a.project.name} ({formatDate(a.project.planningStart)})
-                              </Badge>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -192,15 +171,33 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
           )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
 
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value || "—"}</dd>
-    </>
-  );
-}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Boxes className="h-4 w-4" /> Projekt-Buchungen
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {device.assignments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Dieses Gerät ist aktuell in keinem Projekt gebucht.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Projekt</TableHead>
+                  <TableHead>Zeitraum</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Anzahl</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {device.assignments.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>
+                      <Link href={`/projects/${a.project.id}`} className="hover:underline font-medium">
+                        {a.project.name}
+                      </Link>
+                   

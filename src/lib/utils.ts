@@ -45,6 +45,56 @@ export function daysBetween(start: Date, end: Date): number {
   return Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
+/**
+ * Baut einen einheitlichen PDF-Dateinamen im Format
+ *   YYYY-DD-MM <Typ> <Kunde> - <Projekt>.pdf
+ * Ist kein Kunde gesetzt, fällt der „Kunde - "-Teil weg.
+ * Datei-systemkritische Zeichen (\ / : * ? " < > |) werden entfernt.
+ */
+export function buildProjectPdfFilename(
+  type: string,
+  customerName: string | null | undefined,
+  projectName: string
+): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const datePrefix = `${yyyy}-${dd}-${mm}`;
+  const customer = customerName?.trim();
+  const base = customer
+    ? `${datePrefix} ${type} ${customer} - ${projectName}`
+    : `${datePrefix} ${type} ${projectName}`;
+  const safe = base.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
+  return `${safe}.pdf`;
+}
+
+/**
+ * Baut den Dateinamen für ein Rechnungs- oder Angebots-PDF im Format
+ *   <FORTLAUFENDE_NUMMER> <Typ> <GESAMTE_NUMMER> <Kunde> - <Projekt>.pdf
+ *
+ * Beispiel: invoiceNumber „2026-PA-001", Typ „Rechnung"
+ *   → „001 Rechnung 2026-PA-001 DJK e.V. - Bundessportfest.pdf".
+ * Die fortlaufende Nummer wird aus dem Trailer der Gesamtnummer extrahiert
+ * (alles nach dem letzten Bindestrich, das aus Ziffern besteht). Ist das nicht
+ * der Fall, wird die Gesamtnummer auch als fortlaufende Nummer verwendet.
+ */
+export function buildDocumentPdfFilename(
+  type: string,
+  fullNumber: string,
+  customerName: string | null | undefined,
+  projectName: string
+): string {
+  const m = fullNumber.match(/-(\d+)$/);
+  const sequence = m ? m[1] : fullNumber;
+  const customer = customerName?.trim();
+  const base = customer
+    ? `${sequence} ${type} ${fullNumber} ${customer} - ${projectName}`
+    : `${sequence} ${type} ${fullNumber} ${projectName}`;
+  const safe = base.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
+  return `${safe}.pdf`;
+}
+
 // ---------- Prisma Decimal Serialisierung ----------
 
 type Decimallish = {

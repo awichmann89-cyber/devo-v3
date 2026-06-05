@@ -37,6 +37,13 @@ export async function saveInvoiceNumberSettings(
   revalidatePath("/settings");
 }
 
+export async function saveInvoiceDueDays(days: number) {
+  await requireRole(CAN_ADMIN);
+  const clamped = Math.max(0, Math.min(365, Math.floor(days) || 0));
+  await setSetting("invoiceDueDays" as SettingKey, String(clamped));
+  revalidatePath("/settings");
+}
+
 export async function regenerateCalendarToken(): Promise<string> {
   await requireRole(CAN_ADMIN);
   const fresh = crypto.randomUUID().replace(/-/g, "");
@@ -74,5 +81,12 @@ export async function saveQuoteNumberSettings(
   await setSetting("quoteNumberPrefix" as SettingKey, p);
   await setSetting("quoteNumberPadding" as SettingKey, String(pad));
   await setSetting("quoteNumberNextSequence" as SettingKey, String(next));
+  revalidatePath("/settings");
+}
+
+export async function saveQuoteValidityDays(days: number) {
+  await requireRole(CAN_ADMIN);
+  const clamped = Math.max(0, Math.min(365, Math.floor(days) || 0));
+  await setSetting("quoteValidityDays" as SettingKey, String(clamped));
   revalidatePath("/settings");
 }
