@@ -70,12 +70,21 @@ import type {
 type DeviceLite = Device & { category: Category | null };
 type AssignmentWithDevice = ProjectAssignment & { device: DeviceLite };
 
+type BlockingPack = {
+  code: string;
+  name: string;
+  perUnit: number;
+  useCount: number;
+  packStockQuantity: number;
+};
 type OtherProject = {
   projectId: string;
   projectName: string;
   planningStart: Date;
   planningEnd: Date;
-  quantity: number;
+  bookedQuantity: number;
+  effectiveQuantity: number;
+  blockingPackUnits: BlockingPack[];
 };
 type StockInfo = { totalDemand: number; otherProjects: OtherProject[] };
 
@@ -83,6 +92,7 @@ interface Props {
   project: Project & { assignments: AssignmentWithDevice[] };
   allDevices: DeviceLite[];
   conflictMap: Record<string, StockInfo>;
+  reservedDeviceIds: string[];
   billingDays: number;
   billingFactor: number;
   subtotal: number;
@@ -102,6 +112,7 @@ export function AssignmentsSection({
   project,
   allDevices,
   conflictMap,
+  reservedDeviceIds,
   billingDays,
   billingFactor,
   subtotal,
@@ -110,6 +121,7 @@ export function AssignmentsSection({
   groups,
   categories,
 }: Props) {
+  const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -491,13 +503,20 @@ export function AssignmentsSection({
                             <TableHead className="text-right w-[80px]">Anzahl</TableHead>
                             <TableHead className="text-right w-[100px]">€ / Tag</TableHead>
                             <TableHead className="text-right w-[120px]">Summe</TableHead>
+                            <TableHead className="w-[100px]">Status</TableHead>
                             <TableHead className="w-[120px]"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {groupAssignments.map((a) => {
                             const conflict = conflictMap[a.deviceId];
-                            const isOver = conflict && conflict.totalDemand > a.device.stockQuantity;
+                            const isReserved = reservedSet.has(a.deviceId);
+                            // Wenn dieses Projekt für das Gerät als reserviert gilt,
+                            // entfällt die Konflikt-Warnung — es hat ja Vorrang.
+                            const isOver =
+                              !isReserved &&
+                              conflict &&
+                              conflict.totalDemand > a.device.stockQuantity;
                             const rate = Number(a.device.dailyRate);
                             const lineTotal = rate * a.quantity * billingFactor;
                             return (
@@ -535,6 +554,15 @@ export function AssignmentsSection({
                                     {formatCurrency(lineTotal)}
                                   </TableCell>
                                   <TableCell>
+                                    {isReserved ? (
+                                      <span className="text-xs font-medium text-green-600">
+                                        gebucht
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
                                     <div className="flex items-center justify-end gap-1">
                                       {groups.length > 1 && (
                                         <Select
@@ -566,15 +594,58 @@ export function AssignmentsSection({
                                     </div>
                                   </TableCell>
                                 </TableRow>
-                                {isOver && (
-                                  <TableRow className="bg-destructive/5">
-                                    <TableCell colSpan={5} className="text-xs text-destructive">
-                                      <AlertTriangle className="h-3 w-3 inline-block mr-1" />
-                                      Überbuchung: {conflict.totalDemand} Stück
-                                      benötigt, aber nur {a.device.stockQuantity} im Lager.
-                                    </TableCell>
-                                  </TableRow>
-                                )}
+                                {isOver && (() => {
+                                  // Pack-Konflikte: pro Fremdprojekt + FIXED-Pack einen Eintrag
+                                  const packConflicts: {
+                                    packName: string;
+                                    perUnit: number;
+                                    useCount: number;
+                                    packStockQuantity: number;
+                                    projectName: string;
+                                  }[] = [];
+                                  for (const op of conflict.otherProjects) {
+                                    for (const bp of op.blockingPackUnits) {
+                                      packConflicts.push({
+                                        packName: bp.name,
+                                        perUnit: bp.perUnit,
+                                        useCount: bp.useCount,
+                                        packStockQuantity: bp.packStockQuantity,
+                                        projectName: op.projectName,
+                                      });
+                                    }
+                                  }
+                                  return (
+                                    <TableRow className="bg-destructive/5">
+                                      <TableCell colSpan={6} className="text-xs text-destructive">
+                                        <div className="flex items-start gap-1.5">
+                                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                                          <div className="space-y-1">
+                                            <div className="font-medium">
+                                              Konflikt: {conflict.totalDemand} von {a.device.stockQuantity} Stück physischen Geräten zugewiesen.
+                                            </div>
+                                            {packConflicts.length > 0 && (
+                                              <ul className="list-disc list-inside space-y-0.5">
+                                                {packConflicts.map((pc, i) => (
+                                                  <li key={i}>
+                                                    {pc.useCount} von {pc.packStockQuantity}{" "}
+                                                    <span className="font-medium">
+                                                      „{pc.packName} (enthält jeweils {pc.perUnit} Geräte)"
+                                                    </span>{" "}
+                                                    Packeinheiten bereits in{" "}
+                                                    <span className="font-medium">
+                                                      {pc.projectName}
+                                                    </span>{" "}
+                                                    belegt.
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })()}
                               </Fragment>
                             );
                           })}

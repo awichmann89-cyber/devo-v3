@@ -16,7 +16,6 @@ import { PeriodsSection } from "./periods-section";
 import { ServicesSection } from "./services-section";
 import { FinancesSection } from "./finances-section";
 import { DeleteProjectButton } from "./delete-button";
-import { PdfExportButtons } from "./pdf-export";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
@@ -71,25 +70,43 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     project.planningEnd
   );
 
+  type BlockingPack = {
+    code: string;
+    name: string;
+    perUnit: number;
+    useCount: number;
+    packStockQuantity: number;
+  };
   type OtherProject = {
     projectId: string;
     projectName: string;
     planningStart: Date;
     planningEnd: Date;
-    quantity: number;
+    bookedQuantity: number;
+    effectiveQuantity: number;
+    blockingPackUnits: BlockingPack[];
   };
-  type StockInfo = { totalDemand: number; otherProjects: OtherProject[] };
+  type StockInfo = {
+    totalDemand: number;
+    otherProjects: OtherProject[];
+  };
   const conflictMap: Record<string, StockInfo> = {};
+  const reservedDeviceIds = new Set<string>();
   for (const o of overlap) {
     const entry = (conflictMap[o.deviceId] ??= { totalDemand: 0, otherProjects: [] });
-    entry.totalDemand += o.quantity;
-    if (o.projectId !== project.id) {
+    // effektive Stückzahl (inkl. FIXED-Packeinheiten-Aufrundung) statt nur gebuchter Menge
+    entry.totalDemand += o.effectiveQuantity;
+    if (o.projectId === project.id) {
+      if (o.isReserved) reservedDeviceIds.add(o.deviceId);
+    } else {
       entry.otherProjects.push({
         projectId: o.project.id,
         projectName: o.project.name,
         planningStart: o.project.planningStart,
         planningEnd: o.project.planningEnd,
-        quantity: o.quantity,
+        bookedQuantity: o.quantity,
+        effectiveQuantity: o.effectiveQuantity,
+        blockingPackUnits: o.blockingPackUnits,
       });
     }
   }
@@ -98,7 +115,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
-  const factorMap = parseDayFactorMap((await getSettings()).dayFactorMap);
+  const appSettings = await getSettings();
+  const factorMap = parseDayFactorMap(appSettings.dayFactorMap);
   const billingFactor = getDayFactor(billingDays, factorMap);
 
   const materialSubtotal = project.assignments.reduce((sum, a) => {
@@ -185,7 +203,6 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           )}
         </div>
         <div className="flex gap-2">
-          <PdfExportButtons projectId={project.id} />
           <DeleteProjectButton id={project.id} name={project.name} />
         </div>
       </div>
@@ -221,9 +238,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <Card>
           <CardHeader className="pb-2"><CardDescription>Material</CardDescription></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{project.assignments.length}</div>
+            <div className="text-2xl font-bold">{deviceCount}</div>
             <div className="text-xs text-muted-foreground">
-              Packeinheiten · {deviceCount} Geräte
+              Geräte · {project.assignments.length} Typen
             </div>
           </CardContent>
         </Card>
@@ -294,6 +311,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             project={serialize(project)}
             allDevices={serialize(allDevices)}
             conflictMap={serialize(conflictMap)}
+            reservedDeviceIds={Array.from(reservedDeviceIds)}
             billingDays={billingDays}
             billingFactor={billingFactor}
             subtotal={subtotal}
@@ -344,6 +362,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               totalNet: Number(q.totalNet),
               totalGross: q.totalGross !== null ? Number(q.totalGross) : null,
             }))}
+            invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
+            quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}
           />
         </TabsContent>
       </Tabs>

@@ -6,6 +6,7 @@ import autoTable, { RowInput } from "jspdf-autotable";
 import { daysBetween } from "@/lib/utils";
 import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
+import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
 
 const fmt = (n: number) => n.toFixed(2).replace(".", ",") + " €";
@@ -226,12 +227,18 @@ export async function GET(
     price: string,
     days: string,
     sum: string,
-    opts: { bold?: boolean; bg?: [number, number, number]; lighter?: boolean } = {}
+    opts: {
+      bold?: boolean;
+      bg?: [number, number, number];
+      lighter?: boolean;
+      fontSize?: number;
+    } = {}
   ): RowInput {
     const styles: Record<string, unknown> = {};
     if (opts.bold) styles.fontStyle = "bold";
     if (opts.bg) styles.fillColor = opts.bg;
     if (opts.lighter) styles.textColor = 110;
+    if (opts.fontSize) styles.fontSize = opts.fontSize;
     return [
       { content: label, styles },
       { content: qty, styles: { ...styles, halign: "right" } },
@@ -240,6 +247,8 @@ export async function GET(
       { content: sum, styles: { ...styles, halign: "right" } },
     ];
   }
+
+  const SECTION_FONT_SIZE = 12;
 
   const SECTION_BG: [number, number, number] = [220, 220, 220];
   const GROUP_BG: [number, number, number] = [240, 240, 240];
@@ -250,7 +259,13 @@ export async function GET(
 
   // -------- Material --------
   if (hasMaterial) {
-    body.push(row("Material", "", "", "", "", { bold: true, bg: SECTION_BG }));
+    body.push(
+      row("Material", "", "", "", "", {
+        bold: true,
+        bg: SECTION_BG,
+        fontSize: SECTION_FONT_SIZE,
+      })
+    );
 
     for (const group of materialGroups) {
       const rows = materialByGroup.get(group.id) ?? [];
@@ -333,7 +348,11 @@ export async function GET(
   // -------- Personal & Transport --------
   if (hasServices) {
     body.push(
-      row("Personal & Transport", "", "", "", "", { bold: true, bg: SECTION_BG })
+      row("Personal & Transport", "", "", "", "", {
+        bold: true,
+        bg: SECTION_BG,
+        fontSize: SECTION_FONT_SIZE,
+      })
     );
 
     for (const group of serviceGroups) {
@@ -508,10 +527,16 @@ export async function GET(
   const contentBytes = new Uint8Array(doc.output("arraybuffer"));
   const finalBytes = await applyLetterhead(contentBytes);
 
+  const filename = buildDocumentPdfFilename(
+    "Angebot",
+    quote.number,
+    project.customer?.name ?? null,
+    project.name
+  );
   return new NextResponse(finalBytes as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="angebot-${quote.number}.pdf"`,
+      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
 }

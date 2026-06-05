@@ -309,9 +309,9 @@ export function ServicesSection({
           <Card className="border-0 shadow-none lg:h-full flex flex-col">
             <CardHeader className="px-0 pt-0 pb-3 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base font-semibold">
-                  Verfügbare Personal- &amp; Transportfunktionen
-                </h2>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Truck className="h-4 w-4" /> Personal &amp; Transport
+                </CardTitle>
                 <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
                   <Plus className="h-4 w-4" /> Neue Position
                 </Button>
@@ -478,9 +478,15 @@ export function ServicesSection({
         right={
           <div className="space-y-4 lg:h-full lg:overflow-y-auto lg:pr-1">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold">
-                Zugewiesen ({projectServices.length})
-              </h2>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FolderOpen className="h-4 w-4" /> Zugewiesen
+                {projectServices.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {projectServices.length}{" "}
+                    {projectServices.length === 1 ? "Position" : "Positionen"}
+                  </Badge>
+                )}
+              </CardTitle>
               <Button
                 size="sm"
                 variant="outline"

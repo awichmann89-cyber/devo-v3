@@ -88,6 +88,8 @@ interface Props {
   servicesDiscountPercent: number;
   invoices: FinancesInvoiceVM[];
   quotes: FinancesQuoteVM[];
+  invoiceDueDays: number;
+  quoteValidityDays: number;
 }
 
 export function FinancesSection({
@@ -99,6 +101,8 @@ export function FinancesSection({
   servicesDiscountPercent,
   invoices,
   quotes,
+  invoiceDueDays,
+  quoteValidityDays,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [invoiceDialog, setInvoiceDialog] = useState(false);
@@ -534,6 +538,8 @@ export function FinancesSection({
         projectId={projectId}
         projectName={projectName}
         defaultTotal={grandTotal}
+        dueDays={invoiceDueDays}
+        existingInvoices={invoices}
       />
 
       <QuoteDialog
@@ -542,6 +548,8 @@ export function FinancesSection({
         projectId={projectId}
         projectName={projectName}
         defaultTotal={grandTotal}
+        validityDays={quoteValidityDays}
+        existingQuotes={quotes}
       />
 
       <ConfirmDialog
@@ -590,36 +598,37 @@ function InvoiceDialog({
   projectId,
   projectName,
   defaultTotal,
+  dueDays,
+  existingInvoices,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projectId: string;
   projectName: string;
   defaultTotal: number;
+  dueDays: number;
+  existingInvoices: FinancesInvoiceVM[];
 }) {
   const [pending, startTransition] = useTransition();
-
-  function defaultDueDate(): string {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
-  }
-  const [dueDate, setDueDate] = useState<string>(defaultDueDate);
+  const hasExisting = existingInvoices.length > 0;
+  const computedDueDate = new Date();
+  computedDueDate.setDate(computedDueDate.getDate() + dueDays);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!dueDate) {
-      toast.error("Fälligkeitsdatum erforderlich");
-      return;
-    }
     startTransition(async () => {
       try {
-        const inv = await createInvoice(
-          projectId,
-          new Date(dueDate),
-          defaultTotal
+        if (hasExisting) {
+          for (const inv of existingInvoices) {
+            await deleteInvoice(inv.id);
+          }
+        }
+        const inv = await createInvoice(projectId, computedDueDate, defaultTotal);
+        toast.success(
+          hasExisting
+            ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
+            : `Rechnung ${inv.number} angelegt`
         );
-        toast.success(`Rechnung ${inv.number} angelegt`);
         window.open(
           `/api/projects/${projectId}/invoices/${inv.id}/pdf`,
           "_blank"
@@ -635,27 +644,29 @@ function InvoiceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Rechnung erstellen</DialogTitle>
+          <DialogTitle>
+            {hasExisting ? "Rechnung überschreiben?" : "Rechnung erstellen"}
+          </DialogTitle>
           <DialogDescription>
-            Für Projekt <strong>{projectName}</strong>. Es wird automatisch eine
-            fortlaufende Rechnungsnummer vergeben.
+            Für Projekt <strong>{projectName}</strong>. Nummer wird automatisch
+            fortlaufend vergeben, Zahlungsfrist aus den Einstellungen.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="dueDate">Zahlungsfrist</Label>
-            <Input
-              id="dueDate"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Wird auf der Rechnung als „zahlbar bis …" ausgewiesen.
-            </p>
-          </div>
-          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+          {hasExisting && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
+              Es {existingInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
+              <strong>
+                {existingInvoices.length}{" "}
+                {existingInvoices.length === 1 ? "Rechnung" : "Rechnungen"}
+              </strong>{" "}
+              ({existingInvoices.map((i) => i.number).join(", ")}). Beim
+              Fortfahren {existingInvoices.length === 1 ? "wird sie" : "werden sie"}{" "}
+              gelöscht und eine neue angelegt. Die alten Nummern werden nicht
+              wiederverwendet.
+            </div>
+          )}
+          <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Rechnungsbetrag</span>
               <span className="font-mono font-medium tabular-nums">
@@ -663,6 +674,14 @@ function InvoiceDialog({
                   style: "currency",
                   currency: "EUR",
                 }).format(defaultTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Zahlbar bis ({dueDays} Tage)
+              </span>
+              <span className="font-medium">
+                {computedDueDate.toLocaleDateString("de-DE")}
               </span>
             </div>
           </div>
@@ -677,7 +696,7 @@ function InvoiceDialog({
             </Button>
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Rechnung erstellen
+              {hasExisting ? "Überschreiben" : "Rechnung erstellen"}
             </Button>
           </DialogFooter>
         </form>
@@ -692,40 +711,38 @@ function QuoteDialog({
   projectId,
   projectName,
   defaultTotal,
+  validityDays,
+  existingQuotes,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projectId: string;
   projectName: string;
   defaultTotal: number;
+  validityDays: number;
+  existingQuotes: FinancesQuoteVM[];
 }) {
   const [pending, startTransition] = useTransition();
-
-  function defaultExpiresAt(): string {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().slice(0, 10);
-  }
-  const [expiresAt, setExpiresAt] = useState<string>(defaultExpiresAt);
+  const hasExisting = existingQuotes.length > 0;
+  const computedExpiresAt = new Date();
+  computedExpiresAt.setDate(computedExpiresAt.getDate() + validityDays);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!expiresAt) {
-      toast.error("Ablaufdatum erforderlich");
-      return;
-    }
     startTransition(async () => {
       try {
-        const q = await createQuote(
-          projectId,
-          new Date(expiresAt),
-          defaultTotal
+        if (hasExisting) {
+          for (const q of existingQuotes) {
+            await deleteQuote(q.id);
+          }
+        }
+        const q = await createQuote(projectId, computedExpiresAt, defaultTotal);
+        toast.success(
+          hasExisting
+            ? `Angebot ${q.number} angelegt (alte überschrieben)`
+            : `Angebot ${q.number} angelegt`
         );
-        toast.success(`Angebot ${q.number} angelegt`);
-        window.open(
-          `/api/projects/${projectId}/quotes/${q.id}/pdf`,
-          "_blank"
-        );
+        window.open(`/api/projects/${projectId}/quotes/${q.id}/pdf`, "_blank");
         onOpenChange(false);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
@@ -737,27 +754,29 @@ function QuoteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Angebot erstellen</DialogTitle>
+          <DialogTitle>
+            {hasExisting ? "Angebot überschreiben?" : "Angebot erstellen"}
+          </DialogTitle>
           <DialogDescription>
-            Für Projekt <strong>{projectName}</strong>. Es wird automatisch eine
-            fortlaufende Angebotsnummer vergeben.
+            Für Projekt <strong>{projectName}</strong>. Nummer wird automatisch
+            fortlaufend vergeben, Gültigkeit aus den Einstellungen.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="expiresAt">Gültig bis</Label>
-            <Input
-              id="expiresAt"
-              type="date"
-              value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Wird auf dem Angebot als „gültig bis …" ausgewiesen.
-            </p>
-          </div>
-          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+          {hasExisting && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
+              Es {existingQuotes.length === 1 ? "existiert" : "existieren"} bereits{" "}
+              <strong>
+                {existingQuotes.length}{" "}
+                {existingQuotes.length === 1 ? "Angebot" : "Angebote"}
+              </strong>{" "}
+              ({existingQuotes.map((q) => q.number).join(", ")}). Beim
+              Fortfahren {existingQuotes.length === 1 ? "wird es" : "werden sie"}{" "}
+              gelöscht und ein neues angelegt. Die alten Nummern werden nicht
+              wiederverwendet.
+            </div>
+          )}
+          <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Angebotsbetrag</span>
               <span className="font-mono font-medium tabular-nums">
@@ -765,6 +784,14 @@ function QuoteDialog({
                   style: "currency",
                   currency: "EUR",
                 }).format(defaultTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Gültig bis ({validityDays} Tage)
+              </span>
+              <span className="font-medium">
+                {computedExpiresAt.toLocaleDateString("de-DE")}
               </span>
             </div>
           </div>
@@ -779,7 +806,7 @@ function QuoteDialog({
             </Button>
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Angebot erstellen
+              {hasExisting ? "Überschreiben" : "Angebot erstellen"}
             </Button>
           </DialogFooter>
         </form>

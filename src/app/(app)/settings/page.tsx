@@ -12,6 +12,8 @@ import { parseDayFactorMap, getOrCreateCalendarToken } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
 import { CompanyAddressForm } from "./company-address-form";
 import { getSettings } from "@/lib/settings";
+import { DaysSettingForm } from "./days-setting-form";
+import { saveInvoiceDueDays, saveQuoteValidityDays } from "./settings-actions";
 
 export default async function SettingsPage() {
   await requireRole(CAN_ADMIN);
@@ -71,10 +73,10 @@ export default async function SettingsPage() {
             <FolderTree className="h-4 w-4" /> Kategorien
           </TabsTrigger>
           <TabsTrigger value="invoices">
-            <Receipt className="h-4 w-4" /> Rechnungsnummer
+            <Receipt className="h-4 w-4" /> Rechnungen
           </TabsTrigger>
           <TabsTrigger value="quotes">
-            <FileText className="h-4 w-4" /> Angebotsnummer
+            <FileText className="h-4 w-4" /> Angebote
           </TabsTrigger>
           <TabsTrigger value="dayfactor">
             <CalendarClock className="h-4 w-4" /> Tage-Faktor
@@ -141,7 +143,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="invoices">
+        <TabsContent value="invoices" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Rechnungsnummer-Format</CardTitle>
@@ -157,6 +159,24 @@ export default async function SettingsPage() {
                 initialNextSequence={Number(settings.invoiceNumberNextSequence) || 1}
                 currentYearMax={currentYearMax}
                 year={year}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Zahlungsfrist</CardTitle>
+              <CardDescription>
+                Default-Frist für neue Rechnungen — wird ab Erstellungsdatum
+                gerechnet und auf der Rechnung als „zahlbar bis …" gesetzt.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DaysSettingForm
+                initial={Number(settings.invoiceDueDays) || 7}
+                label="Zahlungsfrist (Tage)"
+                description="0 = sofort fällig. Max. 365."
+                onSave={saveInvoiceDueDays}
+                successMessage="Zahlungsfrist gespeichert"
               />
             </CardContent>
           </Card>
@@ -191,7 +211,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="quotes">
+        <TabsContent value="quotes" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Angebotsnummer-Format</CardTitle>
@@ -207,6 +227,24 @@ export default async function SettingsPage() {
                 initialNextSequence={Number(settings.quoteNumberNextSequence) || 1}
                 currentYearMax={currentYearMaxQuote}
                 year={year}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Gültigkeit</CardTitle>
+              <CardDescription>
+                Default-Gültigkeit für neue Angebote — wird ab Erstellungsdatum
+                gerechnet und auf dem Angebot als „gültig bis …" gesetzt.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DaysSettingForm
+                initial={Number(settings.quoteValidityDays) || 14}
+                label="Gültigkeit (Tage)"
+                description="0 = nur am Erstellungstag gültig. Max. 365."
+                onSave={saveQuoteValidityDays}
+                successMessage="Gültigkeit gespeichert"
               />
             </CardContent>
           </Card>

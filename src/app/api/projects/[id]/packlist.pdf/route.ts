@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { buildPackList } from "@/lib/packlist";
+import { buildProjectPdfFilename } from "@/lib/utils";
 
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -16,7 +17,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       customer: true,
       assignments: {
         include: {
-          device: true,
+          device: { include: { category: true } },
         },
       },
     },
@@ -31,10 +32,34 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     },
     include: {
       location: true,
+      category: true,
       items: { include: { device: true } },
     },
     orderBy: [{ packMode: "asc" }, { code: "asc" }],
   });
+
+  // Alle Kategorien für Pfad-Auflösung (Hierarchie)
+  const allCategories = await prisma.category.findMany();
+  const categoryById = new Map(allCategories.map((c) => [c.id, c]));
+
+  function categoryPath(categoryId: string | null): {
+    key: string;
+    label: string;
+    sortKey: string;
+  } {
+    if (!categoryId) {
+      return { key: "_none", label: "Ohne Kategorie", sortKey: "￿" };
+    }
+    const segments: string[] = [];
+    let cur = categoryById.get(categoryId);
+    let safety = 20;
+    while (cur && safety-- > 0) {
+      segments.unshift(cur.name);
+      cur = cur.parentId ? categoryById.get(cur.parentId) : undefined;
+    }
+    const label = segments.join(" / ");
+    return { key: categoryId, label, sortKey: label.toLowerCase() };
+  }
 
   const packList = buildPackList(
     project.assignments.map((a) => ({
@@ -47,7 +72,6 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       code: p.code,
       name: p.name,
       packMode: p.packMode,
-      stockQuantity: p.stockQuantity,
       weight: p.weight,
       location: p.location ? { name: p.location.name } : null,
       items: p.items.map((it) => ({
@@ -70,88 +94,205 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     38
   );
 
-  let startY = 48;
+  const packs = packList.filter((p): p is Extract<typeof p, { kind: "PACK" }> => p.kind === "PACK");
+  const loose = packList.filter((p): p is Extract<typeof p, { kind: "LOOSE" }> => p.kind === "LOOSE");
 
-  const packs = packList.filter((p) => p.kind === "PACK");
-  const loose = packList.filter((p) => p.kind === "LOOSE");
+  // Gruppierung nach Kategorie
+  type CategoryGroup = {
+    key: string;
+    label: string;
+    sortKey: string;
+    packs: typeof packs;
+    loose: typeof loose;
+  };
+  const groups = new Map<string, CategoryGroup>();
+  function ensureGroup(categoryId: string | null): CategoryGroup {
+    const info = categoryPath(categoryId);
+    const existing = groups.get(info.key);
+    if (existing) return existing;
+    const g: CategoryGroup = {
+      key: info.key,
+      label: info.label,
+      sortKey: info.sortKey,
+      packs: [],
+      loose: [],
+    };
+    groups.set(info.key, g);
+    return g;
+  }
 
   for (const p of packs) {
-    if (p.kind !== "PACK") continue;
-    const title = `${p.code} — ${p.name}${p.quantity > 1 ? ` (× ${p.quantity})` : ""}`;
-    const sub = `${p.mode === "FIXED" ? "Fix" : "Variabel"}${p.locationName ? ` · ${p.locationName}` : ""}`;
+    const pu = candidatePackUnits.find((c) => c.id === p.packUnitId);
+    ensureGroup(pu?.categoryId ?? null).packs.push(p);
+  }
+  for (const l of loose) {
+    const a = project.assignments.find((x) => x.deviceId === l.deviceId);
+    ensureGroup(a?.device.categoryId ?? null).loose.push(l);
+  }
 
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text(title, 14, startY);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(110);
-    doc.text(sub, 14, startY + 4);
-    doc.setTextColor(0);
+  const sortedGroups = Array.from(groups.values()).sort((a, b) =>
+    a.sortKey.localeCompare(b.sortKey, "de")
+  );
 
-    autoTable(doc, {
-      startY: startY + 6,
-      head: [["Bezeichnung", "Pro Case", "Gesamt"]],
-      body: p.contents.map((c) => [c.deviceName, `× ${c.perUnit}`, String(c.total)]),
-      theme: "striped",
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [60, 60, 60] },
-    });
-    // @ts-expect-error: lastAutoTable
-    startY = doc.lastAutoTable.finalY + 8;
+  type CellDef =
+    | string
+    | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+  const body: CellDef[][] = [];
 
-    if (startY > 260) {
-      doc.addPage();
-      startY = 20;
+  // Kategorie-Section: dunkler Streifen, Text in Bezeichnungs-Spalte
+  const sectionRow = (label: string): CellDef[] => [
+    {
+      content: "",
+      styles: {
+        fillColor: [60, 60, 60] as [number, number, number],
+        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+      },
+    },
+    {
+      content: label,
+      colSpan: 2,
+      styles: {
+        fillColor: [60, 60, 60] as [number, number, number],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 10,
+        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+      },
+    },
+  ];
+
+  // Sub-Section („Packeinheiten" / „Lose Geräte"): hellgrau, kleiner
+  const subSectionRow = (label: string): CellDef[] => [
+    {
+      content: "",
+      styles: {
+        fillColor: [235, 235, 235] as [number, number, number],
+        cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 },
+      },
+    },
+    {
+      content: label,
+      colSpan: 2,
+      styles: {
+        fillColor: [235, 235, 235] as [number, number, number],
+        textColor: 90,
+        fontStyle: "bold",
+        fontSize: 8,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 },
+      },
+    },
+  ];
+
+  for (const g of sortedGroups) {
+    body.push(sectionRow(g.label));
+
+    if (g.packs.length > 0) body.push(subSectionRow("Packeinheiten"));
+    for (const p of g.packs) {
+      const mode = p.mode === "FIXED" ? "Fix" : "Variabel";
+      const loc = p.locationName ? ` · ${p.locationName}` : "";
+      body.push([
+        {
+          content: `${p.quantity}×`,
+          styles: { fontStyle: "bold", halign: "left" },
+        },
+        {
+          content: `${p.name}  (${mode}${loc})`,
+          styles: { fontStyle: "bold" },
+        },
+        {
+          content: p.weightPerUnit
+            ? `${(p.weightPerUnit * p.quantity).toFixed(1)} kg`
+            : "—",
+          styles: { halign: "right" },
+        },
+      ]);
+      for (const c of p.contents) {
+        body.push([
+          {
+            content: `${c.perUnit}×  (= ${c.total})`,
+            styles: {
+              textColor: 130,
+              fontSize: 8,
+              halign: "left",
+              // extra Padding links → Inhalts-Anzahl rutscht vom linken Rand
+              // nach innen und steht damit eingerückt unter der Pack-Anzahl.
+              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
+            },
+          },
+          {
+            content: `        ${c.deviceName}`,
+            styles: { textColor: 130, fontSize: 8 },
+          },
+          { content: "", styles: { textColor: 130, fontSize: 8 } },
+        ]);
+      }
+    }
+
+    if (g.loose.length > 0) body.push(subSectionRow("Lose Geräte"));
+    for (const l of g.loose) {
+      body.push([
+        { content: `${l.quantity}×`, styles: { halign: "left" } },
+        l.deviceName,
+        {
+          content: l.weightPerUnit
+            ? `${(l.weightPerUnit * l.quantity).toFixed(1)} kg`
+            : "—",
+          styles: { halign: "right" },
+        },
+      ]);
     }
   }
 
-  // Lose Items
-  if (loose.length > 0) {
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("Lose Geräte (ohne Case)", 14, startY);
-    doc.setFont("helvetica", "normal");
-    autoTable(doc, {
-      startY: startY + 4,
-      head: [["Bezeichnung", "Anzahl", "Gewicht/Stück"]],
-      body: loose.map((l) =>
-        l.kind === "LOOSE"
-          ? [l.deviceName, String(l.quantity), l.weightPerUnit ? `${l.weightPerUnit} kg` : "—"]
-          : ["", "", ""]
-      ),
-      theme: "striped",
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [60, 60, 60] },
-    });
-    // @ts-expect-error: lastAutoTable
-    startY = doc.lastAutoTable.finalY + 8;
-  }
+  autoTable(doc, {
+    startY: 48,
+    head: [["Anzahl", "Bezeichnung", "Gewicht"]],
+    body,
+    theme: "plain",
+    styles: { fontSize: 10, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 } },
+    headStyles: {
+      fillColor: [40, 40, 40] as [number, number, number],
+      textColor: 255,
+      fontStyle: "bold",
+    },
+    columnStyles: {
+      0: { cellWidth: 28, halign: "left" },
+      1: { cellWidth: "auto" },
+      2: { cellWidth: 28, halign: "right" },
+    },
+  });
+
+  // @ts-expect-error: lastAutoTable
+  const finalY: number = doc.lastAutoTable.finalY;
 
   // Summen
-  const totalPacks = packs.reduce((s, p) => (p.kind === "PACK" ? s + p.quantity : s), 0);
+  const totalPacks = packs.reduce((s, p) => s + p.quantity, 0);
   const totalDevices = packList.reduce((s, p) => {
     if (p.kind === "PACK") return s + p.contents.reduce((cs, c) => cs + c.total, 0);
     return s + p.quantity;
   }, 0);
-  const totalWeight = packList.reduce((s, p) => {
-    if (p.kind === "PACK") return s + p.weightPerUnit * p.quantity;
-    return s + p.weightPerUnit * p.quantity;
-  }, 0);
+  const totalWeight = packList.reduce(
+    (s, p) => s + p.weightPerUnit * p.quantity,
+    0
+  );
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
     `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalWeight.toFixed(1)} kg`,
     14,
-    startY
+    finalY + 8
   );
 
   const blob = doc.output("arraybuffer");
+  const filename = buildProjectPdfFilename(
+    "Packliste",
+    project.customer?.name ?? null,
+    project.name
+  );
   return new NextResponse(blob, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="packliste-${project.name.replace(/\s+/g, "_")}.pdf"`,
+      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
 }

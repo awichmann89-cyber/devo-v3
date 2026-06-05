@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CalendarRange, Calculator, Plus, Trash2 } from "lucide-react";
 import { updateProjectPeriods } from "./periods-actions";
 import { useAutoSave } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
@@ -84,7 +85,9 @@ export function PeriodsSection({
       {/* Planung */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Planungszeitraum</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarRange className="h-4 w-4" /> Planungszeitraum
+          </CardTitle>
           <CardDescription>
             Blockt das gebuchte Material für andere Projekte. Bestimmt nicht den
             Mietpreis.
@@ -119,13 +122,12 @@ export function PeriodsSection({
       {/* Berechnungszeiträume */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            Berechnungszeiträume{" "}
-            {periods.length > 1 && (
-              <span className="text-muted-foreground font-normal">
-                ({periods.length})
-              </span>
-            )}
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calculator className="h-4 w-4" /> Berechnungszeiträume
+            <Badge variant="outline" className="text-xs">
+              {periods.length}{" "}
+              {periods.length === 1 ? "Zeitraum" : "Zeiträume"}
+            </Badge>
           </CardTitle>
           <CardDescription>
             Bestimmen den Mietpreis. Mehrere Zeiträume möglich — z.B. zwei
