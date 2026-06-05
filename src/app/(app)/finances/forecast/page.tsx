@@ -47,7 +47,7 @@ export default async function ForecastPage(props: {
       groups: true,
       assignments: {
         include: {
-          packUnit: { include: { items: { include: { device: true } } } },
+          device: true,
         },
       },
       services: { include: { serviceItem: true } },
