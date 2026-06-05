@@ -485,38 +485,64 @@ export function AssignmentsSection({
               )}
               {groups.map((g) => {
                 const groupAssignments = assignmentsByGroup.get(g.id) ?? [];
+                const isActive = activeGroupId === g.id;
                 return (
-                  <div key={g.id} className="mb-4 last:mb-0">
-                    <div className="mb-1 flex items-center gap-2 px-1">
-                      <Folder className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-semibold">{g.name}</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        {groupAssignments.length}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 ml-auto"
-                        onClick={() =>
-                          setGroupDialog({ mode: "rename", id: g.id, name: g.name })
-                        }
-                        title="Umbenennen"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setDeleteGroup(g)}
-                        title="Gruppe löschen"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                  <Card
+                    key={g.id}
+                    className={cn(
+                      "mb-4 last:mb-0 transition-shadow cursor-pointer",
+                      isActive && "border-primary/60 shadow-md"
+                    )}
+                    onClick={() => setActiveGroupId(g.id)}
+                  >
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CardTitle className="text-base truncate flex items-center gap-2">
+                          <Folder className="h-4 w-4 text-muted-foreground" />
+                          {g.name}
+                        </CardTitle>
+                        <Badge variant="outline" className="text-[10px]">
+                          {groupAssignments.length}
+                        </Badge>
+                        {isActive && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Aktiv
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGroupDialog({ mode: "rename", id: g.id, name: g.name });
+                          }}
+                          title="Umbenennen"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteGroup(g);
+                          }}
+                          title="Löschen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pb-3" onClick={(e) => e.stopPropagation()}>
                     {groupAssignments.length === 0 ? (
-                      <p className="px-3 py-4 text-xs text-muted-foreground italic">
-                        Keine Geräte in dieser Gruppe.
+                      <p className="py-4 text-center text-xs text-muted-foreground">
+                        Noch nichts in dieser Gruppe. Klicke ein Gerät aus dem
+                        Katalog (Pfeil-Button) — es wird der aktiven Gruppe
+                        hinzugefügt.
                       </p>
                     ) : (
                       <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
@@ -675,7 +701,8 @@ export function AssignmentsSection({
                         </TableBody>
                       </Table>
                     )}
-                  </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
 
