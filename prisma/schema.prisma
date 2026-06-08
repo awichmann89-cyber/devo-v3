@@ -6,8 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direkter (un-pooler) Connect für Migrations — Pooler-URLs unterstützen
+  // keine Advisory-Locks zuverlässig (siehe Vercel-Build-Error P1002).
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------- Auth ----------
