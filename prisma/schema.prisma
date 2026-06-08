@@ -86,6 +86,8 @@ model Device {
 
   // Projekt-Buchungen
   assignments  ProjectAssignment[]
+  // Verpackungs-Scans (Public-Scan-Seite)
+  packingScans PackingScan[]
 
   @@index([categoryId])
 }
@@ -101,6 +103,7 @@ model DeviceSerialNumber {
   createdAt    DateTime @default(now())
 
   inspections  Inspection[]
+  packingScans PackingScan[]
 
   @@unique([deviceId, serialNumber])
   @@index([deviceId])
@@ -216,6 +219,7 @@ model PackUnit {
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   items PackUnitDevice[]
+  packingScans PackingScan[]
 
   @@index([categoryId])
 }
@@ -324,6 +328,10 @@ model Project {
   invoices        Invoice[]
   // Erzeugte Angebote
   quotes          Quote[]
+  // Token für die Public-Scan-Seite (/scan/[token]) zum Abhaken beim Packen.
+  // Lazy generiert, beim Klick auf "Token neu generieren" zurückgesetzt.
+  packToken       String?       @unique
+  packingScans    PackingScan[]
 
   @@index([status])
   @@index([customerId])
@@ -348,6 +356,9 @@ model ProjectGroup {
   sortOrder       Int              @default(0)
   // Rabatt-Prozent auf die Zwischensumme dieser Gruppe (zusätzlich zum projektweiten Rabatt)
   discountPercent Decimal          @default(0) @db.Decimal(5, 2)
+  // Wenn false: Gruppe taucht nicht auf Rechnungen/Angeboten auf und fließt
+  // nicht in Gesamtsummen ein. Z.B. interne Gruppe für nicht-berechnete Leihgaben.
+  billable        Boolean          @default(true)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -531,4 +542,29 @@ model ProjectAssignment {
   @@index([deviceId])
   @@index([projectId])
   @@index([groupId])
+}
+
+// Einzelner Pack-Scan — wird beim Verpacken via /scan/[token] erzeugt.
+// Pro gescannter Einheit eine Zeile. Auf der Packliste wird daraus der
+// Soll/Ist-Vergleich gebildet (X von Y Stück gescannt).
+model PackingScan {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Genau eines von beiden ist gesetzt:
+  packUnitId  String?
+  packUnit    PackUnit? @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
+  deviceId    String?
+  device      Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  // Wenn der Scan über eine konkrete Seriennummer aufgelöst wurde
+  deviceSerialId String?
+  deviceSerial   DeviceSerialNumber? @relation(fields: [deviceSerialId], references: [id], onDelete: SetNull)
+
+  scannedCode String   // Der eingegebene rohe Code (für Nachvollziehbarkeit)
+  scannedAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([packUnitId])
+  @@index([deviceId])
 }

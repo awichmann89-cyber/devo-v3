@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { Prisma } from "@prisma/client";
-import { getSettings, buildInvoiceNumber, buildQuoteNumber } from "@/lib/settings";
+import { getSettings, buildInvoiceNumber, buildQuoteNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence } from "@/lib/settings";
 
 export async function updateGroupDiscount(groupId: string, discountPercent: number) {
   await requireRole(CAN_WRITE);
@@ -114,9 +114,12 @@ export async function deleteInvoice(invoiceId: string) {
     where: { id: invoiceId },
     select: { projectId: true },
   });
+  // Rechnungsnummer freigeben, falls die gelöschte die höchste war
+  await recomputeInvoiceNextSequence();
   revalidatePath(`/projects/${inv.projectId}`);
   revalidatePath("/finances/invoices");
   revalidatePath("/finances/forecast");
+  revalidatePath("/settings");
 }
 
 /**
@@ -178,6 +181,9 @@ export async function deleteQuote(quoteId: string) {
     where: { id: quoteId },
     select: { projectId: true },
   });
+  // Angebotsnummer freigeben, falls die gelöschte die höchste war
+  await recomputeQuoteNextSequence();
   revalidatePath(`/projects/${q.projectId}`);
   revalidatePath("/finances/quotes");
+  revalidatePath("/settings");
 }

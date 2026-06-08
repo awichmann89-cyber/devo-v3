@@ -26,12 +26,12 @@ export function PackUnitDialog({ locations, categories }: Props) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4" /> Neue Packeinheit
+          <Plus className="h-4 w-4" /> Packeinheit anlegen
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Neue Packeinheit</DialogTitle>
+          <DialogTitle>Packeinheit anlegen</DialogTitle>
           <DialogDescription>
             Geräte werden nach dem Anlegen auf der Detailseite zugewiesen.
           </DialogDescription>

@@ -22,6 +22,7 @@ import {
   Wallet,
   Receipt,
   TrendingUp,
+  AlertCircle,
   FileText,
 } from "lucide-react";
 
@@ -54,6 +55,7 @@ const NAV: NavEntry[] = [
     icon: Wallet,
     children: [
       { href: "/finances/quotes", label: "Angebote", icon: FileText },
+      { href: "/finances/pending", label: "Zu fakturieren", icon: AlertCircle },
       { href: "/finances/invoices", label: "Rechnungen", icon: Receipt },
       { href: "/finances/forecast", label: "Forecast", icon: TrendingUp },
     ],
@@ -103,14 +105,14 @@ export function Sidebar({ role }: { role: Role }) {
 
   return (
     <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
-      <div className="flex h-20 items-center gap-2 border-b px-5">
+      <div className="flex h-16 items-center gap-2 border-b px-5">
         <Image
           src="/cratel_logo.svg"
           alt="Cratel"
           width={200}
           height={60}
           priority
-          className="h-12 w-auto"
+          className="h-9 w-auto"
         />
       </div>
       <nav className="space-y-1 p-4">

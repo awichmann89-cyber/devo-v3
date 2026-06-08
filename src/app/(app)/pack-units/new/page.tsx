@@ -22,7 +22,7 @@ export default async function NewPackUnitPage() {
       </div>
 
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Neue Packeinheit</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Packeinheit anlegen</h1>
         <p className="text-muted-foreground">
           Erstelle ein neues Case, Rack oder Tasche. Geräte kannst du nach dem Anlegen zuordnen.
         </p>

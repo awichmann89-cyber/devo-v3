@@ -103,13 +103,13 @@ export function CustomerDialog({
       {!customer && controlledOpen === undefined && (
         <DialogTrigger asChild>
           <Button>
-            <Plus className="h-4 w-4" /> Neuer Kunde
+            <Plus className="h-4 w-4" /> Kunde anlegen
           </Button>
         </DialogTrigger>
       )}
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Kunde bearbeiten" : "Neuer Kunde"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Kunde bearbeiten" : "Kunde anlegen"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">

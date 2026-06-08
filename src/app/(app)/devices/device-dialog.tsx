@@ -106,7 +106,7 @@ export function DeviceDialog({
       {!device && (
         <DialogTrigger asChild>
           <Button>
-            <Plus className="h-4 w-4" /> Neues Gerät
+            <Plus className="h-4 w-4" /> Gerät anlegen
           </Button>
         </DialogTrigger>
       )}
@@ -119,7 +119,7 @@ export function DeviceDialog({
       )}
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Gerät bearbeiten" : "Neues Gerät"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Gerät bearbeiten" : "Gerät anlegen"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

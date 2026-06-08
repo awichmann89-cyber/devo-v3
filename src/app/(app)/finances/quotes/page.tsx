@@ -32,7 +32,7 @@ export default async function FinancesQuotesPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Angebote</h1>
         <p className="text-muted-foreground">
-          Alle Angebote mit Gültigkeit und Status.
+          Angebote mit Gültigkeit und Status
         </p>
       </div>
 

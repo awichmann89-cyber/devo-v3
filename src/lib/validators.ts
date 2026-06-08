@@ -193,6 +193,7 @@ export const projectGroupSchema = z.object({
   kind: z.nativeEnum(ProjectGroupKind),
   discountPercent: z.coerce.number().min(0).max(100).default(0),
   sortOrder: z.coerce.number().int().default(0),
+  billable: z.coerce.boolean().default(true),
 });
 
 export const projectNoteSchema = z.object({

@@ -5,7 +5,7 @@ import authConfig from "@/auth.config";
 // Middleware läuft im Edge Runtime — daher die slim Config OHNE Prisma.
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/public", "/api/calendar"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/public", "/api/calendar", "/scan"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

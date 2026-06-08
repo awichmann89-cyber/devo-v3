@@ -106,7 +106,7 @@ export function ItemsManager({
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Suchen..."
+              placeholder="Suche…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 pl-8"

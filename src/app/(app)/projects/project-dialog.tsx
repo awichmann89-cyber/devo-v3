@@ -25,12 +25,12 @@ export function ProjectDialog({ customers }: Props) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4" /> Neues Projekt
+          <Plus className="h-4 w-4" /> Projekt anlegen
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Neues Projekt</DialogTitle>
+          <DialogTitle>Projekt anlegen</DialogTitle>
           <DialogDescription>
             Material wird nach dem Anlegen auf der Detailseite zugewiesen.
           </DialogDescription>

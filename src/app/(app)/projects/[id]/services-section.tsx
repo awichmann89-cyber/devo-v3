@@ -69,7 +69,7 @@ import {
 } from "./services-actions";
 import {
   createProjectGroup,
-  renameProjectGroup,
+  updateProjectGroup,
   deleteProjectGroup,
 } from "./groups-actions";
 import {
@@ -133,6 +133,7 @@ export function ServicesSection({
     mode: "create" | "rename";
     id?: string;
     name: string;
+    billable: boolean;
   } | null>(null);
   const [deleteGroupPrompt, setDeleteGroupPrompt] = useState<ProjectGroup | null>(null);
 
@@ -251,12 +252,19 @@ export function ServicesSection({
     startTransition(async () => {
       try {
         if (groupDialog.mode === "create") {
-          const res = await createProjectGroup(projectId, { name, kind: "SERVICE" });
+          const res = await createProjectGroup(projectId, {
+            name,
+            kind: "SERVICE",
+            billable: groupDialog.billable,
+          });
           setActiveGroupId(res.id);
           toast.success("Gruppe angelegt");
         } else if (groupDialog.id) {
-          await renameProjectGroup(groupDialog.id, name);
-          toast.success("Gruppe umbenannt");
+          await updateProjectGroup(groupDialog.id, {
+            name,
+            billable: groupDialog.billable,
+          });
+          toast.success("Gruppe gespeichert");
         }
         setGroupDialog(null);
       } catch (e) {
@@ -321,7 +329,7 @@ export function ServicesSection({
                 <div className="relative flex-1 min-w-[180px]">
                   <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Suchen..."
+                    placeholder="Suche…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="h-9 pl-8"
@@ -491,9 +499,9 @@ export function ServicesSection({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setGroupDialog({ mode: "create", name: "" })}
+                onClick={() => setGroupDialog({ mode: "create", name: "", billable: true })}
               >
-                <FolderPlus className="h-4 w-4" /> Neue Gruppe
+                <FolderPlus className="h-4 w-4" /> Gruppe anlegen
               </Button>
             </div>
 
@@ -508,7 +516,7 @@ export function ServicesSection({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setGroupDialog({ mode: "create", name: "" })}
+                    onClick={() => setGroupDialog({ mode: "create", name: "", billable: true })}
                   >
                     <FolderPlus className="h-4 w-4" /> Erste Gruppe anlegen
                   </Button>
@@ -545,6 +553,11 @@ export function ServicesSection({
                         <Badge variant="outline" className="text-[10px]">
                           {groupItems.length}
                         </Badge>
+                        {!group.billable && (
+                          <Badge variant="warning" className="text-[10px]">
+                            nicht abrechenbar
+                          </Badge>
+                        )}
                         {isActive && (
                           <Badge variant="secondary" className="text-[10px]">
                             Aktiv
@@ -562,6 +575,7 @@ export function ServicesSection({
                               mode: "rename",
                               id: group.id,
                               name: group.name,
+                              billable: group.billable,
                             });
                           }}
                           title="Umbenennen"
@@ -800,7 +814,7 @@ export function ServicesSection({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {groupDialog?.mode === "create" ? "Neue Gruppe" : "Gruppe umbenennen"}
+              {groupDialog?.mode === "create" ? "Gruppe anlegen" : "Gruppe bearbeiten"}
             </DialogTitle>
             <DialogDescription>
               Gruppen sind nur für dieses Projekt — z.B. „Aufbau", „Eventtag",
@@ -828,6 +842,25 @@ export function ServicesSection({
                 required
               />
             </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={groupDialog?.billable ?? true}
+                onChange={(e) =>
+                  setGroupDialog((g) =>
+                    g ? { ...g, billable: e.target.checked } : g
+                  )
+                }
+                className="mt-0.5 h-4 w-4 rounded border-input"
+              />
+              <span>
+                <span className="font-medium">Abrechenbar</span>
+                <span className="block text-xs text-muted-foreground">
+                  Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder
+                  Rechnungen auf und fließt nicht in Gesamtsummen ein.
+                </span>
+              </span>
+            </label>
             <DialogFooter>
               <Button
                 type="button"
@@ -839,7 +872,7 @@ export function ServicesSection({
               </Button>
               <Button type="submit" disabled={pending}>
                 {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Speichern
+                {groupDialog?.mode === "create" ? "Anlegen" : "Speichern"}
               </Button>
             </DialogFooter>
           </form>

@@ -60,8 +60,14 @@ export async function GET(
     dailyRate: number;
     quantity: number;
   };
-  const materialGroups = project.groups.filter((g) => g.kind === "MATERIAL");
-  const serviceGroups = project.groups.filter((g) => g.kind === "SERVICE");
+  // Nicht-abrechenbare Gruppen werden auf Angeboten/Rechnungen komplett
+  // weggelassen — weder in Tabellen noch in Summen oder Rabatten.
+  const materialGroups = project.groups.filter(
+    (g) => g.kind === "MATERIAL" && g.billable
+  );
+  const serviceGroups = project.groups.filter(
+    (g) => g.kind === "SERVICE" && g.billable
+  );
   const materialByGroup = new Map<string, MaterialRow[]>();
   for (const a of project.assignments) {
     // Geräte, die nicht auf Dokumenten erscheinen sollen, überspringen.

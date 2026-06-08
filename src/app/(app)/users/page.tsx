@@ -27,7 +27,7 @@ export default async function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Benutzer</h1>
-          <p className="text-muted-foreground">Verwalte Benutzer und Rollen</p>
+          <p className="text-muted-foreground">Benutzer und Rollen</p>
         </div>
         <UserDialog />
       </div>

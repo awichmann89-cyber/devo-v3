@@ -203,7 +203,9 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                    Keine Rechnungen gefunden.
+                    {invoices.length === 0
+                      ? "Noch keine Rechnungen angelegt"
+                      : "Keine Treffer für die Suche"}
                   </TableCell>
                 </TableRow>
               )}

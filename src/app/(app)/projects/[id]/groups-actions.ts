@@ -35,7 +35,7 @@ export async function ensureDefaultGroup(
 
 export async function createProjectGroup(
   projectId: string,
-  input: { name: string; kind: ProjectGroupKind }
+  input: { name: string; kind: ProjectGroupKind; billable?: boolean }
 ) {
   await requireRole(CAN_WRITE);
   const name = input.name.trim();
@@ -50,7 +50,13 @@ export async function createProjectGroup(
   const sortOrder = (last?.sortOrder ?? -1) + 1;
 
   const created = await prisma.projectGroup.create({
-    data: { projectId, kind: input.kind, name, sortOrder },
+    data: {
+      projectId,
+      kind: input.kind,
+      name,
+      sortOrder,
+      billable: input.billable ?? true,
+    },
     select: { id: true },
   });
 
@@ -58,16 +64,35 @@ export async function createProjectGroup(
   return { id: created.id };
 }
 
-export async function renameProjectGroup(id: string, name: string) {
+export async function updateProjectGroup(
+  id: string,
+  input: { name?: string; billable?: boolean }
+) {
   await requireRole(CAN_WRITE);
-  const t = name.trim();
-  if (!t) throw new Error("Name darf nicht leer sein");
+  const data: { name?: string; billable?: boolean } = {};
+  if (input.name !== undefined) {
+    const t = input.name.trim();
+    if (!t) throw new Error("Name darf nicht leer sein");
+    data.name = t;
+  }
+  if (input.billable !== undefined) {
+    data.billable = input.billable;
+  }
   const g = await prisma.projectGroup.update({
     where: { id },
-    data: { name: t },
+    data,
     select: { projectId: true },
   });
   revalidatePath(`/projects/${g.projectId}`);
+}
+
+// Beibehalten für Rückwärtskompatibilität — leitet nur an updateProjectGroup weiter.
+export async function renameProjectGroup(id: string, name: string) {
+  return updateProjectGroup(id, { name });
+}
+
+export async function setProjectGroupBillable(id: string, billable: boolean) {
+  return updateProjectGroup(id, { billable });
 }
 
 /**

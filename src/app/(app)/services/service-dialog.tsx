@@ -101,9 +101,9 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{item ? "Position bearbeiten" : "Neue Position"}</DialogTitle>
+          <DialogTitle>{item ? "Position bearbeiten" : "Position anlegen"}</DialogTitle>
           <DialogDescription>
             Personal- oder Transport-Position für die Angebotskalkulation.
           </DialogDescription>

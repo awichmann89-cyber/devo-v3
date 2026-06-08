@@ -5,6 +5,7 @@ import { ProjectStatus } from "@prisma/client";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 
 export default async function DashboardPage() {
   const [deviceCount, projectCount, packUnitCount, upcomingProjects, activeProjects] =
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
                     {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}
                   </div>
                 </div>
-                <Badge variant="outline">{p.status}</Badge>
+                <Badge variant={projectStatusVariant(p.status)}>{projectStatusLabel(p.status)}</Badge>
               </Link>
             ))}
           </CardContent>
@@ -91,7 +92,7 @@ export default async function DashboardPage() {
                     bis {formatDate(p.planningEnd)}
                   </div>
                 </div>
-                <Badge>{p.status}</Badge>
+                <Badge variant={projectStatusVariant(p.status)}>{projectStatusLabel(p.status)}</Badge>
               </Link>
             ))}
           </CardContent>

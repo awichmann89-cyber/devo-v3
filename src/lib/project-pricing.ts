@@ -27,9 +27,12 @@ export function calculateProjectTotal(
   );
   const factor = getDayFactor(days, factorMap);
 
-  // Pro-Gruppe-Netto sammeln
+  // Pro-Gruppe-Netto sammeln. Nicht-abrechenbare Gruppen werden komplett
+  // ignoriert — sie fließen nicht in Summen oder Rabatte ein und tauchen
+  // entsprechend nicht auf Angeboten/Rechnungen auf.
+  const billableGroups = project.groups.filter((g) => g.billable);
   const groupNet = new Map<string, number>();
-  for (const g of project.groups) {
+  for (const g of billableGroups) {
     let sub = 0;
     if (g.kind === "MATERIAL") {
       for (const a of project.assignments) {
@@ -49,10 +52,10 @@ export function calculateProjectTotal(
     groupNet.set(g.id, sub - (sub * pct) / 100);
   }
 
-  const materialSub = project.groups
+  const materialSub = billableGroups
     .filter((g) => g.kind === "MATERIAL")
     .reduce((s, g) => s + (groupNet.get(g.id) ?? 0), 0);
-  const servicesSub = project.groups
+  const servicesSub = billableGroups
     .filter((g) => g.kind === "SERVICE")
     .reduce((s, g) => s + (groupNet.get(g.id) ?? 0), 0);
 

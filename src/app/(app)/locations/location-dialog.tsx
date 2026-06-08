@@ -66,12 +66,12 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
     <Dialog open={open} onOpenChange={setOpen}>
       {!location && (
         <DialogTrigger asChild>
-          <Button><Plus className="h-4 w-4" /> Neuer Lagerort</Button>
+          <Button><Plus className="h-4 w-4" /> Lagerort anlegen</Button>
         </DialogTrigger>
       )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{location ? "Lagerort bearbeiten" : "Neuer Lagerort"}</DialogTitle>
+          <DialogTitle>{location ? "Lagerort bearbeiten" : "Lagerort anlegen"}</DialogTitle>
           <DialogDescription>Standort für Geräte und Packeinheiten.</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -102,7 +102,7 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Speichern
+              {location ? "Speichern" : "Anlegen"}
             </Button>
           </DialogFooter>
         </form>

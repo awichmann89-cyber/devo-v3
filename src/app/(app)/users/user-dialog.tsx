@@ -116,7 +116,7 @@ export function UserDialog({ user, open: controlledOpen, onOpenChange }: Props) 
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Speichern
+              {user ? "Speichern" : "Anlegen"}
             </Button>
           </DialogFooter>
         </form>

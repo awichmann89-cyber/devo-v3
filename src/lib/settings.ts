@@ -45,6 +45,50 @@ export async function setSetting(key: SettingKey, value: string): Promise<void> 
   });
 }
 
+/**
+ * Nach Löschen einer Rechnung den `invoiceNumberNextSequence`-Wert in den
+ * Einstellungen neu setzen, sodass die nächste Rechnung wieder die nun freie
+ * Nummer bekommt. Wirkt nur wenn die gelöschte die höchste war — niedrigere
+ * Nummern hinterlassen Lücken in der Mitte, da darf der Counter nicht zurück.
+ *
+ * Pflichtanforderung: Rechnungsnummern müssen pro Jahr fortlaufend ohne
+ * Lücken vergeben werden.
+ */
+export async function recomputeInvoiceNextSequence(): Promise<void> {
+  const year = new Date().getFullYear();
+  const rows = await prisma.invoice.findMany({
+    where: { number: { startsWith: `${year}-` } },
+    select: { number: true },
+  });
+  let maxSeq = 0;
+  for (const r of rows) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+  await setSetting("invoiceNumberNextSequence" as SettingKey, String(maxSeq + 1));
+}
+
+/** Analog zu recomputeInvoiceNextSequence, für den Angebotsnummern-Kreis. */
+export async function recomputeQuoteNextSequence(): Promise<void> {
+  const year = new Date().getFullYear();
+  const rows = await prisma.quote.findMany({
+    where: { number: { startsWith: `${year}-` } },
+    select: { number: true },
+  });
+  let maxSeq = 0;
+  for (const r of rows) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+  await setSetting("quoteNumberNextSequence" as SettingKey, String(maxSeq + 1));
+}
+
 /** Liefert den Kalender-Token, erzeugt einen, falls noch keiner gespeichert ist. */
 export async function getOrCreateCalendarToken(): Promise<string> {
   const existing = await getSetting("calendarFeedToken");

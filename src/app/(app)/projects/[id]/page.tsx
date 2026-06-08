@@ -22,6 +22,7 @@ import { ServicesSection } from "./services-section";
 import { FinancesSection } from "./finances-section";
 import { DeleteProjectButton } from "./delete-button";
 import { getOverlappingAssignments } from "@/lib/availability";
+import { buildPackList } from "@/lib/packlist";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
 
@@ -47,6 +48,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             device: { include: { category: true } },
           },
           orderBy: { device: { name: "asc" } },
+        },
+        packingScans: {
+          select: { id: true, packUnitId: true, deviceId: true },
         },
         createdBy: { select: { name: true, email: true } },
       },
@@ -156,11 +160,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     const pct = Number(g.discountPercent ?? 0) || 0;
     return sub - (sub * pct) / 100;
   }
+  // Nicht-abrechenbare Gruppen werden komplett ausgeschlossen — sie fließen
+  // weder in Subtotals noch in Rabatte ein.
   const materialNetAfterGroups = project.groups
-    .filter((g) => g.kind === "MATERIAL")
+    .filter((g) => g.kind === "MATERIAL" && g.billable)
     .reduce((s, g) => s + groupNet(g.id, "MATERIAL"), 0);
   const servicesNetAfterGroups = project.groups
-    .filter((g) => g.kind === "SERVICE")
+    .filter((g) => g.kind === "SERVICE" && g.billable)
     .reduce((s, g) => s + groupNet(g.id, "SERVICE"), 0);
 
   const matPct = Number(project.materialDiscountPercent ?? 0) || 0;
@@ -181,6 +187,68 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     (s, a) => s + a.quantity,
     0
   );
+
+  // Gewicht für die KPI-Card: Packeinheiten-Leergewicht (× Stück lt. Packliste)
+  // + Gewicht der losen Geräte. Logik exakt wie auf der Packliste.
+  const bookedDeviceIds = project.assignments.map((a) => a.deviceId);
+  const projectPackUnits =
+    bookedDeviceIds.length > 0
+      ? await prisma.packUnit.findMany({
+          where: {
+            items: { some: { deviceId: { in: bookedDeviceIds } } },
+          },
+          include: {
+            location: true,
+            items: { include: { device: true } },
+          },
+        })
+      : [];
+  const projectPackList = buildPackList(
+    project.assignments.map((a) => ({
+      deviceId: a.deviceId,
+      quantity: a.quantity,
+      device: { name: a.device.name, weight: a.device.weight },
+    })),
+    projectPackUnits.map((pu) => ({
+      id: pu.id,
+      code: pu.code,
+      name: pu.name,
+      packMode: pu.packMode,
+      weight: pu.weight,
+      location: pu.location ? { name: pu.location.name } : null,
+      items: pu.items.map((it) => ({
+        deviceId: it.deviceId,
+        quantity: it.quantity,
+        device: { name: it.device.name },
+      })),
+    }))
+  );
+  const totalWeightKg = projectPackList.reduce(
+    (sum, item) => sum + item.weightPerUnit * item.quantity,
+    0
+  );
+
+  // Scan-Fortschritt: pro Packlisten-Item zählen wir, wie viele Scans angekommen sind.
+  // Auf Soll-Quantity gecapped — Über-Scans werden im Badge nicht weitergezählt.
+  const scansByPackUnit = new Map<string, number>();
+  const scansByDevice = new Map<string, number>();
+  for (const s of project.packingScans) {
+    if (s.packUnitId) {
+      scansByPackUnit.set(s.packUnitId, (scansByPackUnit.get(s.packUnitId) ?? 0) + 1);
+    } else if (s.deviceId) {
+      scansByDevice.set(s.deviceId, (scansByDevice.get(s.deviceId) ?? 0) + 1);
+    }
+  }
+  let scanTotalRequired = 0;
+  let scanTotalDone = 0;
+  for (const it of projectPackList) {
+    scanTotalRequired += it.quantity;
+    if (it.kind === "PACK") {
+      scanTotalDone += Math.min(scansByPackUnit.get(it.packUnitId) ?? 0, it.quantity);
+    } else {
+      scanTotalDone += Math.min(scansByDevice.get(it.deviceId) ?? 0, it.quantity);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -244,11 +312,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardDescription>Material</CardDescription></CardHeader>
+          <CardHeader className="pb-2"><CardDescription>Gewicht</CardDescription></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{deviceCount}</div>
+            <div className="text-2xl font-bold tabular-nums">
+              {totalWeightKg.toFixed(1)} kg
+            </div>
             <div className="text-xs text-muted-foreground">
-              Geräte · {project.assignments.length} Typen
+              Packeinheiten (leer) + lose Geräte
             </div>
           </CardContent>
         </Card>
@@ -327,6 +397,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             total={total}
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
             categories={serialize(allCategories)}
+            scanProgress={{ packed: scanTotalDone, total: scanTotalRequired }}
           />
         </TabsContent>
 
@@ -349,6 +420,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               kind: g.kind,
               discountPercent: Number(g.discountPercent ?? 0),
               subtotal: groupNet(g.id, g.kind),
+              billable: g.billable,
             }))}
             projectDiscountPercent={projPct}
             materialDiscountPercent={matPct}

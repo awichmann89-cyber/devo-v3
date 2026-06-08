@@ -52,9 +52,10 @@ import {
 } from "../actions";
 import {
   createProjectGroup,
-  renameProjectGroup,
+  updateProjectGroup,
   deleteProjectGroup,
 } from "./groups-actions";
+import { ScanDialog } from "./scan-dialog";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
@@ -101,6 +102,7 @@ interface Props {
   total: number;
   groups: ProjectGroup[];
   categories: Category[];
+  scanProgress: { packed: number; total: number };
 }
 
 type ConflictPrompt = {
@@ -121,6 +123,7 @@ export function AssignmentsSection({
   total,
   groups,
   categories,
+  scanProgress,
 }: Props) {
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
@@ -141,6 +144,7 @@ export function AssignmentsSection({
     mode: "create" | "rename";
     id?: string;
     name: string;
+    billable: boolean;
   } | null>(null);
   const [deleteGroup, setDeleteGroup] = useState<ProjectGroup | null>(null);
 
@@ -266,9 +270,13 @@ export function AssignmentsSection({
           await createProjectGroup(project.id, {
             name,
             kind: "MATERIAL",
+            billable: groupDialog.billable,
           });
         } else if (groupDialog.id) {
-          await renameProjectGroup(groupDialog.id, name);
+          await updateProjectGroup(groupDialog.id, {
+            name,
+            billable: groupDialog.billable,
+          });
         }
         setGroupDialog(null);
       } catch (e) {
@@ -300,7 +308,13 @@ export function AssignmentsSection({
 
   return (
     <>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex justify-end gap-2">
+        <ScanDialog
+          projectId={project.id}
+          hasAssignments={project.assignments.length > 0}
+          packedCount={scanProgress.packed}
+          totalCount={scanProgress.total}
+        />
         <Button
           size="sm"
           variant="default"
@@ -336,7 +350,7 @@ export function AssignmentsSection({
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Suchen…"
+                  placeholder="Suche…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-9 pl-8"
@@ -353,6 +367,10 @@ export function AssignmentsSection({
               ) : (
                 <ul className="divide-y">
                   {groupItemsByCategory(availableDevices, categories).map((catGroup) => {
+                    // Wenn ein Vorfahr eingeklappt ist, gar nicht rendern
+                    if (catGroup.ancestorKeys.some((k) => collapsedCats.has(k))) {
+                      return null;
+                    }
                     const isCollapsed = collapsedCats.has(catGroup.key);
                     return (
                       <li key={catGroup.key}>
@@ -360,7 +378,7 @@ export function AssignmentsSection({
                           type="button"
                           className="flex w-full items-center gap-1.5 bg-muted/50 px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
                           onClick={() => toggleCat(catGroup.key)}
-                          style={{ paddingLeft: `${0.75 + catGroup.depth * 1.25}rem` }}
+                          style={{ paddingLeft: `${0.75 + catGroup.depth * 1.5}rem` }}
                         >
                           {isCollapsed ? (
                             <ChevronRight className="h-3.5 w-3.5 shrink-0" />
@@ -373,9 +391,11 @@ export function AssignmentsSection({
                             <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                           )}
                           <span className="truncate flex-1">{catGroup.name}</span>
-                          <span className="shrink-0 text-muted-foreground font-normal">
-                            {catGroup.items.length}
-                          </span>
+                          {catGroup.items.length > 0 && (
+                            <span className="shrink-0 text-muted-foreground font-normal">
+                              {catGroup.items.length}
+                            </span>
+                          )}
                         </button>
                         {!isCollapsed && (
                           <ul className="divide-y">
@@ -384,17 +404,18 @@ export function AssignmentsSection({
                               return (
                                 <li
                                   key={d.id}
-                                  className="group flex items-center gap-2 pl-8 pr-3 py-2 hover:bg-accent/40"
+                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
+                                  style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-sm font-medium">
                                       {d.name}
                                     </div>
                                     <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                      {(d.manufacturer || d.model) && (
+                                      {d.description?.trim() && (
                                         <>
                                           <span className="truncate">
-                                            {[d.manufacturer, d.model].filter(Boolean).join(" ")}
+                                            {d.description}
                                           </span>
                                           <span>·</span>
                                         </>
@@ -462,10 +483,10 @@ export function AssignmentsSection({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    setGroupDialog({ mode: "create", name: "" })
+                    setGroupDialog({ mode: "create", name: "", billable: true })
                   }
                 >
-                  <FolderPlus className="h-4 w-4" /> Neue Gruppe
+                  <FolderPlus className="h-4 w-4" /> Gruppe anlegen
                 </Button>
               </div>
             </CardHeader>
@@ -477,7 +498,7 @@ export function AssignmentsSection({
                     variant="outline"
                     size="sm"
                     className="mt-3"
-                    onClick={() => setGroupDialog({ mode: "create", name: "" })}
+                    onClick={() => setGroupDialog({ mode: "create", name: "", billable: true })}
                   >
                     <FolderPlus className="h-4 w-4" /> Erste Gruppe anlegen
                   </Button>
@@ -504,6 +525,11 @@ export function AssignmentsSection({
                         <Badge variant="outline" className="text-[10px]">
                           {groupAssignments.length}
                         </Badge>
+                        {!g.billable && (
+                          <Badge variant="warning" className="text-[10px]">
+                            nicht abrechenbar
+                          </Badge>
+                        )}
                         {isActive && (
                           <Badge variant="secondary" className="text-[10px]">
                             Aktiv
@@ -517,7 +543,7 @@ export function AssignmentsSection({
                           className="h-7 w-7"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setGroupDialog({ mode: "rename", id: g.id, name: g.name });
+                            setGroupDialog({ mode: "rename", id: g.id, name: g.name, billable: g.billable });
                           }}
                           title="Umbenennen"
                         >
@@ -573,11 +599,9 @@ export function AssignmentsSection({
                                 <TableRow>
                                   <TableCell>
                                     <div className="font-medium">{a.device.name}</div>
-                                    {(a.device.manufacturer || a.device.model) && (
-                                      <div className="text-[11px] text-muted-foreground">
-                                        {[a.device.manufacturer, a.device.model]
-                                          .filter(Boolean)
-                                          .join(" ")}
+                                    {a.device.description?.trim() && (
+                                      <div className="text-[11px] text-muted-foreground truncate">
+                                        {a.device.description}
                                       </div>
                                     )}
                                   </TableCell>
@@ -742,7 +766,7 @@ export function AssignmentsSection({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {groupDialog?.mode === "create" ? "Neue Gruppe" : "Gruppe umbenennen"}
+              {groupDialog?.mode === "create" ? "Gruppe anlegen" : "Gruppe bearbeiten"}
             </DialogTitle>
             <DialogDescription>
               Gruppen sind nur für dieses Projekt — z.B. „Ton", „Licht", „Bühne".
@@ -768,6 +792,25 @@ export function AssignmentsSection({
                 required
               />
             </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={groupDialog?.billable ?? true}
+                onChange={(e) =>
+                  setGroupDialog((g) =>
+                    g ? { ...g, billable: e.target.checked } : g
+                  )
+                }
+                className="mt-0.5 h-4 w-4 rounded border-input"
+              />
+              <span>
+                <span className="font-medium">Abrechenbar</span>
+                <span className="block text-xs text-muted-foreground">
+                  Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder
+                  Rechnungen auf und fließt nicht in Gesamtsummen ein.
+                </span>
+              </span>
+            </label>
             <DialogFooter>
               <Button
                 type="button"
@@ -779,7 +822,7 @@ export function AssignmentsSection({
               </Button>
               <Button type="submit" disabled={pending}>
                 {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Speichern
+                {groupDialog?.mode === "create" ? "Anlegen" : "Speichern"}
               </Button>
             </DialogFooter>
           </form>

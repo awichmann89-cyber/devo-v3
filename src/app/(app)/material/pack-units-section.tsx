@@ -114,7 +114,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Suche..."
+          placeholder="Suche…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -151,11 +151,14 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 {packUnits.length === 0
                   ? "Noch keine Packeinheiten angelegt"
-                  : "Keine Treffer für die aktuellen Filter"}
+                  : "Keine Treffer für die Suche"}
               </TableCell>
             </TableRow>
           ) : (
             groupItemsByCategory(filtered, categories).map((group) => {
+              if (group.ancestorKeys.some((k) => collapsedCats.has(k))) {
+                return null;
+              }
               const isCatCollapsed = collapsedCats.has(group.key);
               return (
                 <Fragment key={group.key}>
@@ -166,7 +169,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                     <TableCell colSpan={7} className="py-2">
                       <div
                         className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
-                        style={{ paddingLeft: `${group.depth * 1.25}rem` }}
+                        style={{ paddingLeft: `${group.depth * 1.5}rem` }}
                       >
                         {isCatCollapsed ? (
                           <ChevronRight className="h-3.5 w-3.5 shrink-0" />
@@ -179,9 +182,11 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                           <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
                         <span className="truncate">{group.name}</span>
-                        <span className="ml-1 font-normal text-muted-foreground normal-case">
-                          ({group.items.length})
-                        </span>
+                        {group.items.length > 0 && (
+                          <span className="ml-1 font-normal text-muted-foreground normal-case">
+                            ({group.items.length})
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -199,7 +204,9 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                     return (
                       <Fragment key={pu.id}>
                         <TableRow className="cursor-pointer" onClick={() => hasItems && toggle(pu.id)}>
-                          <TableCell>
+                          <TableCell
+                            style={{ paddingLeft: `${1 + (group.depth + 1) * 1.5}rem` }}
+                          >
                             <Button
                               variant="ghost"
                               size="icon"
@@ -298,7 +305,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                                     <tr className="text-muted-foreground text-xs">
                                       <th className="text-left py-1 w-[80px]">Stück pro Packeinheit</th>
                                       <th className="text-left py-1">Bezeichnung</th>
-                                      <th className="text-left py-1">Hersteller / Modell</th>
+                                      <th className="text-left py-1">Beschreibung (extern)</th>
                                       <th className="text-right py-1">€ / Tag</th>
                                     </tr>
                                   </thead>
@@ -317,9 +324,7 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                                           </Link>
                                         </td>
                                         <td className="py-1 text-muted-foreground text-xs">
-                                          {[it.device.manufacturer, it.device.model]
-                                            .filter(Boolean)
-                                            .join(" ") || "—"}
+                                          {it.device.description?.trim() || "—"}
                                         </td>
                                         <td className="py-1 text-right tabular-nums text-xs">
                                           {formatCurrency(Number(it.device.dailyRate) * it.quantity)}

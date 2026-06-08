@@ -95,7 +95,7 @@ export function ServicesTable({ items }: { items: Row[] }) {
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Suchen..."
+            placeholder="Suche…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64 pl-8"
@@ -156,7 +156,9 @@ export function ServicesTable({ items }: { items: Row[] }) {
           {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                Keine Positionen gefunden
+                {items.length === 0
+                  ? "Noch keine Positionen angelegt"
+                  : "Keine Treffer für die Suche"}
               </TableCell>
             </TableRow>
           )}

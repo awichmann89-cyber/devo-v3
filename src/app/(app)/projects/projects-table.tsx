@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -12,13 +11,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import Link from "next/link";
-import { formatDate } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import {
   projectKindLabel,
   projectKindVariant,
   projectStatusLabel,
+  projectStatusRowClass,
   projectStatusVariant,
 } from "@/lib/labels";
 import type { ProjectKind, ProjectStatus } from "@prisma/client";
@@ -40,6 +42,7 @@ interface Props {
 }
 
 export function ProjectsTable({ projects }: Props) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
 
   const filtered = projects.filter((p) => {
@@ -51,7 +54,7 @@ export function ProjectsTable({ projects }: Props) {
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Projektname suchen..."
+          placeholder="Suche…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
@@ -80,13 +83,17 @@ export function ProjectsTable({ projects }: Props) {
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 {projects.length === 0
-                  ? "Keine Projekte angelegt"
+                  ? "Noch keine Projekte angelegt"
                   : "Keine Treffer für die Suche"}
               </TableCell>
             </TableRow>
           )}
           {filtered.map((p) => (
-            <TableRow key={p.id}>
+            <TableRow
+              key={p.id}
+              className={cn("cursor-pointer", projectStatusRowClass(p.status))}
+              onClick={() => router.push(`/projects/${p.id}`)}
+            >
               <TableCell>
                 <Badge variant={projectStatusVariant(p.status)}>
                   {projectStatusLabel(p.status)}
@@ -126,7 +133,9 @@ export function ProjectsTable({ projects }: Props) {
                   </>
                 )}
               </TableCell>
-              <TableCell className="text-right">{p._count.assignments}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {p._count.assignments}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

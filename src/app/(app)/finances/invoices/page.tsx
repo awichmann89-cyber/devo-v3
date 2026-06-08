@@ -33,15 +33,15 @@ export default async function FinancesInvoicesPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Rechnungen</h1>
         <p className="text-muted-foreground">
-          Alle Rechnungen mit Status, Fälligkeit und Zahlungseingang.
+          Rechnungen mit Status, Fälligkeit und Zahlungseingang
         </p>
       </div>
 
       {rows.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Noch keine Rechnungen vorhanden. Lege eine Rechnung im Finanzen-Tab
-            eines Projekts an.
+            Noch keine Rechnungen vorhanden. Erstelle eine Rechnung im Finanzen-Tab
+            eines Projekts.
           </CardContent>
         </Card>
       ) : (

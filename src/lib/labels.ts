@@ -40,6 +40,21 @@ export function projectStatusVariant(status: ProjectStatus): "default" | "second
   }[status];
 }
 
+/**
+ * Hintergrund-Klasse für eine Tabellenzeile, sehr dezent eingefärbt nach
+ * Projekt-Status. DRAFT bleibt neutral (kein Hintergrund), die anderen
+ * bekommen einen leichten Tönungs-Hauch.
+ */
+export function projectStatusRowClass(status: ProjectStatus): string {
+  return {
+    DRAFT: "",
+    CONFIRMED: "bg-green-50/40 hover:bg-green-100 dark:bg-green-950/15 dark:hover:bg-green-900/40",
+    ACTIVE: "bg-blue-50/40 hover:bg-blue-100 dark:bg-blue-950/15 dark:hover:bg-blue-900/40",
+    COMPLETED: "bg-emerald-50/40 hover:bg-emerald-100 dark:bg-emerald-950/15 dark:hover:bg-emerald-900/40",
+    CANCELLED: "bg-red-50/35 hover:bg-red-100 dark:bg-red-950/15 dark:hover:bg-red-900/40",
+  }[status];
+}
+
 export function roleLabel(role: Role): string {
   return {
     ADMIN: "Administrator",

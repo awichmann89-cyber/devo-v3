@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -99,125 +100,157 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filter</CardTitle>
+        <CardHeader>
+          <CardTitle className="text-base">Angebote</CardTitle>
+          <CardDescription>
+            Filtere nach Status oder suche nach Nummer, Projekt oder Kunde.
+          </CardDescription>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Nummer, Projekt oder Kunde…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-72 pl-8"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <FilterButton
+                active={filter === "all"}
+                onClick={() => setFilter("all")}
+                count={counts.all}
+              >
+                Alle
+              </FilterButton>
+              <FilterButton
+                active={filter === "valid"}
+                onClick={() => setFilter("valid")}
+                count={counts.valid}
+              >
+                Gültig
+              </FilterButton>
+              <FilterButton
+                active={filter === "expired"}
+                onClick={() => setFilter("expired")}
+                count={counts.expired}
+              >
+                Abgelaufen
+              </FilterButton>
+            </div>
+            {(search || filter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setFilter("all");
+                }}
+              >
+                <X className="h-4 w-4" /> Filter zurücksetzen
+              </Button>
+            )}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {filtered.length} von {quotes.length}
+            </span>
+          </div>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Nummer, Projekt, Kunde…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-64 pl-8"
-            />
-          </div>
-          <div className="flex items-center gap-1">
-            <FilterButton active={filter === "all"} onClick={() => setFilter("all")} count={counts.all}>
-              Alle
-            </FilterButton>
-            <FilterButton active={filter === "valid"} onClick={() => setFilter("valid")} count={counts.valid}>
-              Gültig
-            </FilterButton>
-            <FilterButton active={filter === "expired"} onClick={() => setFilter("expired")} count={counts.expired}>
-              Abgelaufen
-            </FilterButton>
-          </div>
-          {(search || filter !== "all") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearch("");
-                setFilter("all");
-              }}
-            >
-              <X className="h-4 w-4" /> Zurücksetzen
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          <Table>
+        <CardContent>
+          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
             <TableHeader>
               <TableRow>
                 <TableHead>Nummer</TableHead>
-                <TableHead>Projekt</TableHead>
-                <TableHead>Kunde</TableHead>
+                <TableHead>Projekt / Kunde</TableHead>
                 <TableHead>Datum</TableHead>
                 <TableHead>Gültig bis</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Netto</TableHead>
                 <TableHead className="text-right">Brutto</TableHead>
-                <TableHead className="w-[120px]"></TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-[120px] text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
-                    Keine Angebote für diesen Filter.
+                  <TableCell
+                    colSpan={8}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    Keine Treffer für die Suche.
                   </TableCell>
                 </TableRow>
-              ) : (
-                filtered.map((q) => {
-                  const status = quoteStatus(q);
-                  return (
-                    <TableRow key={q.id}>
-                      <TableCell className="font-mono">{q.number}</TableCell>
-                      <TableCell>
-                        <Link href={`/projects/${q.projectId}`} className="hover:underline">
-                          {q.projectName}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {q.customerName ?? "—"}
-                      </TableCell>
-                      <TableCell>{formatDate(q.date)}</TableCell>
-                      <TableCell>{formatDate(q.expiresAt)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={status === "valid" ? "success" : "secondary"}
-                          className={cn("text-[10px]")}
-                        >
-                          {status === "valid" ? "Gültig" : "Abgelaufen"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
-                        {formatCurrency(q.totalNet)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                        {formatCurrency(gross(q))}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-                            <a
-                              href={`/api/projects/${q.projectId}/quotes/${q.id}/pdf`}
-                              target="_blank"
-                              rel="noopener"
-                              title="PDF öffnen"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteDialog(q)}
-                            title="Angebot löschen"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
               )}
+              {filtered.map((q) => {
+                const status = quoteStatus(q);
+                return (
+                  <TableRow key={q.id}>
+                    <TableCell className="font-mono text-sm">
+                      {q.number}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/projects/${q.projectId}`}
+                        className="block hover:underline"
+                      >
+                        <div className="font-medium">{q.projectName}</div>
+                        {q.customerName && (
+                          <div className="text-[11px] text-muted-foreground">
+                            {q.customerName}
+                          </div>
+                        )}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatDate(q.date)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatDate(q.expiresAt)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
+                      {formatCurrency(q.totalNet)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                      {formatCurrency(gross(q))}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={status === "valid" ? "success" : "secondary"}
+                        className={cn("text-[10px]")}
+                      >
+                        {status === "valid" ? "Gültig" : "Abgelaufen"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                        >
+                          <a
+                            href={`/api/projects/${q.projectId}/quotes/${q.id}/pdf`}
+                            target="_blank"
+                            rel="noopener"
+                            title="PDF öffnen"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteDialog(q)}
+                          title="Angebot löschen"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

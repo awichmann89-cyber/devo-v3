@@ -47,7 +47,14 @@ export function flattenCategoryTree<T extends CategoryLike>(
  * in Tree-Reihenfolge (Eltern vor Kindern, alphabetisch). Items ohne
  * Kategorie werden in einer "Ohne Kategorie"-Gruppe am Ende eingereiht.
  *
- * Liefert nur Gruppen mit mindestens einem Item.
+ * Vorfahren-Kategorien werden als Header (mit `items: []`) ebenfalls
+ * mitgeliefert, sobald mindestens eine Unter-Kategorie Items hat — so
+ * bleibt die volle Hierarchie sichtbar (z.B. „Ton" über „Lautsprecher",
+ * auch wenn alle Geräte direkt unter „Lautsprecher" hängen).
+ *
+ * Pro Gruppe wird zusätzlich `ancestorKeys` mitgegeben: die IDs aller
+ * Eltern-Kategorien. Damit kann der Consumer Cascade-Collapse umsetzen
+ * („wenn ein Vorfahr collapsed ist, blende mich aus").
  */
 export function groupItemsByCategory<
   T extends { categoryId: string | null },
@@ -60,6 +67,7 @@ export function groupItemsByCategory<
   name: string;
   depth: number;
   items: T[];
+  ancestorKeys: string[];
 }> {
   const byCategoryId = new Map<string | null, T[]>();
   for (const it of items) {
@@ -68,17 +76,58 @@ export function groupItemsByCategory<
     byCategoryId.set(it.categoryId, arr);
   }
 
-  const ordered = flattenCategoryTree(categories);
-  const result: Array<{ key: string; name: string; depth: number; items: T[] }> = [];
-  for (const cat of ordered) {
-    const arr = byCategoryId.get(cat.id);
-    if (arr && arr.length > 0) {
-      result.push({ key: cat.id, name: cat.name, depth: cat.depth, items: arr });
+  // Welche Kategorie-IDs müssen wir mindestens als Header zeigen?
+  // = alle Kategorien mit direkten Items + alle deren Vorfahren.
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const includeIds = new Set<string>();
+  for (const id of byCategoryId.keys()) {
+    if (!id) continue;
+    let cur: C | undefined = byId.get(id);
+    while (cur) {
+      if (includeIds.has(cur.id)) break;
+      includeIds.add(cur.id);
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
     }
+  }
+
+  function ancestorsOf(catId: string): string[] {
+    const chain: string[] = [];
+    let cur: C | undefined = byId.get(catId);
+    while (cur?.parentId && byId.has(cur.parentId)) {
+      chain.push(cur.parentId);
+      cur = byId.get(cur.parentId);
+    }
+    return chain;
+  }
+
+  const ordered = flattenCategoryTree(categories);
+  const result: Array<{
+    key: string;
+    name: string;
+    depth: number;
+    items: T[];
+    ancestorKeys: string[];
+  }> = [];
+  for (const cat of ordered) {
+    if (!includeIds.has(cat.id)) continue;
+    const arr = byCategoryId.get(cat.id) ?? [];
+    result.push({
+      key: cat.id,
+      name: cat.name,
+      depth: cat.depth,
+      items: arr,
+      ancestorKeys: ancestorsOf(cat.id),
+    });
   }
   const noCat = byCategoryId.get(null);
   if (noCat && noCat.length > 0) {
-    result.push({ key: "__none__", name: "Ohne Kategorie", depth: 0, items: noCat });
+    result.push({
+      key: "__none__",
+      name: "Ohne Kategorie",
+      depth: 0,
+      items: noCat,
+      ancestorKeys: [],
+    });
   }
   return result;
 }

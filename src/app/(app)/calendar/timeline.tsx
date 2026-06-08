@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -10,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Package } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -27,75 +26,138 @@ interface ProjectVM {
   deviceCount: number;
 }
 
+const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+// Status → Hintergrundfarbe für die Projekt-Chips im Kalender
+function projectChipClass(status: ProjectStatus): string {
+  switch (status) {
+    case "ACTIVE":
+      return "bg-blue-600 hover:bg-blue-700 text-white";
+    case "CONFIRMED":
+      return "bg-emerald-600 hover:bg-emerald-700 text-white";
+    case "DRAFT":
+      return "bg-slate-500 hover:bg-slate-600 text-white";
+    case "COMPLETED":
+      return "bg-zinc-400 hover:bg-zinc-500 text-white";
+    case "CANCELLED":
+      return "bg-red-600/60 hover:bg-red-600/80 text-white line-through";
+    default:
+      return "bg-slate-500 text-white";
+  }
+}
+
+/**
+ * Liefert die 42 Tage (6 Wochen) für das angezeigte Monatsgitter, beginnend
+ * mit dem Montag der Woche, in der der 1. des Monats liegt.
+ */
+function buildMonthGrid(viewStart: Date): Date[] {
+  const firstOfMonth = new Date(
+    viewStart.getFullYear(),
+    viewStart.getMonth(),
+    1
+  );
+  // getDay(): 0=So, 1=Mo, ..., 6=Sa  → wir wollen Mo=0, So=6
+  const offsetFromMonday = (firstOfMonth.getDay() + 6) % 7;
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(firstOfMonth.getDate() - offsetFromMonday);
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function isInRange(day: Date, startISO: string, endISO: string): boolean {
+  const s = new Date(startISO);
+  s.setHours(0, 0, 0, 0);
+  const e = new Date(endISO);
+  e.setHours(0, 0, 0, 0);
+  return day >= s && day <= e;
+}
+
 export function Timeline({
   viewStart,
-  viewEnd,
   projects,
 }: {
   viewStart: string;
-  viewEnd: string;
+  /** kept for API compat — wird ignoriert, der MonthCalendar leitet alles aus viewStart ab */
+  viewEnd?: string;
   projects: ProjectVM[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const start = new Date(viewStart);
-  const end = new Date(viewEnd);
+  const start = useMemo(() => new Date(viewStart), [viewStart]);
 
   const [statusFilter, setStatusFilter] = useState<string>("active");
 
-  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  const dayWidth = 28; // px
+  const filtered = useMemo(
+    () =>
+      projects.filter((p) => {
+        if (statusFilter === "all") return true;
+        if (statusFilter === "active") {
+          return (
+            p.status === "DRAFT" ||
+            p.status === "CONFIRMED" ||
+            p.status === "ACTIVE"
+          );
+        }
+        return p.status === statusFilter;
+      }),
+    [projects, statusFilter]
+  );
 
-  const filtered = projects.filter((p) => {
-    if (statusFilter === "all") return true;
-    if (statusFilter === "active") {
-      return p.status === "DRAFT" || p.status === "CONFIRMED" || p.status === "ACTIVE";
-    }
-    return p.status === statusFilter;
-  });
-
-  function dayOffset(d: Date): number {
-    return Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  }
+  const grid = useMemo(() => buildMonthGrid(start), [start]);
+  const currentMonth = start.getMonth();
 
   function shiftMonth(delta: number) {
     const newStart = new Date(start.getFullYear(), start.getMonth() + delta, 1);
     const p = new URLSearchParams(params.toString());
-    p.set("month", `${newStart.getFullYear()}-${String(newStart.getMonth() + 1).padStart(2, "0")}`);
+    p.set(
+      "month",
+      `${newStart.getFullYear()}-${String(newStart.getMonth() + 1).padStart(2, "0")}`
+    );
     router.push(`/calendar?${p.toString()}`);
   }
-
-  // Header: Tage
-  const days = Array.from({ length: totalDays }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    return d;
-  });
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const monthLabel = start.toLocaleDateString("de-DE", {
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" onClick={() => shiftMonth(-1)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="icon" onClick={() => shiftMonth(-1)} title="Vormonat">
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => shiftMonth(1)}>
+        <Button variant="outline" size="icon" onClick={() => shiftMonth(1)} title="Nächster Monat">
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={() => router.push("/calendar")}>
           Heute
         </Button>
+        <span className="ml-2 text-base font-semibold capitalize">{monthLabel}</span>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Status:</span>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="active">Aktive (Entwurf/Bestätigt/Aktiv)</SelectItem>
-              <SelectItem value="all">Alle</SelectItem>
+              <SelectItem value="active">Aktive Projekte</SelectItem>
+              <SelectItem value="all">Alle Projekte</SelectItem>
               {Object.values(ProjectStatus).map((s) => (
                 <SelectItem key={s} value={s}>
                   {projectStatusLabel(s)}
@@ -106,117 +168,76 @@ export function Timeline({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <div className="inline-block min-w-full">
-          {/* Header Row */}
-          <div className="sticky top-0 z-10 flex border-b bg-muted/50">
-            <div className="w-72 shrink-0 border-r px-3 py-2 text-xs font-medium">Projekt</div>
-            <div className="flex">
-              {days.map((d, i) => {
-                const isToday = d.getTime() === today.getTime();
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const isFirstOfMonth = d.getDate() === 1;
-                return (
-                  <div
-                    key={i}
-                    className={cn(
-                      "shrink-0 border-r text-center text-[10px] py-1",
-                      isWeekend && "bg-muted",
-                      isToday && "bg-primary/10 font-bold",
-                    )}
-                    style={{ width: dayWidth }}
-                  >
-                    {isFirstOfMonth && (
-                      <div className="text-[9px] font-medium text-muted-foreground">
-                        {d.toLocaleDateString("de-DE", { month: "short" })}
-                      </div>
-                    )}
-                    <div>{d.getDate()}</div>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Wochentag-Header */}
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border bg-border">
+        {WEEKDAYS.map((wd) => (
+          <div
+            key={wd}
+            className="bg-muted/60 px-2 py-1.5 text-center text-xs font-semibold text-muted-foreground"
+          >
+            {wd}
           </div>
-
-          {/* Project Rows */}
-          {filtered.length === 0 && (
-            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Keine Projekte im Zeitraum
-            </div>
-          )}
-          {filtered.map((p) => {
-            const pStart = new Date(p.planningStart);
-            const pEnd = new Date(p.planningEnd);
-            const offStart = Math.max(0, dayOffset(pStart));
-            const offEnd = Math.min(totalDays - 1, dayOffset(pEnd));
-            const left = offStart * dayWidth + 2;
-            const width = (offEnd - offStart + 1) * dayWidth - 4;
-
-            return (
-              <div key={p.id} className="flex border-b hover:bg-accent/30">
-                <div className="w-72 shrink-0 border-r px-3 py-2">
-                  <Link href={`/projects/${p.id}`} className="block">
-                    <div className="truncate text-sm font-medium hover:underline">{p.name}</div>
-                    {p.customer && (
-                      <div className="truncate text-xs text-muted-foreground">{p.customer}</div>
-                    )}
-                    <div className="mt-1 flex items-center gap-2 text-xs">
-                      <Badge variant="outline" className="text-[10px]">
-                        {projectStatusLabel(p.status)}
-                      </Badge>
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <Package className="h-3 w-3" /> {p.deviceCount}
-                      </span>
-                    </div>
-                  </Link>
-                </div>
-                <div
-                  className="relative flex"
-                  style={{ width: totalDays * dayWidth, minHeight: 56 }}
-                >
-                  {/* Day grid */}
-                  {days.map((d, i) => {
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    const isToday = d.getTime() === today.getTime();
-                    return (
-                      <div
-                        key={i}
-                        className={cn(
-                          "shrink-0 border-r border-border/50",
-                          isWeekend && "bg-muted/40",
-                          isToday && "bg-primary/5",
-                        )}
-                        style={{ width: dayWidth }}
-                      />
-                    );
-                  })}
-                  {/* Projekt-Balken */}
-                  <Link
-                    href={`/projects/${p.id}`}
-                    className={cn(
-                      "absolute top-3 h-[36px] rounded-md px-3 py-1 text-xs font-medium text-white shadow truncate overflow-hidden transition-all hover:opacity-90 hover:shadow-md",
-                      p.status === "ACTIVE" && "bg-blue-600",
-                      p.status === "CONFIRMED" && "bg-emerald-600",
-                      p.status === "DRAFT" && "bg-slate-500",
-                      p.status === "COMPLETED" && "bg-zinc-400",
-                      p.status === "CANCELLED" && "bg-red-600/60 line-through",
-                    )}
-                    style={{ left, width: Math.max(width, 4) }}
-                    title={`${p.name} (${pStart.toLocaleDateString("de-DE")} – ${pEnd.toLocaleDateString("de-DE")})`}
-                  >
-                    <div className="truncate">{p.name}</div>
-                    <div className="truncate text-[10px] opacity-80">
-                      {pStart.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} –{" "}
-                      {pEnd.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
-                    </div>
-                  </Link>
-                </div>
+        ))}
+        {/* Day-Cells */}
+        {grid.map((day) => {
+          const isOtherMonth = day.getMonth() !== currentMonth;
+          const isToday = sameDay(day, today);
+          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+          const projectsOnDay = filtered.filter((p) =>
+            isInRange(day, p.planningStart, p.planningEnd)
+          );
+          const VISIBLE = 3;
+          const visible = projectsOnDay.slice(0, VISIBLE);
+          const overflow = projectsOnDay.length - VISIBLE;
+          return (
+            <div
+              key={day.toISOString()}
+              className={cn(
+                "min-h-[120px] bg-card p-1.5 flex flex-col gap-1",
+                isOtherMonth && "bg-muted/30 text-muted-foreground",
+                isWeekend && !isOtherMonth && "bg-muted/20",
+                isToday && "ring-2 ring-inset ring-primary"
+              )}
+            >
+              <div
+                className={cn(
+                  "text-xs font-medium",
+                  isToday && "text-primary font-bold"
+                )}
+              >
+                {day.getDate()}
+                {day.getDate() === 1 && (
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    {day.toLocaleDateString("de-DE", { month: "short" })}
+                  </span>
+                )}
               </div>
-            );
-          })}
-        </div>
+              <div className="flex flex-col gap-0.5">
+                {visible.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/projects/${p.id}`}
+                    title={`${p.name}${p.customer ? " · " + p.customer : ""} (${projectStatusLabel(p.status)})`}
+                    className={cn(
+                      "truncate rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm transition-opacity",
+                      projectChipClass(p.status)
+                    )}
+                  >
+                    {p.name}
+                  </Link>
+                ))}
+                {overflow > 0 && (
+                  <div className="px-1 text-[10px] text-muted-foreground">
+                    + {overflow} weitere
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
+      {/* Legende */}
       <div className="flex flex-wrap gap-4 text-xs">
         <LegendItem color="bg-slate-500" label="Entwurf" />
         <LegendItem color="bg-emerald-600" label="Bestätigt" />

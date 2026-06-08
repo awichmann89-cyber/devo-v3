@@ -52,7 +52,7 @@ export function CustomersTable({ customers }: { customers: Row[] }) {
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Suche..."
+          placeholder="Suche…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"

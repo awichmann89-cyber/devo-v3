@@ -96,7 +96,7 @@ export function DevicesSection({
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Suche..."
+          placeholder="Suche…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -110,7 +110,7 @@ export function DevicesSection({
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Hersteller / Modell</TableHead>
+            <TableHead>Beschreibung (extern)</TableHead>
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead>Geprüft</TableHead>
             <TableHead className="text-right">€ / Tag</TableHead>
@@ -120,12 +120,17 @@ export function DevicesSection({
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">
-                Keine Geräte gefunden
+              <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                {devices.length === 0
+                  ? "Noch keine Geräte angelegt"
+                  : "Keine Treffer für die Suche"}
               </TableCell>
             </TableRow>
           ) : (
             groupItemsByCategory(filtered, categories).map((group) => {
+              if (group.ancestorKeys.some((k) => collapsedCats.has(k))) {
+                return null;
+              }
               const isCollapsed = collapsedCats.has(group.key);
               return (
                 <Fragment key={group.key}>
@@ -136,7 +141,7 @@ export function DevicesSection({
                     <TableCell colSpan={6} className="py-2">
                       <div
                         className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
-                        style={{ paddingLeft: `${group.depth * 1.25}rem` }}
+                        style={{ paddingLeft: `${group.depth * 1.5}rem` }}
                       >
                         {isCollapsed ? (
                           <ChevronRight className="h-3.5 w-3.5 shrink-0" />
@@ -149,22 +154,26 @@ export function DevicesSection({
                           <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
                         <span className="truncate">{group.name}</span>
-                        <span className="ml-1 font-normal text-muted-foreground normal-case">
-                          ({group.items.length})
-                        </span>
+                        {group.items.length > 0 && (
+                          <span className="ml-1 font-normal text-muted-foreground normal-case">
+                            ({group.items.length})
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
                   {!isCollapsed &&
                     group.items.map((d) => (
                       <TableRow key={d.id}>
-                        <TableCell>
+                        <TableCell
+                          style={{ paddingLeft: `${1 + (group.depth + 1) * 1.5}rem` }}
+                        >
                           <Link href={`/devices/${d.id}`} className="font-medium hover:underline">
                             {d.name}
                           </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          {[d.manufacturer, d.model].filter(Boolean).join(" ") || "—"}
+                          {d.description?.trim() || "—"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
                           {d.stockQuantity}

@@ -150,11 +150,16 @@ export function CablesSection({ cables, categories }: Props) {
           {filtered.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                Keine Kabel gefunden.
+                {cables.length === 0
+                  ? "Noch keine Kabel angelegt"
+                  : "Keine Treffer für die Suche"}
               </TableCell>
             </TableRow>
           ) : (
             groupItemsByCategory(filtered, categories).map((group) => {
+              if (group.ancestorKeys.some((k) => collapsedCats.has(k))) {
+                return null;
+              }
               const isCollapsed = collapsedCats.has(group.key);
               return (
                 <Fragment key={group.key}>
@@ -178,9 +183,11 @@ export function CablesSection({ cables, categories }: Props) {
                           <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
                         <span className="truncate">{group.name}</span>
-                        <span className="ml-1 font-normal text-muted-foreground normal-case">
-                          ({group.items.length})
-                        </span>
+                        {group.items.length > 0 && (
+                          <span className="ml-1 font-normal text-muted-foreground normal-case">
+                            ({group.items.length})
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

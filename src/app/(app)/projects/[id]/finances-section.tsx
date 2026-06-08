@@ -55,6 +55,7 @@ export interface FinancesGroupVM {
   kind: "MATERIAL" | "SERVICE";
   subtotal: number;
   discountPercent: number;
+  billable: boolean;
 }
 
 function invoiceGross(inv: FinancesInvoiceVM): number {
@@ -133,8 +134,11 @@ export function FinancesSection({
   }
 
   function bereich(kind: "MATERIAL" | "SERVICE") {
+    // ALLE Gruppen anzeigen (auch nicht-abrechenbare),
+    // aber Summen nur über abrechenbare bilden.
     const items = groups.filter((g) => g.kind === kind);
-    const subtotal = items.reduce((s, g) => s + groupNet(g).net, 0);
+    const billableItems = items.filter((g) => g.billable);
+    const subtotal = billableItems.reduce((s, g) => s + groupNet(g).net, 0);
     const discountPercent = safePct(
       kind === "MATERIAL" ? materialDiscountPercent : servicesDiscountPercent
     );
@@ -281,10 +285,29 @@ export function FinancesSection({
         {isExpanded &&
           data.items.map((g) => {
             const { discount, net } = groupNet(g);
+            const isBillable = g.billable;
             return (
-              <TableRow key={g.id} className="border-l-2 border-l-transparent">
-                <TableCell className="pl-10 text-sm">{g.name}</TableCell>
-                <TableCell className="text-right tabular-nums font-mono text-sm">
+              <TableRow
+                key={g.id}
+                className={cn(
+                  "border-l-2 border-l-transparent",
+                  !isBillable && "bg-muted/30 text-muted-foreground"
+                )}
+              >
+                <TableCell className="pl-10 text-sm">
+                  <span className={cn(!isBillable && "line-through")}>{g.name}</span>
+                  {!isBillable && (
+                    <span className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                      nicht abrechenbar
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-right tabular-nums font-mono text-sm",
+                    !isBillable && "line-through"
+                  )}
+                >
                   {formatCurrency(g.subtotal)}
                 </TableCell>
                 <TableCell className="text-right">
@@ -298,13 +321,19 @@ export function FinancesSection({
                       handleGroupDiscount(g.id, e.target.value, g.discountPercent)
                     }
                     className="h-8 text-right"
+                    disabled={!isBillable}
                   />
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground text-sm">
-                  {discount > 0 ? "−" + formatCurrency(discount) : "—"}
+                  {isBillable ? (discount > 0 ? "−" + formatCurrency(discount) : "—") : "—"}
                 </TableCell>
-                <TableCell className="text-right tabular-nums font-mono text-sm">
-                  {formatCurrency(net)}
+                <TableCell
+                  className={cn(
+                    "text-right tabular-nums font-mono text-sm",
+                    !isBillable && "line-through"
+                  )}
+                >
+                  {isBillable ? formatCurrency(net) : "—"}
                 </TableCell>
               </TableRow>
             );

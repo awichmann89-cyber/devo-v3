@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Timeline } from "./timeline";
+import { CalendarFeedForm } from "./calendar-feed-form";
+import { getOrCreateCalendarToken } from "@/lib/settings";
 
 export default async function CalendarPage(props: { searchParams: Promise<{ month?: string }> }) {
   const sp = await props.searchParams;
@@ -13,12 +21,22 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
   } else {
     viewStart = new Date(now.getFullYear(), now.getMonth(), 1);
   }
-  const viewEnd = new Date(viewStart.getFullYear(), viewStart.getMonth() + 2, 0);
+
+  // Das Monats-Grid zeigt 6 Wochen (42 Tage), beginnend mit dem Montag der
+  // Woche, in der der 1. des Monats liegt. Wir laden Projekte, deren Planungs-
+  // Zeitraum sich mit diesem 42-Tage-Fenster überschneidet.
+  const offsetFromMonday = (viewStart.getDay() + 6) % 7;
+  const gridStart = new Date(viewStart);
+  gridStart.setDate(viewStart.getDate() - offsetFromMonday);
+  gridStart.setHours(0, 0, 0, 0);
+  const gridEnd = new Date(gridStart);
+  gridEnd.setDate(gridStart.getDate() + 41);
+  gridEnd.setHours(23, 59, 59, 999);
 
   const projects = await prisma.project.findMany({
     where: {
-      planningStart: { lte: viewEnd },
-      planningEnd: { gte: viewStart },
+      planningStart: { lte: gridEnd },
+      planningEnd: { gte: gridStart },
     },
     include: {
       _count: { select: { assignments: true } },
@@ -27,24 +45,21 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
     orderBy: { planningStart: "asc" },
   });
 
+  const calendarToken = await getOrCreateCalendarToken();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Projekt-Kalender</h1>
-        <p className="text-muted-foreground">Übersicht über alle Projekte im Zeitraum</p>
+        <p className="text-muted-foreground">
+          Monatsübersicht aller Projekte mit Planungszeitraum
+        </p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {viewStart.toLocaleDateString("de-DE", { month: "long", year: "numeric" })} –{" "}
-            {viewEnd.toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Timeline
             viewStart={viewStart.toISOString()}
-            viewEnd={viewEnd.toISOString()}
             projects={projects.map((p) => ({
               id: p.id,
               name: p.name,
@@ -55,6 +70,20 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
               deviceCount: p._count.assignments,
             }))}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Kalender-Feeds zum Abonnieren</CardTitle>
+          <CardDescription>
+            ICS-URLs für Google Kalender, Apple Kalender oder Outlook. Zwei
+            separate Feeds für Planungs- und Berechnungszeiträume —
+            Aktualisierung erfolgt automatisch.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CalendarFeedForm initialToken={calendarToken} />
         </CardContent>
       </Card>
     </div>
