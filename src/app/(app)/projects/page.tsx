@@ -20,7 +20,7 @@ export default async function ProjectsPage() {
         },
         _count: { select: { assignments: true } },
       },
-      orderBy: { planningStart: "desc" },
+      orderBy: { planningStart: "asc" },
     }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
   ]);
