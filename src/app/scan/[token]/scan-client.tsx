@@ -266,12 +266,11 @@ export function ScanClient({
           <CardTitle className="text-base">Code scannen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Kamera-Vorschau via html5-qrcode. Lib injiziert ein <video>-Element
-              in den Container; wir stylen das Video bildschirmfüllend und
-              blenden die eigene Library-UI (Buttons, Section-Text) aus. */}
+          {/* Kamera-Vorschau via html5-qrcode. Kompakt zentriert,
+              damit die Packlisten-Card darunter weiter sichtbar bleibt. */}
           <div
             className={cn(
-              "relative overflow-hidden rounded-md border bg-black",
+              "relative mx-auto w-full max-w-[260px] overflow-hidden rounded-md border bg-black",
               cameraOn ? "block" : "hidden"
             )}
           >
