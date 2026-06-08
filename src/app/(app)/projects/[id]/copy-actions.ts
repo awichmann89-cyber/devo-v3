@@ -78,6 +78,7 @@ export async function copyProject(
         confirmedAt: null,
         packToken: null,
         createdById: session?.user.id ?? null,
+        maintainerId: source.maintainerId,
       },
       select: { id: true },
     });

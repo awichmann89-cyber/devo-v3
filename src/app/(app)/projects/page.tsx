@@ -4,7 +4,7 @@ import { ProjectsTable } from "./projects-table";
 import { ProjectDialog } from "./project-dialog";
 
 export default async function ProjectsPage() {
-  const [projects, customers] = await Promise.all([
+  const [projects, customers, users] = await Promise.all([
     prisma.project.findMany({
       select: {
         id: true,
@@ -14,6 +14,7 @@ export default async function ProjectsPage() {
         planningStart: true,
         planningEnd: true,
         customer: { select: { name: true } },
+        maintainer: { select: { name: true, email: true } },
         billingPeriods: {
           select: { start: true, end: true },
           orderBy: { start: "asc" },
@@ -23,6 +24,10 @@ export default async function ProjectsPage() {
       orderBy: { planningStart: "asc" },
     }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   return (
@@ -32,7 +37,7 @@ export default async function ProjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Projekte</h1>
           <p className="text-muted-foreground">Veranstaltungen und Vermietungen</p>
         </div>
-        <ProjectDialog customers={customers} />
+        <ProjectDialog customers={customers} users={users} />
       </div>
 
       <Card>

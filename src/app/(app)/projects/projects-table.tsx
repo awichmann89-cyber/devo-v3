@@ -33,6 +33,7 @@ interface ProjectRow {
   planningStart: Date;
   planningEnd: Date;
   customer: { name: string } | null;
+  maintainer: { name: string | null; email: string } | null;
   billingPeriods: Array<{ start: Date; end: Date }>;
   _count: { assignments: number };
 }
@@ -73,6 +74,7 @@ export function ProjectsTable({ projects }: Props) {
             <TableHead>Kategorie</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Kunde</TableHead>
+            <TableHead>Verantwortlich</TableHead>
             <TableHead>Planungszeitraum</TableHead>
             <TableHead>Berechnungszeitraum</TableHead>
             <TableHead className="text-right">Geräte</TableHead>
@@ -81,7 +83,7 @@ export function ProjectsTable({ projects }: Props) {
         <TableBody>
           {filtered.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 {projects.length === 0
                   ? "Noch keine Projekte angelegt"
                   : "Keine Treffer für die Suche"}
@@ -111,6 +113,9 @@ export function ProjectsTable({ projects }: Props) {
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {p.customer?.name ?? "—"}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {p.maintainer ? (p.maintainer.name || p.maintainer.email) : "—"}
               </TableCell>
               <TableCell className="text-sm">
                 {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}

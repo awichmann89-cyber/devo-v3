@@ -26,6 +26,7 @@ export async function createProject(input: unknown) {
     data: {
       ...rest,
       customerId: rest.customerId || null,
+      maintainerId: rest.maintainerId || null,
       description: rest.description || null,
       notes: rest.notes || null,
       createdById: userExists ? session.user.id : null,
@@ -62,6 +63,7 @@ export async function updateProject(id: string, input: unknown) {
     data: {
       name: data.name,
       customerId: data.customerId || null,
+      maintainerId: data.maintainerId || null,
       description: data.description || null,
       status: data.status,
       kind: data.kind,

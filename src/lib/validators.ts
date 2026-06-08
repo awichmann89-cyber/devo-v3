@@ -132,6 +132,7 @@ export const projectSchema = z
       .min(1, "Mindestens ein Berechnungszeitraum erforderlich"),
     discountPercent: z.coerce.number().min(0).max(100).default(0),
     notes: z.string().max(2000).optional().nullable(),
+    maintainerId: z.string().optional().nullable(),
   })
   .refine((d) => d.planningEnd >= d.planningStart, {
     path: ["planningEnd"],
@@ -146,6 +147,7 @@ export const projectUpdateCoreSchema = z.object({
   kind: z.nativeEnum(ProjectKind).default(ProjectKind.DRYHIRE),
   discountPercent: z.coerce.number().min(0).max(100).default(0),
   notes: z.string().max(2000).optional().nullable(),
+  maintainerId: z.string().optional().nullable(),
 });
 
 export const projectPeriodsSchema = z

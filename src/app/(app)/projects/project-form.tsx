@@ -42,11 +42,13 @@ type BillingPeriodInput = { start: string; end: string; notes: string };
 export function ProjectForm({
   project,
   customers,
+  users,
   billingPeriods,
   onCancel,
 }: {
-  project?: Project;
+  project?: Project & { maintainerId?: string | null };
   customers: Customer[];
+  users: { id: string; name: string | null; email: string }[];
   billingPeriods?: BillingPeriod[];
   onCancel?: () => void;
 }) {
@@ -61,6 +63,7 @@ export function ProjectForm({
     planningEnd: toLocalInput(project?.planningEnd),
     discountPercent: project?.discountPercent?.toString() ?? "0",
     notes: project?.notes ?? "",
+    maintainerId: project?.maintainerId ?? "",
   });
 
   const [periods, setPeriods] = useState<BillingPeriodInput[]>(() => {
@@ -129,8 +132,9 @@ export function ProjectForm({
       kind: form.kind,
       discountPercent: Number(form.discountPercent) || 0,
       notes: form.notes || null,
+      maintainerId: form.maintainerId || null,
     }),
-    [form.name, form.customerId, form.description, form.status, form.kind, form.discountPercent, form.notes]
+    [form.name, form.customerId, form.description, form.status, form.kind, form.discountPercent, form.notes, form.maintainerId]
   );
   const { status: autoSaveStatus, error: autoSaveError } = useAutoSave(
     autoSavePayload,
@@ -149,6 +153,7 @@ export function ProjectForm({
         const payload = {
           ...form,
           customerId: form.customerId || null,
+          maintainerId: form.maintainerId || null,
           discountPercent: Number(form.discountPercent),
           planningStart: new Date(form.planningStart),
           planningEnd: new Date(form.planningEnd),
@@ -268,6 +273,28 @@ export function ProjectForm({
               {selectedCustomer.address || "Keine Anschrift hinterlegt"}
             </p>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="maintainer">Verantwortlich</Label>
+          <Select
+            value={form.maintainerId || "none"}
+            onValueChange={(v) =>
+              setForm({ ...form, maintainerId: v === "none" ? "" : v })
+            }
+          >
+            <SelectTrigger id="maintainer">
+              <SelectValue placeholder="Verantwortlich wählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Niemand —</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name || u.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </section>
 

@@ -3,7 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectForm } from "../project-form";
 
 export default async function NewProjectPage() {
-  const customers = await prisma.customer.findMany({ orderBy: { name: "asc" } });
+  const [customers, users] = await Promise.all([
+    prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -15,7 +21,7 @@ export default async function NewProjectPage() {
       <Card>
         <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
         <CardContent>
-          <ProjectForm customers={customers} />
+          <ProjectForm customers={customers} users={users} />
         </CardContent>
       </Card>
     </div>

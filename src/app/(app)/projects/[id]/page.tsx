@@ -65,13 +65,17 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   if (!project) notFound();
   const canWrite = hasRole(session?.user.role, CAN_WRITE);
 
-  const [allDevices, allCategories, customers] = await Promise.all([
+  const [allDevices, allCategories, customers, users] = await Promise.all([
     prisma.device.findMany({
       include: { category: true },
       orderBy: { name: "asc" },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const overlap = await getOverlappingAssignments(
@@ -361,6 +365,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               <ProjectForm
                 project={serialize(project)}
                 customers={customers}
+                users={users}
                 billingPeriods={serialize(project.billingPeriods)}
               />
             </CardContent>

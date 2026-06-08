@@ -30,7 +30,8 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  createdProjects Project[] @relation("ProjectCreator")
+  createdProjects     Project[] @relation("ProjectCreator")
+  maintainedProjects  Project[] @relation("ProjectMaintainer")
 }
 
 // ---------- Stammdaten ----------
@@ -316,6 +317,9 @@ model Project {
 
   createdById     String?
   createdBy       User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  // Verantwortlicher für das Projekt (kann unabhängig vom Ersteller sein)
+  maintainerId    String?
+  maintainer      User?         @relation("ProjectMaintainer", fields: [maintainerId], references: [id], onDelete: SetNull)
 
   assignments     ProjectAssignment[]
   cableAssignments ProjectCableAssignment[]

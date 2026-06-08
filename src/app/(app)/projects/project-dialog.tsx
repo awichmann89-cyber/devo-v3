@@ -16,9 +16,10 @@ import type { Customer } from "@prisma/client";
 
 interface Props {
   customers: Customer[];
+  users: { id: string; name: string | null; email: string }[];
 }
 
-export function ProjectDialog({ customers }: Props) {
+export function ProjectDialog({ customers, users }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -35,7 +36,7 @@ export function ProjectDialog({ customers }: Props) {
             Material wird nach dem Anlegen auf der Detailseite zugewiesen.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm customers={customers} onCancel={() => setOpen(false)} />
+        <ProjectForm customers={customers} users={users} onCancel={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
