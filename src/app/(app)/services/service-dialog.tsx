@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BillingUnit, ServiceItemKind } from "@prisma/client";
@@ -175,17 +174,6 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
               maxLength={500}
               placeholder="Interne Hinweise, z.B. inklusive Anreise im Umkreis 50 km"
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="si-active"
-              checked={active}
-              onCheckedChange={(v) => setActive(v === true)}
-            />
-            <Label htmlFor="si-active" className="text-sm font-normal cursor-pointer">
-              Aktiv (im Projekt-Katalog auswählbar)
-            </Label>
           </div>
 
           <DialogFooter>
