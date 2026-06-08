@@ -83,10 +83,8 @@ export function ScanClient({
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const detectorRef = useRef<unknown>(null);
-  const stopFlagRef = useRef(false);
+  // html5-qrcode Scanner-Instance. Lib übernimmt video-element + Decoding intern.
+  const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
 
   const totalRequired = items.reduce((s, it) => s + it.required, 0);
@@ -136,76 +134,66 @@ export function ScanClient({
     if (manual.trim()) handleScan(manual);
   }
 
-  // Camera-Scanner via BarcodeDetector API (Chrome Android, Safari iOS 17+).
-  // Fallback: manuelles Eingabefeld.
+  // Camera-Scanner via html5-qrcode (ZXing-basiert). Läuft auf iOS Safari,
+  // Chrome Android und Desktop. Lib wird dynamisch importiert, damit das
+  // ~25kb Bundle nicht ungenutzt mitgeladen wird.
   async function startCamera() {
     setCameraError(null);
-
-    // Detector verfügbar?
-    const w = window as unknown as {
-      BarcodeDetector?: new (opts?: { formats?: string[] }) => {
-        detect: (src: HTMLVideoElement) => Promise<{ rawValue: string }[]>;
-      };
-    };
-    if (!w.BarcodeDetector) {
-      setCameraError(
-        "Dein Browser unterstützt die Kamera-Erkennung nicht. Bitte Code unten manuell eintippen."
-      );
-      return;
-    }
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
+      const lib = await import("html5-qrcode");
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = lib;
+      const scanner = new Html5Qrcode("qr-reader", {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+        ],
       });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      detectorRef.current = new w.BarcodeDetector({
-        formats: ["qr_code", "code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "data_matrix"],
-      });
-      stopFlagRef.current = false;
+      await scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.333,
+        },
+        (decodedText: string) => {
+          void handleScan(decodedText);
+        },
+        () => {
+          // Frame ohne erkannten Code — ignorieren (passiert mehrfach pro Sekunde)
+        }
+      );
+      scannerRef.current = scanner;
       setCameraOn(true);
-      void scanLoop();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Kamera-Zugriff nicht möglich";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Kamera-Zugriff nicht möglich";
       setCameraError(msg);
     }
   }
 
-  function stopCamera() {
-    stopFlagRef.current = true;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setCameraOn(false);
-  }
-
-  async function scanLoop() {
-    const det = detectorRef.current as
-      | { detect: (src: HTMLVideoElement) => Promise<{ rawValue: string }[]> }
-      | null;
-    if (!det || !videoRef.current) return;
-    while (!stopFlagRef.current) {
-      try {
-        const res = await det.detect(videoRef.current);
-        if (res.length > 0) {
-          const code = res[0].rawValue;
-          if (code) await handleScan(code);
-        }
-      } catch {
-        // erkennt nichts → nächste Runde
-      }
-      await new Promise((r) => setTimeout(r, 400));
+  async function stopCamera() {
+    try {
+      await scannerRef.current?.stop();
+      scannerRef.current?.clear();
+    } catch {
+      // ignore — Scanner war evtl. nicht gestartet
     }
+    scannerRef.current = null;
+    setCameraOn(false);
   }
 
   useEffect(() => {
     return () => {
-      stopCamera();
+      void stopCamera();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -278,23 +266,20 @@ export function ScanClient({
           <CardTitle className="text-base">Code scannen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Container für html5-qrcode — Lib injiziert hier ein <video>-Element.
+              Bleibt immer im DOM (Lib braucht den Mount-Point beim Start), wird
+              nur visuell ausgeblendet wenn Kamera aus. */}
+          <div
+            id="qr-reader"
+            className={cn(
+              "overflow-hidden rounded-md bg-black [&_video]:w-full [&_video]:aspect-[4/3] [&_video]:object-cover",
+              !cameraOn && "hidden"
+            )}
+          />
           {cameraOn ? (
-            <div className="space-y-2">
-              <div className="relative overflow-hidden rounded-md bg-black">
-                <video
-                  ref={videoRef}
-                  className="w-full aspect-[4/3] object-cover"
-                  playsInline
-                  muted
-                />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="h-1/2 w-3/4 rounded-md border-2 border-primary/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
-                </div>
-              </div>
-              <Button variant="outline" className="w-full" onClick={stopCamera}>
-                <CameraOff className="h-4 w-4" /> Kamera stoppen
-              </Button>
-            </div>
+            <Button variant="outline" className="w-full" onClick={stopCamera}>
+              <CameraOff className="h-4 w-4" /> Kamera stoppen
+            </Button>
           ) : (
             <Button onClick={startCamera} className="w-full" disabled={pending}>
               <Camera className="h-4 w-4" /> Kamera öffnen
@@ -454,6 +439,5 @@ export function ScanClient({
         onConfirm={handleReset}
         variant="destructive"
       />
-    </main>
-  );
+    </main>);
 }
