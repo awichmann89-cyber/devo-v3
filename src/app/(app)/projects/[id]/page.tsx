@@ -21,6 +21,7 @@ import { PeriodsSection } from "./periods-section";
 import { ServicesSection } from "./services-section";
 import { FinancesSection } from "./finances-section";
 import { DeleteProjectButton } from "./delete-button";
+import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { buildPackList } from "@/lib/packlist";
 import { auth } from "@/auth";
@@ -279,6 +280,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           )}
         </div>
         <div className="flex gap-2">
+          {canWrite && (
+            <CopyProjectButton
+              id={project.id}
+              name={project.name}
+              planningStart={project.planningStart.toISOString()}
+              planningEnd={project.planningEnd.toISOString()}
+            />
+          )}
           <DeleteProjectButton id={project.id} name={project.name} />
         </div>
       </div>
