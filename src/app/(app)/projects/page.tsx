@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectsTable } from "./projects-table";
 import { ProjectDialog } from "./project-dialog";
+import { auth } from "@/auth";
 
 export default async function ProjectsPage() {
-  const [projects, customers, users] = await Promise.all([
+  const [projects, customers, users, session] = await Promise.all([
     prisma.project.findMany({
       select: {
         id: true,
@@ -28,6 +29,7 @@ export default async function ProjectsPage() {
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
+    auth(),
   ]);
 
   return (
@@ -37,7 +39,11 @@ export default async function ProjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Projekte</h1>
           <p className="text-muted-foreground">Veranstaltungen und Vermietungen</p>
         </div>
-        <ProjectDialog customers={customers} users={users} />
+        <ProjectDialog
+          customers={customers}
+          users={users}
+          currentUserId={session?.user.id ?? null}
+        />
       </div>
 
       <Card>

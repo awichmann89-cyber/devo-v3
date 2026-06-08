@@ -43,12 +43,16 @@ export function ProjectForm({
   project,
   customers,
   users,
+  currentUserId,
   billingPeriods,
   onCancel,
 }: {
   project?: Project & { maintainerId?: string | null };
   customers: Customer[];
   users: { id: string; name: string | null; email: string }[];
+  // Beim Anlegen eines neuen Projekts wird der aktuelle Benutzer
+  // automatisch als Verantwortlich vorbelegt.
+  currentUserId?: string | null;
   billingPeriods?: BillingPeriod[];
   onCancel?: () => void;
 }) {
@@ -63,7 +67,7 @@ export function ProjectForm({
     planningEnd: toLocalInput(project?.planningEnd),
     discountPercent: project?.discountPercent?.toString() ?? "0",
     notes: project?.notes ?? "",
-    maintainerId: project?.maintainerId ?? "",
+    maintainerId: project?.maintainerId ?? (project ? "" : currentUserId ?? ""),
   });
 
   const [periods, setPeriods] = useState<BillingPeriodInput[]>(() => {
