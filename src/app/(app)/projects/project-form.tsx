@@ -374,4 +374,36 @@ export function ProjectForm({
 
       <div className="flex items-center justify-end gap-2 border-t pt-4">
         {isEditMode ? (
-          <AutoSaveIndicator status={autoSaveStatus} error={autoSaveE
+          <AutoSaveIndicator status={autoSaveStatus} error={autoSaveError} />
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => (onCancel ? onCancel() : router.back())}
+            >
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Anlegen
+            </Button>
+          </>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="border-b pb-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      {subtitle && (
+        <p className="mt-0.5 text-xs text-muted-foreground/80">{subtitle}</p>
+      )}
+    </div>
+  );
+}

@@ -210,4 +210,7 @@ export const invoiceCreateSchema = z.object({
 
 export const userSchema = z.object({
   email: z.string().email("Ungültige Email-Adresse").max(150),
-  name: z.string().max(150).optional().nul
+  name: z.string().max(150).optional().nullable(),
+  role: z.nativeEnum(Role).default(Role.READER),
+  password: z.string().min(6, "Mindestens 6 Zeichen").max(200).optional().nullable(),
+});

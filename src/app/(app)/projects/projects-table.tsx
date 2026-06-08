@@ -120,4 +120,17 @@ export function ProjectsTable({ projects }: Props) {
                   <>
                     {formatDate(p.billingPeriods[0].start)} –{" "}
                     {formatDate(p.billingPeriods[p.billingPeriods.length - 1].end)}
-                    <span className="ml-1 text-xs text-muted-foregrou
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      ({p.billingPeriods.length} Zeiträume)
+                    </span>
+                  </>
+                )}
+              </TableCell>
+              <TableCell className="text-right">{p._count.assignments}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
+  );
+}

@@ -170,4 +170,5 @@ export async function moveAssignmentToGroup(
     data: { groupId },
     select: { id: true },
   });
-  revalidatePath(`/proj
+  revalidatePath(`/projects/${projectId}`);
+}

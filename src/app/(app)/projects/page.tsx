@@ -42,4 +42,7 @@ export default async function ProjectsPage() {
         <CardContent>
           <ProjectsTable projects={projects} />
         </CardContent>
-      </Card
+      </Card>
+    </div>
+  );
+}

@@ -370,4 +370,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               totalNet: Number(q.totalNet),
               totalGross: q.totalGross !== null ? Number(q.totalGross) : null,
             }))}
-            invoiceDueDays={Number(
+            invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
+            quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
