@@ -64,6 +64,7 @@ export async function updateProject(id: string, input: unknown) {
       customerId: data.customerId || null,
       description: data.description || null,
       status: data.status,
+      kind: data.kind,
       discountPercent: data.discountPercent,
       notes: data.notes || null,
       confirmedAt:
@@ -169,5 +170,4 @@ export async function moveAssignmentToGroup(
     data: { groupId },
     select: { id: true },
   });
-  revalidatePath(`/projects/${projectId}`);
-}
+  revalidatePath(`/proj

@@ -15,13 +15,19 @@ import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
-import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
-import type { ProjectStatus } from "@prisma/client";
+import {
+  projectKindLabel,
+  projectKindVariant,
+  projectStatusLabel,
+  projectStatusVariant,
+} from "@/lib/labels";
+import type { ProjectKind, ProjectStatus } from "@prisma/client";
 
 interface ProjectRow {
   id: string;
   name: string;
   status: ProjectStatus;
+  kind: ProjectKind;
   planningStart: Date;
   planningEnd: Date;
   customer: { name: string } | null;
@@ -61,6 +67,7 @@ export function ProjectsTable({ projects }: Props) {
         <TableHeader>
           <TableRow>
             <TableHead>Status</TableHead>
+            <TableHead>Kategorie</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Kunde</TableHead>
             <TableHead>Planungszeitraum</TableHead>
@@ -71,7 +78,7 @@ export function ProjectsTable({ projects }: Props) {
         <TableBody>
           {filtered.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 {projects.length === 0
                   ? "Keine Projekte angelegt"
                   : "Keine Treffer für die Suche"}
@@ -83,6 +90,11 @@ export function ProjectsTable({ projects }: Props) {
               <TableCell>
                 <Badge variant={projectStatusVariant(p.status)}>
                   {projectStatusLabel(p.status)}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={projectKindVariant(p.kind)} className="text-[10px]">
+                  {projectKindLabel(p.kind)}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -108,17 +120,4 @@ export function ProjectsTable({ projects }: Props) {
                   <>
                     {formatDate(p.billingPeriods[0].start)} –{" "}
                     {formatDate(p.billingPeriods[p.billingPeriods.length - 1].end)}
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      ({p.billingPeriods.length} Zeiträume)
-                    </span>
-                  </>
-                )}
-              </TableCell>
-              <TableCell className="text-right">{p._count.assignments}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </>
-  );
-}
+                    <span className="ml-1 text-xs text-muted-foregrou

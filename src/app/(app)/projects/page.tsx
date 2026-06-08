@@ -10,6 +10,7 @@ export default async function ProjectsPage() {
         id: true,
         name: true,
         status: true,
+        kind: true,
         planningStart: true,
         planningEnd: true,
         customer: { select: { name: true } },
@@ -41,7 +42,4 @@ export default async function ProjectsPage() {
         <CardContent>
           <ProjectsTable projects={projects} />
         </CardContent>
-      </Card>
-    </div>
-  );
-}
+      </Card

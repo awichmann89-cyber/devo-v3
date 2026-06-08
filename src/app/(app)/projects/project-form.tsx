@@ -14,8 +14,14 @@ import {
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { createProject, updateProject } from "./actions";
 import { toast } from "sonner";
-import { ProjectStatus, type BillingPeriod, type Customer, type Project } from "@prisma/client";
-import { projectStatusLabel } from "@/lib/labels";
+import {
+  ProjectKind,
+  ProjectStatus,
+  type BillingPeriod,
+  type Customer,
+  type Project,
+} from "@prisma/client";
+import { projectKindLabel, projectStatusLabel } from "@/lib/labels";
 import { useRouter } from "next/navigation";
 import { CustomerDialog } from "@/app/(app)/customers/customer-dialog";
 import { useAutoSave } from "@/lib/use-auto-save";
@@ -50,6 +56,7 @@ export function ProjectForm({
     customerId: project?.customerId ?? "",
     description: project?.description ?? "",
     status: project?.status ?? ProjectStatus.DRAFT,
+    kind: project?.kind ?? ProjectKind.DRYHIRE,
     planningStart: toLocalInput(project?.planningStart),
     planningEnd: toLocalInput(project?.planningEnd),
     discountPercent: project?.discountPercent?.toString() ?? "0",
@@ -119,10 +126,11 @@ export function ProjectForm({
       customerId: form.customerId || null,
       description: form.description || null,
       status: form.status,
+      kind: form.kind,
       discountPercent: Number(form.discountPercent) || 0,
       notes: form.notes || null,
     }),
-    [form.name, form.customerId, form.description, form.status, form.discountPercent, form.notes]
+    [form.name, form.customerId, form.description, form.status, form.kind, form.discountPercent, form.notes]
   );
   const { status: autoSaveStatus, error: autoSaveError } = useAutoSave(
     autoSavePayload,
@@ -179,23 +187,43 @@ export function ProjectForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
-          <Select
-            value={form.status}
-            onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.values(ProjectStatus).map((s) => (
-                <SelectItem key={s} value={s}>
-                  {projectStatusLabel(s)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <Select
+              value={form.status}
+              onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.values(ProjectStatus).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {projectStatusLabel(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="kind">Kategorie</Label>
+            <Select
+              value={form.kind}
+              onValueChange={(v) => setForm({ ...form, kind: v as ProjectKind })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.values(ProjectKind).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {projectKindLabel(k)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -346,36 +374,4 @@ export function ProjectForm({
 
       <div className="flex items-center justify-end gap-2 border-t pt-4">
         {isEditMode ? (
-          <AutoSaveIndicator status={autoSaveStatus} error={autoSaveError} />
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => (onCancel ? onCancel() : router.back())}
-            >
-              Abbrechen
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Anlegen
-            </Button>
-          </>
-        )}
-      </div>
-    </form>
-  );
-}
-
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="border-b pb-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h3>
-      {subtitle && (
-        <p className="mt-0.5 text-xs text-muted-foreground/80">{subtitle}</p>
-      )}
-    </div>
-  );
-}
+          <AutoSaveIndicator status={autoSaveStatus} error={autoSaveE

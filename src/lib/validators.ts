@@ -3,6 +3,7 @@ import {
   BillingUnit,
   InspectionResult,
   ProjectGroupKind,
+  ProjectKind,
   ProjectStatus,
   Role,
   ServiceItemKind,
@@ -123,6 +124,7 @@ export const projectSchema = z
     customerId: z.string().optional().nullable(),
     description: z.string().max(2000).optional().nullable(),
     status: z.nativeEnum(ProjectStatus).default(ProjectStatus.DRAFT),
+    kind: z.nativeEnum(ProjectKind).default(ProjectKind.DRYHIRE),
     planningStart: z.coerce.date(),
     planningEnd: z.coerce.date(),
     billingPeriods: z
@@ -141,6 +143,7 @@ export const projectUpdateCoreSchema = z.object({
   customerId: z.string().optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
   status: z.nativeEnum(ProjectStatus).default(ProjectStatus.DRAFT),
+  kind: z.nativeEnum(ProjectKind).default(ProjectKind.DRYHIRE),
   discountPercent: z.coerce.number().min(0).max(100).default(0),
   notes: z.string().max(2000).optional().nullable(),
 });
@@ -207,7 +210,4 @@ export const invoiceCreateSchema = z.object({
 
 export const userSchema = z.object({
   email: z.string().email("Ungültige Email-Adresse").max(150),
-  name: z.string().max(150).optional().nullable(),
-  role: z.nativeEnum(Role).default(Role.READER),
-  password: z.string().min(6, "Mindestens 6 Zeichen").max(200).optional().nullable(),
-});
+  name: z.string().max(150).optional().nul

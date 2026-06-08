@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
-import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
+import {
+  projectKindLabel,
+  projectKindVariant,
+  projectStatusLabel,
+  projectStatusVariant,
+} from "@/lib/labels";
 import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
 import { ProjectForm } from "../project-form";
 import { AssignmentsSection } from "./assignments-section";
@@ -192,6 +197,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             <Badge variant={projectStatusVariant(project.status)}>
               {projectStatusLabel(project.status)}
             </Badge>
+            <Badge variant={projectKindVariant(project.kind)}>
+              {projectKindLabel(project.kind)}
+            </Badge>
           </div>
           {project.customer && (
             <Link
@@ -362,11 +370,4 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               totalNet: Number(q.totalNet),
               totalGross: q.totalGross !== null ? Number(q.totalGross) : null,
             }))}
-            invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
-            quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+            invoiceDueDays={Number(
