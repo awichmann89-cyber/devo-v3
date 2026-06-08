@@ -100,9 +100,28 @@ export async function submitScanWithToken(
 
   const bookedDeviceIds = new Set(project.assignments.map((a) => a.deviceId));
 
-  // 1) PackUnit über Code suchen
-  const pu = await prisma.packUnit.findUnique({
-    where: { code },
+  // QR-Codes der Stammdaten-Seiten enthalten eine URL:
+  //   https://.../public/devices/<id>
+  //   https://.../public/pack-units/<id>
+  // Wir extrahieren die ID, damit der Scan auch funktioniert wenn ein
+  // solcher QR-Code (statt eines reinen Barcodes) gescannt wird.
+  let urlPackUnitId: string | null = null;
+  let urlDeviceId: string | null = null;
+  try {
+    const url = new URL(code);
+    const pathDevice = url.pathname.match(/\/public\/devices\/([^/?#]+)/);
+    const pathPack = url.pathname.match(/\/public\/pack-units\/([^/?#]+)/);
+    if (pathDevice) urlDeviceId = pathDevice[1];
+    if (pathPack) urlPackUnitId = pathPack[1];
+  } catch {
+    // kein URL — egal, dann reine Code-Suche weiter unten
+  }
+
+  // 1) PackUnit über Code ODER URL-ID suchen
+  const pu = await prisma.packUnit.findFirst({
+    where: urlPackUnitId
+      ? { id: urlPackUnitId }
+      : { code },
     select: {
       id: true,
       code: true,
@@ -128,7 +147,30 @@ export async function submitScanWithToken(
     return { ok: true, kind: "PACK_UNIT", name: pu.name, code: pu.code };
   }
 
-  // 2) DeviceSerialNumber über barcode oder serialNumber
+  // 2a) Device direkt über URL-ID (QR-Code von /public/devices/<id>)
+  if (urlDeviceId) {
+    const device = await prisma.device.findUnique({
+      where: { id: urlDeviceId },
+      select: { id: true, name: true },
+    });
+    if (device) {
+      if (!bookedDeviceIds.has(device.id)) {
+        return { ok: false, reason: "NOT_IN_PROJECT" };
+      }
+      await prisma.packingScan.create({
+        data: {
+          projectId: project.id,
+          deviceId: device.id,
+          scannedCode: code,
+        },
+      });
+      revalidatePath(`/scan/${token}`);
+      revalidatePath(`/projects/${project.id}`);
+      return { ok: true, kind: "DEVICE", name: device.name, code };
+    }
+  }
+
+  // 2b) DeviceSerialNumber über barcode oder serialNumber
   const serial = await prisma.deviceSerialNumber.findFirst({
     where: { OR: [{ barcode: code }, { serialNumber: code }] },
     select: {
@@ -144,6 +186,62 @@ export async function submitScanWithToken(
     await prisma.packingScan.create({
       data: {
         projectId: project.id,
+        deviceId: serial.device.id,
+        deviceSerialId: serial.id,
+        scannedCode: code,
+      },
+    });
+    revalidatePath(`/scan/${token}`);
+    revalidatePath(`/projects/${project.id}`);
+    return {
+      ok: true,
+      kind: "DEVICE",
+      name: serial.device.name,
+      code,
+      serial: serial.serialNumber,
+    };
+  }
+
+  return { ok: false, reason: "UNKNOWN_CODE" };
+}
+
+/**
+ * Setzt alle PackingScans vom Public-Endpoint aus zurück (Auth via Token).
+ */
+export async function resetPackingScansWithToken(
+  token: string
+): Promise<{ ok: boolean }> {
+  const project = await prisma.project.findFirst({
+    where: { packToken: token },
+    select: { id: true },
+  });
+  if (!project) return { ok: false };
+  await prisma.packingScan.deleteMany({ where: { projectId: project.id } });
+  revalidatePath(`/scan/${token}`);
+  revalidatePath(`/projects/${project.id}`);
+  return { ok: true };
+}
+
+/**
+ * Löscht einen Einzelscan vom Public-Endpoint (Auth via Token).
+ */
+export async function deletePackingScanWithToken(
+  token: string,
+  scanId: string
+): Promise<{ ok: boolean }> {
+  const project = await prisma.project.findFirst({
+    where: { packToken: token },
+    select: { id: true },
+  });
+  if (!project) return { ok: false };
+  await prisma.packingScan.deleteMany({
+    where: { id: scanId, projectId: project.id },
+  });
+  revalidatePath(`/scan/${token}`);
+  revalidatePath(`/projects/${project.id}`);
+  return { ok: true };
+}
+ojectId: project.id,
         deviceId: serial.device.id,
         deviceSerialId: serial.id,
         scannedCode: code,

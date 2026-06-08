@@ -266,16 +266,31 @@ export function ScanClient({
           <CardTitle className="text-base">Code scannen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Container für html5-qrcode — Lib injiziert hier ein <video>-Element.
-              Bleibt immer im DOM (Lib braucht den Mount-Point beim Start), wird
-              nur visuell ausgeblendet wenn Kamera aus. */}
+          {/* Kamera-Vorschau via html5-qrcode. Lib injiziert ein <video>-Element
+              in den Container; wir stylen das Video bildschirmfüllend und
+              blenden die eigene Library-UI (Buttons, Section-Text) aus. */}
           <div
-            id="qr-reader"
             className={cn(
-              "overflow-hidden rounded-md bg-black [&_video]:w-full [&_video]:aspect-[4/3] [&_video]:object-cover",
-              !cameraOn && "hidden"
+              "relative overflow-hidden rounded-md border bg-black",
+              cameraOn ? "block" : "hidden"
             )}
-          />
+          >
+            <div
+              id="qr-reader"
+              className={cn(
+                // Lib-Internals beruhigen:
+                "[&>div]:!border-0 [&>div]:!p-0",
+                "[&_button]:!hidden",
+                "[&_select]:!hidden",
+                // Video ins Container einpassen:
+                "[&_video]:!block [&_video]:!w-full [&_video]:!h-auto [&_video]:!object-cover"
+              )}
+            />
+            {/* Ziel-Overlay */}
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="h-2/3 w-2/3 rounded-md border-2 border-primary/80" />
+            </div>
+          </div>
           {cameraOn ? (
             <Button variant="outline" className="w-full" onClick={stopCamera}>
               <CameraOff className="h-4 w-4" /> Kamera stoppen
