@@ -80,6 +80,13 @@ import {
   moveCableAssignmentToGroup,
   ensureDefaultCableGroup,
 } from "../cable-actions";
+import {
+  addAdHocItem,
+  updateAdHocItem,
+  deleteAdHocItem,
+} from "./adhoc-actions";
+import type { ProjectAdHocItem } from "@prisma/client";
+import { Plus } from "lucide-react";
 
 type DeviceLite = Device & { category: Category | null };
 type CableLite = Cable & { category: Category | null };
@@ -132,6 +139,7 @@ interface Props {
   total: number;
   groups: ProjectGroup[];
   cableGroups: ProjectGroup[];
+  adHocItems: ProjectAdHocItem[];
   categories: Category[];
   scanProgress: { packed: number; total: number };
 }
@@ -157,6 +165,7 @@ export function AssignmentsSection({
   total,
   groups,
   cableGroups,
+  adHocItems,
   categories,
   scanProgress,
 }: Props) {
@@ -440,6 +449,75 @@ export function AssignmentsSection({
     cableAssignmentsByGroup.set(ca.groupId, arr);
   }
 
+  // Ad-hoc-Positionen pro Gruppe (Verkauf etc., freie Positionen ohne Stammdaten)
+  const adHocByGroup = new Map<string, ProjectAdHocItem[]>();
+  for (const it of adHocItems) {
+    const arr = adHocByGroup.get(it.groupId) ?? [];
+    arr.push(it);
+    adHocByGroup.set(it.groupId, arr);
+  }
+
+  type AdHocDialogState = {
+    mode: "create" | "edit";
+    id?: string;
+    groupId: string;
+    name: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  };
+  const [adHocDialog, setAdHocDialog] = useState<AdHocDialogState | null>(null);
+  const [adHocDelete, setAdHocDelete] = useState<ProjectAdHocItem | null>(null);
+
+  function handleSaveAdHoc() {
+    if (!adHocDialog) return;
+    const name = adHocDialog.name.trim();
+    if (!name) {
+      toast.error("Name darf nicht leer sein");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        if (adHocDialog.mode === "create") {
+          await addAdHocItem(project.id, {
+            groupId: adHocDialog.groupId,
+            name,
+            description: adHocDialog.description,
+            quantity: adHocDialog.quantity,
+            unitPrice: adHocDialog.unitPrice,
+          });
+          toast.success("Position hinzugefügt");
+        } else if (adHocDialog.id) {
+          await updateAdHocItem(adHocDialog.id, {
+            groupId: adHocDialog.groupId,
+            name,
+            description: adHocDialog.description,
+            quantity: adHocDialog.quantity,
+            unitPrice: adHocDialog.unitPrice,
+          });
+          toast.success("Position gespeichert");
+        }
+        setAdHocDialog(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleDeleteAdHoc() {
+    if (!adHocDelete) return;
+    const id = adHocDelete.id;
+    startTransition(async () => {
+      try {
+        await deleteAdHocItem(id);
+        toast.success("Position entfernt");
+        setAdHocDelete(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
   return (
     <>
       <div className="mb-3 flex justify-end gap-2">
@@ -637,6 +715,28 @@ export function AssignmentsSection({
                   }
                 >
                   <FolderPlus className="h-4 w-4" /> Gruppe anlegen
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={groups.length === 0}
+                  title={
+                    groups.length === 0
+                      ? "Erst eine Gruppe anlegen"
+                      : "Freie Position (Verkauf etc.) hinzufügen"
+                  }
+                  onClick={() =>
+                    setAdHocDialog({
+                      mode: "create",
+                      groupId: activeGroupId ?? groups[0]?.id ?? "",
+                      name: "",
+                      description: "",
+                      quantity: 1,
+                      unitPrice: 0,
+                    })
+                  }
+                >
+                  <Plus className="h-4 w-4" /> Position hinzufügen
                 </Button>
               </div>
             </CardHeader>
@@ -866,12 +966,98 @@ export function AssignmentsSection({
                         </TableBody>
                       </Table>
                     )}
+
+                    {/* Ad-hoc-Positionen (Verkauf etc.) — nur sichtbar, wenn
+                        die Gruppe welche enthält. Hinzufügen erfolgt über den
+                        Button im Card-Header oben. */}
+                    {(() => {
+                      const groupAdHoc = adHocByGroup.get(g.id) ?? [];
+                      if (groupAdHoc.length === 0) return null;
+                      return (
+                        <div className="mt-3 border-t pt-3">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                            Freie Positionen
+                          </div>
+                          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Bezeichnung</TableHead>
+                                <TableHead className="text-right w-[80px]">Anzahl</TableHead>
+                                <TableHead className="text-right w-[120px]">Stückpreis</TableHead>
+                                <TableHead className="text-right w-[120px]">Summe</TableHead>
+                                <TableHead className="w-[80px]"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {groupAdHoc.map((it) => {
+                                const unit = Number(it.unitPrice);
+                                const total = unit * it.quantity;
+                                return (
+                                  <TableRow key={it.id}>
+                                    <TableCell>
+                                      <div className="font-medium">{it.name}</div>
+                                      {it.description && (
+                                        <div className="text-[11px] text-muted-foreground">
+                                          {it.description}
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums text-sm">
+                                      {it.quantity}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums font-mono text-sm">
+                                      {formatCurrency(unit)}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                                      {formatCurrency(total)}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center justify-end gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={() =>
+                                            setAdHocDialog({
+                                              mode: "edit",
+                                              id: it.id,
+                                              groupId: it.groupId,
+                                              name: it.name,
+                                              description: it.description ?? "",
+                                              quantity: it.quantity,
+                                              unitPrice: unit,
+                                            })
+                                          }
+                                          title="Bearbeiten"
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-destructive hover:text-destructive"
+                                          onClick={() => setAdHocDelete(it)}
+                                          disabled={pending}
+                                          title="Entfernen"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      );
+                    })()}
                     </CardContent>
                   </Card>
                 );
               })}
 
-              {project.assignments.length > 0 && (
+              {(project.assignments.length > 0 || adHocItems.length > 0) && (
                 <div className="mt-4 border-t pt-3 px-2 text-sm">
                   <div className="flex justify-between text-muted-foreground">
                     <span>Zwischensumme</span>
@@ -1348,6 +1534,138 @@ export function AssignmentsSection({
         confirmLabel="Löschen"
         pending={pending}
         onConfirm={handleDeleteGroup}
+      />
+
+      {/* Ad-hoc-Position Dialog */}
+      <Dialog
+        open={adHocDialog !== null}
+        onOpenChange={(o) => !o && setAdHocDialog(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {adHocDialog?.mode === "create"
+                ? "Position hinzufügen"
+                : "Position bearbeiten"}
+            </DialogTitle>
+            <DialogDescription>
+              Freie Position für dieses Projekt — z.B. Weiterverkaufs-Geräte
+              ohne Lager-Stammdaten. Wird mit Stückpreis × Anzahl auf
+              Rechnungen/Angeboten ausgegeben, ohne Miet-Tagesfaktor.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveAdHoc();
+            }}
+            className="space-y-3"
+          >
+            {groups.length > 1 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Gruppe</label>
+                <Select
+                  value={adHocDialog?.groupId ?? ""}
+                  onValueChange={(v) =>
+                    setAdHocDialog((d) => (d ? { ...d, groupId: v } : d))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Gruppe wählen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Bezeichnung</label>
+              <Input
+                value={adHocDialog?.name ?? ""}
+                onChange={(e) =>
+                  setAdHocDialog((d) => (d ? { ...d, name: e.target.value } : d))
+                }
+                autoFocus
+                required
+                placeholder="z.B. iPad Pro 12,9″ 256 GB"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Beschreibung (optional)
+              </label>
+              <Input
+                value={adHocDialog?.description ?? ""}
+                onChange={(e) =>
+                  setAdHocDialog((d) =>
+                    d ? { ...d, description: e.target.value } : d
+                  )
+                }
+                placeholder="Zusatztext für die Rechnung"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Anzahl</label>
+                <QuantityInput
+                  min={1}
+                  value={adHocDialog?.quantity ?? 1}
+                  onChange={(v) =>
+                    setAdHocDialog((d) => (d ? { ...d, quantity: v } : d))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Stückpreis (€)</label>
+                <QuantityInput
+                  min={0}
+                  step={0.01}
+                  allowDecimal
+                  value={adHocDialog?.unitPrice ?? 0}
+                  onChange={(v) =>
+                    setAdHocDialog((d) => (d ? { ...d, unitPrice: v } : d))
+                  }
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAdHocDialog(null)}
+                disabled={pending}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {adHocDialog?.mode === "create" ? "Hinzufügen" : "Speichern"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={adHocDelete !== null}
+        onOpenChange={(o) => !o && setAdHocDelete(null)}
+        title="Position entfernen?"
+        description={
+          adHocDelete && (
+            <>
+              Die Position <strong>{adHocDelete.name}</strong> wird aus dem
+              Projekt entfernt.
+            </>
+          )
+        }
+        confirmLabel="Entfernen"
+        pending={pending}
+        onConfirm={handleDeleteAdHoc}
       />
       </Card>
 

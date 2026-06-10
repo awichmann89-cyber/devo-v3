@@ -57,6 +57,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           },
           orderBy: { cable: { name: "asc" } },
         },
+        adHocItems: {
+          orderBy: { sortOrder: "asc" },
+        },
         packingScans: {
           select: { id: true, packUnitId: true, deviceId: true },
         },
@@ -230,9 +233,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const factorMap = parseDayFactorMap(appSettings.dayFactorMap);
   const billingFactor = getDayFactor(billingDays, factorMap);
 
-  const materialSubtotal = project.assignments.reduce((sum, a) => {
-    return sum + Number(a.device.dailyRate) * a.quantity * billingFactor;
-  }, 0);
+  const materialSubtotal =
+    project.assignments.reduce((sum, a) => {
+      return sum + Number(a.device.dailyRate) * a.quantity * billingFactor;
+    }, 0) +
+    project.adHocItems.reduce(
+      (sum, it) => sum + Number(it.unitPrice) * it.quantity,
+      0
+    );
 
   const servicesSubtotal = project.services.reduce((sum, s) => {
     const price = s.unitPriceOverride
@@ -249,6 +257,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       for (const a of project!.assignments) {
         if (a.groupId !== groupId) continue;
         sub += Number(a.device.dailyRate) * a.quantity * billingFactor;
+      }
+      // Ad-hoc-Positionen: Stückpreis × Anzahl, OHNE Miet-Faktor.
+      for (const it of project!.adHocItems) {
+        if (it.groupId !== groupId) continue;
+        sub += Number(it.unitPrice) * it.quantity;
       }
     } else {
       for (const s of project!.services) {
@@ -536,6 +549,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             total={total}
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
             cableGroups={serialize(project.groups.filter((g) => g.kind === "CABLE"))}
+            adHocItems={serialize(project.adHocItems)}
             categories={serialize(allCategories)}
             scanProgress={{ packed: scanTotalDone, total: scanTotalRequired }}
           />

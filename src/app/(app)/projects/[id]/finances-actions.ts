@@ -65,7 +65,7 @@ export async function createInvoice(
   projectId: string,
   dueDate: Date,
   totalNet: number,
-  options?: { relatedInvoiceId?: string }
+  options?: { relatedInvoiceId?: string; isPrepayment?: boolean }
 ): Promise<{ id: string; number: string }> {
   await requireRole(CAN_WRITE);
 
@@ -163,6 +163,8 @@ export async function createInvoice(
       kind: options?.relatedInvoiceId ? "REMINDER" : "INVOICE",
       reminderLevel,
       relatedInvoiceId: options?.relatedInvoiceId ?? null,
+      // Vorkasse nur bei regulärer Rechnung sinnvoll, nicht bei Mahnungen
+      isPrepayment: !options?.relatedInvoiceId && !!options?.isPrepayment,
       date: new Date(),
       dueDate,
       totalNet: totalNetDec,

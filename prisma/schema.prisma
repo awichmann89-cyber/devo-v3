@@ -344,6 +344,7 @@ model Project {
 
   assignments     ProjectAssignment[]
   cableAssignments ProjectCableAssignment[]
+  adHocItems      ProjectAdHocItem[]
   // Berechnungszeiträume: Tage für die Mietkalkulation (mehrere möglich)
   billingPeriods  BillingPeriod[]
   // Freie Markdown-Notizen mit Titel
@@ -396,8 +397,33 @@ model ProjectGroup {
   assignments      ProjectAssignment[]
   services         ProjectService[]
   cableAssignments ProjectCableAssignment[]
+  adHocItems       ProjectAdHocItem[]
 
   @@index([projectId, kind, sortOrder])
+}
+
+// Freie Position innerhalb eines Projekts — z.B. Weiterverkaufs-Geräte, die
+// nicht im Stammdaten-Lager geführt werden. Hat einen festen Stückpreis und
+// wird NICHT mit dem Miet-Tagesfaktor multipliziert.
+model ProjectAdHocItem {
+  id          String      @id @default(cuid())
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  groupId     String
+  group       ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  name        String      // z.B. „iPad Pro 12.9″"
+  description String?     // Optionale Zusatzbeschreibung für die Rechnung
+  quantity    Int         @default(1)
+  // Stückpreis (Netto). Wird NICHT mit billingFactor multipliziert.
+  unitPrice   Decimal     @db.Decimal(10, 2)
+  sortOrder   Int         @default(0)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([projectId])
+  @@index([groupId])
 }
 
 // Generisches Key-Value-Setting-Store (z.B. Rechnungsnummer-Prefix)
@@ -439,6 +465,9 @@ model Invoice {
   kind      InvoiceKind @default(INVOICE)
   // Mahnstufe (1 = 1. Mahnung, 2 = 2., 3 = letzte). Bei kind=INVOICE immer 0.
   reminderLevel Int    @default(0)
+  // Vorkasse-Flag: Wenn true, wird im PDF das „Rechnungsdatum"-Label durch
+  // „Vorkasse zum" ersetzt. Beträge und Logik bleiben identisch.
+  isPrepayment Boolean @default(false)
   // Bei kind=REMINDER: Verweis auf die ursprüngliche Rechnung
   relatedInvoiceId String?
   relatedInvoice   Invoice?  @relation("InvoiceReminders", fields: [relatedInvoiceId], references: [id], onDelete: Cascade)

@@ -668,6 +668,9 @@ function InvoiceDialog({
   // Typ — Default ist immer "Rechnung". Mahnung nur wählbar wenn es eine
   // reguläre Rechnung zum Bemahnen gibt (kind=INVOICE).
   const [kind, setKind] = useState<"INVOICE" | "REMINDER">("INVOICE");
+  // Vorkasse-Flag: tauscht im PDF nur das Datums-Label „Rechnungsdatum" →
+  // „Vorkasse zum". Beträge bleiben unverändert.
+  const [isPrepayment, setIsPrepayment] = useState(false);
   const baseInvoices = existingInvoices.filter((i) => i.kind === "INVOICE");
   const canBeReminder = baseInvoices.length > 0;
   const [reminderTarget, setReminderTarget] = useState<string>(
@@ -708,7 +711,12 @@ function InvoiceDialog({
               await deleteInvoice(inv.id);
             }
           }
-          const inv = await createInvoice(projectId, computedDueDate, defaultTotal);
+          const inv = await createInvoice(
+            projectId,
+            computedDueDate,
+            defaultTotal,
+            { isPrepayment }
+          );
           toast.success(
             hasExisting
               ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
@@ -759,6 +767,24 @@ function InvoiceDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {kind === "INVOICE" && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={isPrepayment}
+                onChange={(e) => setIsPrepayment(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input"
+              />
+              <span>
+                <span className="font-medium">Vorkasse</span>
+                <span className="block text-xs text-muted-foreground">
+                  Auf dem PDF wird statt „Rechnungsdatum" der Text „Vorkasse zum"
+                  ausgegeben. Beträge bleiben unverändert.
+                </span>
+              </span>
+            </label>
+          )}
 
           {kind === "REMINDER" && canBeReminder && (
             <div className="space-y-2">

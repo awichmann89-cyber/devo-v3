@@ -36,6 +36,7 @@ export async function GET(
             include: { device: true },
           },
           services: { include: { serviceItem: true } },
+          adHocItems: { orderBy: { sortOrder: "asc" } },
         },
       },
     },
@@ -102,6 +103,28 @@ export async function GET(
     arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
   }
 
+  // ===== Ad-hoc-Positionen pro Gruppe (Verkauf etc.) =====
+  type AdHocRow = {
+    name: string;
+    description: string | null;
+    unitPrice: number;
+    quantity: number;
+  };
+  const adHocByGroup = new Map<string, AdHocRow[]>();
+  for (const it of project.adHocItems) {
+    const arr = adHocByGroup.get(it.groupId) ?? [];
+    arr.push({
+      name: it.name,
+      description: it.description,
+      unitPrice: Number(it.unitPrice),
+      quantity: it.quantity,
+    });
+    adHocByGroup.set(it.groupId, arr);
+  }
+  for (const arr of adHocByGroup.values()) {
+    arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }
+
   // ===== Services pro Gruppe =====
   const servicesByGroup = new Map<
     string,
@@ -128,7 +151,13 @@ export async function GET(
   const groupNetMap = new Map<string, { sub: number; disc: number; net: number }>();
   for (const g of materialGroups) {
     const rows = materialByGroup.get(g.id) ?? [];
-    const sub = rows.reduce((s, r) => s + r.dailyRate * r.quantity * factor, 0);
+    const adHoc = adHocByGroup.get(g.id) ?? [];
+    const subDevices = rows.reduce(
+      (s, r) => s + r.dailyRate * r.quantity * factor,
+      0
+    );
+    const subAdHoc = adHoc.reduce((s, r) => s + r.unitPrice * r.quantity, 0);
+    const sub = subDevices + subAdHoc;
     const disc = (sub * Number(g.discountPercent)) / 100;
     groupNetMap.set(g.id, { sub, disc, net: sub - disc });
   }
@@ -262,7 +291,8 @@ export async function GET(
   const GROUP_BG: [number, number, number] = [240, 240, 240];
   const TOTAL_BG: [number, number, number] = [232, 232, 232];
 
-  const hasMaterial = project.assignments.length > 0;
+  const hasMaterial =
+    project.assignments.length > 0 || project.adHocItems.length > 0;
   const hasServices = project.services.length > 0;
 
   // -------- Material --------
@@ -277,7 +307,8 @@ export async function GET(
 
     for (const group of materialGroups) {
       const rows = materialByGroup.get(group.id) ?? [];
-      if (rows.length === 0) continue;
+      const adHoc = adHocByGroup.get(group.id) ?? [];
+      if (rows.length === 0 && adHoc.length === 0) continue;
       const info = groupNetMap.get(group.id)!;
 
       body.push(
@@ -297,6 +328,32 @@ export async function GET(
             String(r.quantity),
             fmt(r.dailyRate),
             factorLabel,
+            fmt(line)
+          )
+        );
+        if (r.description && r.description.trim()) {
+          body.push([
+            {
+              content: `${INDENT_3}${r.description.trim()}`,
+              colSpan: 5,
+              styles: {
+                fontSize: 8,
+                textColor: 140,
+                cellPadding: { top: 0, bottom: 1.5, left: 2, right: 2 },
+              },
+            },
+          ]);
+        }
+      }
+      // Ad-hoc-Positionen — Stückpreis × Anzahl ohne Tagesfaktor
+      for (const r of adHoc) {
+        const line = r.unitPrice * r.quantity;
+        body.push(
+          row(
+            `${INDENT_2}${r.name}`,
+            String(r.quantity),
+            fmt(r.unitPrice),
+            "",
             fmt(line)
           )
         );

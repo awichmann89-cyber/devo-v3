@@ -14,6 +14,7 @@ type ProjectForPricing = Prisma.ProjectGetPayload<{
     groups: true;
     assignments: { include: { device: true } };
     services: { include: { serviceItem: true } };
+    adHocItems: true;
   };
 }>;
 
@@ -38,6 +39,11 @@ export function calculateProjectTotal(
       for (const a of project.assignments) {
         if (a.groupId !== g.id) continue;
         sub += Number(a.device.dailyRate) * a.quantity * factor;
+      }
+      // Ad-hoc-Positionen (Verkauf etc.) — fester Stückpreis, KEIN Miet-Faktor
+      for (const it of project.adHocItems) {
+        if (it.groupId !== g.id) continue;
+        sub += Number(it.unitPrice) * it.quantity;
       }
     } else {
       for (const s of project.services) {
