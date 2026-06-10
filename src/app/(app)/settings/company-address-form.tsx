@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -75,14 +76,14 @@ export function CompanyAddressForm({
       </div>
       <div className="space-y-2">
         <Label htmlFor="vatPercent">Mehrwertsteuersatz (%)</Label>
-        <Input
+        <QuantityInput
           id="vatPercent"
-          type="number"
-          step="0.1"
-          min="0"
-          max="100"
+          step={0.1}
+          min={0}
+          max={100}
+          allowDecimal
           value={vat}
-          onChange={(e) => setVat(Number(e.target.value) || 0)}
+          onChange={(v) => setVat(v)}
           className="max-w-[140px]"
         />
         <p className="text-xs text-muted-foreground">

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -50,13 +51,12 @@ export function DaysSettingForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2 max-w-[200px]">
         <Label htmlFor="days-setting">{label}</Label>
-        <Input
+        <QuantityInput
           id="days-setting"
-          type="number"
-          min="0"
-          max="365"
+          min={0}
+          max={365}
           value={days}
-          onChange={(e) => setDays(Number(e.target.value) || 0)}
+          onChange={(v) => setDays(v)}
         />
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>

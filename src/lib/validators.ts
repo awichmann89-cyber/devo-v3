@@ -91,6 +91,12 @@ export const packUnitItemSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
 });
 
+export const packUnitCableItemSchema = z.object({
+  cableId: z.string().min(1),
+  quantity: z.coerce.number().int().min(1).default(1),
+  notes: z.string().max(500).optional().nullable(),
+});
+
 export const customerSchema = z.object({
   name: z.string().min(1, "Name erforderlich").max(200),
   contactPerson: z.string().max(150).optional().nullable(),

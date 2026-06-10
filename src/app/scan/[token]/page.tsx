@@ -40,6 +40,7 @@ export default async function PublicScanPage(props: {
             location: true,
             category: true,
             items: { include: { device: true } },
+            cableItems: { include: { cable: true } },
           },
         })
       : [];

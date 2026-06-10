@@ -34,6 +34,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       location: true,
       category: true,
       items: { include: { device: true } },
+      cableItems: { include: { cable: true } },
     },
     orderBy: [{ packMode: "asc" }, { code: "asc" }],
   });
@@ -78,6 +79,11 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         deviceId: it.deviceId,
         quantity: it.quantity,
         device: { name: it.device.name },
+      })),
+      cableItems: p.cableItems.map((ci) => ({
+        cableId: ci.cableId,
+        quantity: ci.quantity,
+        cable: { name: ci.cable.name },
       })),
     }))
   );
@@ -222,6 +228,24 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
           {
             content: `        ${c.deviceName}`,
             styles: { textColor: 130, fontSize: 8 },
+          },
+          { content: "", styles: { textColor: 130, fontSize: 8 } },
+        ]);
+      }
+      for (const cab of p.cables) {
+        body.push([
+          {
+            content: `${cab.perUnit}×  (= ${cab.total})`,
+            styles: {
+              textColor: 130,
+              fontSize: 8,
+              halign: "left",
+              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
+            },
+          },
+          {
+            content: `        ${cab.cableName}  (Kabel)`,
+            styles: { textColor: 130, fontSize: 8, fontStyle: "italic" },
           },
           { content: "", styles: { textColor: 130, fontSize: 8 } },
         ]);

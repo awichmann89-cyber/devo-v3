@@ -15,7 +15,7 @@ export default async function PackUnitDetailPage(props: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await props.params;
-  const [packUnit, allDevices, locations, categories] = await Promise.all([
+  const [packUnit, allDevices, allCables, locations, categories] = await Promise.all([
     prisma.packUnit.findUnique({
       where: { id },
       include: {
@@ -25,9 +25,17 @@ export default async function PackUnitDetailPage(props: {
           include: { device: { include: { category: true } } },
           orderBy: { device: { name: "asc" } },
         },
+        cableItems: {
+          include: { cable: { include: { category: true } } },
+          orderBy: { cable: { name: "asc" } },
+        },
       },
     }),
     prisma.device.findMany({
+      include: { category: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.cable.findMany({
       include: { category: true },
       orderBy: { name: "asc" },
     }),
@@ -56,6 +64,28 @@ export default async function PackUnitDetailPage(props: {
       0
     );
     allocationByDeviceId[d.id] = { total, stock: d.stockQuantity };
+  }
+
+  // Analog für Kabel: Σ PU.stock × cableItem.qty pro Kabel über alle PackUnits
+  const cablesWithAllocation = await prisma.cable.findMany({
+    select: {
+      id: true,
+      stockQuantity: true,
+      packUnitItems: {
+        select: {
+          quantity: true,
+          packUnit: { select: { stockQuantity: true } },
+        },
+      },
+    },
+  });
+  const allocationByCableId: Record<string, { total: number; stock: number }> = {};
+  for (const c of cablesWithAllocation) {
+    const total = c.packUnitItems.reduce(
+      (s, pi) => s + pi.quantity * (pi.packUnit.stockQuantity ?? 1),
+      0
+    );
+    allocationByCableId[c.id] = { total, stock: c.stockQuantity };
   }
 
   const stock = packUnit.stockQuantity ?? 1;
@@ -149,8 +179,11 @@ export default async function PackUnitDetailPage(props: {
             packUnitId={packUnit.id}
             stockQuantity={stock}
             items={serialize(packUnit.items)}
+            cableItems={serialize(packUnit.cableItems)}
             allDevices={serialize(allDevices)}
+            allCables={serialize(allCables)}
             allocationByDeviceId={allocationByDeviceId}
+            allocationByCableId={allocationByCableId}
           />
         </CardContent>
       </Card>

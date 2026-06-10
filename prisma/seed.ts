@@ -15,9 +15,12 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
+  // Admin wird IMMER aus den .env-Werten synchronisiert — wenn du
+  // SEED_ADMIN_PASSWORD in der .env änderst und `prisma db seed` läufst,
+  // wird das neue Passwort übernommen.
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: { passwordHash, role: Role.ADMIN },
     create: {
       email: adminEmail,
       name: "Admin",

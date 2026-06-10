@@ -50,6 +50,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           },
           orderBy: { device: { name: "asc" } },
         },
+        cableAssignments: {
+          include: {
+            cable: { include: { category: true } },
+          },
+          orderBy: { cable: { name: "asc" } },
+        },
         packingScans: {
           select: { id: true, packUnitId: true, deviceId: true },
         },
@@ -65,8 +71,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   if (!project) notFound();
   const canWrite = hasRole(session?.user.role, CAN_WRITE);
 
-  const [allDevices, allCategories, customers, users] = await Promise.all([
+  const [allDevices, allCables, allCategories, customers, users] = await Promise.all([
     prisma.device.findMany({
+      include: { category: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.cable.findMany({
       include: { category: true },
       orderBy: { name: "asc" },
     }),
@@ -103,15 +113,30 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   type StockInfo = {
     totalDemand: number;
     otherProjects: OtherProject[];
+    // Eigene Werte dieses Projekts — getrennt, damit die Konflikt-Anzeige
+    // klar zwischen "eigene FIXED-Pack-Aufrundung" und "Fremdprojekt belegt"
+    // unterscheiden kann.
+    ownBookedQuantity: number;
+    ownEffectiveQuantity: number;
+    ownBlockingPackUnits: BlockingPack[];
   };
   const conflictMap: Record<string, StockInfo> = {};
   const reservedDeviceIds = new Set<string>();
   for (const o of overlap) {
-    const entry = (conflictMap[o.deviceId] ??= { totalDemand: 0, otherProjects: [] });
+    const entry = (conflictMap[o.deviceId] ??= {
+      totalDemand: 0,
+      otherProjects: [],
+      ownBookedQuantity: 0,
+      ownEffectiveQuantity: 0,
+      ownBlockingPackUnits: [],
+    });
     // effektive Stückzahl (inkl. FIXED-Packeinheiten-Aufrundung) statt nur gebuchter Menge
     entry.totalDemand += o.effectiveQuantity;
     if (o.projectId === project.id) {
       if (o.isReserved) reservedDeviceIds.add(o.deviceId);
+      entry.ownBookedQuantity = o.quantity;
+      entry.ownEffectiveQuantity = o.effectiveQuantity;
+      entry.ownBlockingPackUnits = o.blockingPackUnits;
     } else {
       entry.otherProjects.push({
         projectId: o.project.id,
@@ -123,6 +148,71 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         blockingPackUnits: o.blockingPackUnits,
       });
     }
+  }
+
+  // ---------- Kabel-Konflikt-Map ----------
+  // Pro Kabel: gesamte Allokation = (PackUnit-Inhalt × PU.Bestand) + Buchungen
+  // anderer überlappender Projekte. Wenn die eigene Buchung diese Allokation
+  // plus den eigenen Bedarf über den Lagerbestand drückt, gibt's einen Konflikt.
+  type CableConflictInfo = {
+    stock: number;
+    packAllocation: number;
+    foreignBookings: { projectName: string; quantity: number }[];
+    foreignTotal: number;
+  };
+  // packAllocation für ALLE Kabel (auch nicht-gebuchte — Katalog zeigt sie)
+  // foreignBookings nur für Kabel, die in überlappenden Projekten auftauchen
+  const bookedCableIds = project.cableAssignments.map((c) => c.cableId);
+  const [packCableAllocs, foreignCableBookings] = await Promise.all([
+    prisma.packUnitCable.findMany({
+      select: {
+        cableId: true,
+        quantity: true,
+        packUnit: { select: { stockQuantity: true } },
+      },
+    }),
+    bookedCableIds.length === 0
+      ? Promise.resolve([])
+      : prisma.projectCableAssignment.findMany({
+          where: {
+            cableId: { in: bookedCableIds },
+            projectId: { not: project.id },
+            project: {
+              status: { not: "CANCELLED" },
+              planningStart: { lte: project.planningEnd },
+              planningEnd: { gte: project.planningStart },
+            },
+          },
+          select: {
+            cableId: true,
+            quantity: true,
+            project: { select: { name: true } },
+          },
+        }),
+  ]);
+  const cableConflictMap: Record<string, CableConflictInfo> = {};
+  // Init aus allCables — damit jeder Katalog-Eintrag eine Allokation findet
+  for (const c of allCables) {
+    cableConflictMap[c.id] = {
+      stock: c.stockQuantity,
+      packAllocation: 0,
+      foreignBookings: [],
+      foreignTotal: 0,
+    };
+  }
+  for (const pca of packCableAllocs) {
+    const entry = cableConflictMap[pca.cableId];
+    if (!entry) continue;
+    entry.packAllocation += pca.quantity * (pca.packUnit.stockQuantity ?? 1);
+  }
+  for (const fb of foreignCableBookings) {
+    const entry = cableConflictMap[fb.cableId];
+    if (!entry) continue;
+    entry.foreignTotal += fb.quantity;
+    entry.foreignBookings.push({
+      projectName: fb.project.name,
+      quantity: fb.quantity,
+    });
   }
 
   const billingDays = project.billingPeriods.reduce(
@@ -205,6 +295,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           include: {
             location: true,
             items: { include: { device: true } },
+            cableItems: { include: { cable: true } },
           },
         })
       : [];
@@ -225,6 +316,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         deviceId: it.deviceId,
         quantity: it.quantity,
         device: { name: it.device.name },
+      })),
+      cableItems: pu.cableItems.map((ci) => ({
+        cableId: ci.cableId,
+        quantity: ci.quantity,
+        cable: { name: ci.cable.name },
       })),
     }))
   );
@@ -402,6 +498,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           <AssignmentsSection
             project={serialize(project)}
             allDevices={serialize(allDevices)}
+            allCables={serialize(allCables)}
+            cableAssignments={serialize(project.cableAssignments)}
+            cableConflictMap={cableConflictMap}
             conflictMap={serialize(conflictMap)}
             reservedDeviceIds={Array.from(reservedDeviceIds)}
             billingDays={billingDays}
@@ -410,6 +509,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             discount={discount}
             total={total}
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
+            cableGroups={serialize(project.groups.filter((g) => g.kind === "CABLE"))}
             categories={serialize(allCategories)}
             scanProgress={{ packed: scanTotalDone, total: scanTotalRequired }}
           />
@@ -428,14 +528,16 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           <FinancesSection
             projectId={project.id}
             projectName={project.name}
-            groups={project!.groups.map((g) => ({
-              id: g.id,
-              name: g.name,
-              kind: g.kind,
-              discountPercent: Number(g.discountPercent ?? 0),
-              subtotal: groupNet(g.id, g.kind),
-              billable: g.billable,
-            }))}
+            groups={project!.groups
+              .filter((g) => g.kind === "MATERIAL" || g.kind === "SERVICE")
+              .map((g) => ({
+                id: g.id,
+                name: g.name,
+                kind: g.kind as "MATERIAL" | "SERVICE",
+                discountPercent: Number(g.discountPercent ?? 0),
+                subtotal: groupNet(g.id, g.kind as "MATERIAL" | "SERVICE"),
+                billable: g.billable,
+              }))}
             projectDiscountPercent={projPct}
             materialDiscountPercent={matPct}
             servicesDiscountPercent={svcPct}

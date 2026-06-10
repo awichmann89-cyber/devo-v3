@@ -134,6 +134,7 @@ model Cable {
 
   units       CableUnit[]
   assignments ProjectCableAssignment[]
+  packUnitItems PackUnitCable[]
 
   @@index([categoryId])
 }
@@ -223,6 +224,7 @@ model PackUnit {
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   items PackUnitDevice[]
+  cableItems PackUnitCable[]
   packingScans PackingScan[]
 
   @@index([categoryId])
@@ -251,6 +253,24 @@ model PackUnitDevice {
   @@unique([packUnitId, deviceId])
   @@index([packUnitId])
   @@index([deviceId])
+}
+
+// Welche Kabel sind in einer Packeinheit enthalten — analog zu PackUnitDevice.
+// Werden auf der Packliste/PDF unter dem Case als 'Inhalt' mit ausgegeben.
+model PackUnitCable {
+  id         String @id @default(cuid())
+  packUnitId String
+  packUnit   PackUnit @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
+  cableId    String
+  cable      Cable    @relation(fields: [cableId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1) // Wie viele dieser Kabel PRO Case
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([packUnitId, cableId])
+  @@index([packUnitId])
+  @@index([cableId])
 }
 
 // ---------- Projekt ----------
@@ -350,6 +370,7 @@ model Project {
 enum ProjectGroupKind {
   MATERIAL
   SERVICE
+  CABLE
 }
 
 // Gruppen-Überschrift innerhalb eines Projekts.

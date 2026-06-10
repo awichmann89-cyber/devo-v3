@@ -118,3 +118,56 @@ export async function removeItemFromPackUnit(itemId: string) {
   revalidatePath(`/pack-units/${item.packUnitId}`);
   revalidatePath("/material");
 }
+
+// ---------- PackUnit-Inhalt (Cable-Items) ----------
+
+/**
+ * Fügt ein Kabel einer Packeinheit hinzu (oder erhöht die Anzahl pro Case).
+ * Analog zu addItemToPackUnit, aber für Kabel.
+ */
+export async function addCableToPackUnit(
+  packUnitId: string,
+  input: unknown
+) {
+  await requireRole(CAN_WRITE);
+  const { packUnitCableItemSchema } = await import("@/lib/validators");
+  const data = packUnitCableItemSchema.parse(input);
+
+  await prisma.packUnitCable.upsert({
+    where: {
+      packUnitId_cableId: { packUnitId, cableId: data.cableId },
+    },
+    update: { quantity: data.quantity, notes: data.notes || null },
+    create: {
+      packUnitId,
+      cableId: data.cableId,
+      quantity: data.quantity,
+      notes: data.notes || null,
+    },
+    select: { id: true },
+  });
+  revalidatePath(`/pack-units/${packUnitId}`);
+  revalidatePath("/material");
+}
+
+export async function updateCableItemQuantity(itemId: string, quantity: number) {
+  await requireRole(CAN_WRITE);
+  if (quantity < 1) throw new Error("Anzahl muss mindestens 1 sein");
+  const item = await prisma.packUnitCable.update({
+    where: { id: itemId },
+    data: { quantity },
+    select: { packUnitId: true },
+  });
+  revalidatePath(`/pack-units/${item.packUnitId}`);
+  revalidatePath("/material");
+}
+
+export async function removeCableFromPackUnit(itemId: string) {
+  await requireRole(CAN_WRITE);
+  const item = await prisma.packUnitCable.delete({
+    where: { id: itemId },
+    select: { packUnitId: true },
+  });
+  revalidatePath(`/pack-units/${item.packUnitId}`);
+  revalidatePath("/material");
+}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -71,13 +72,12 @@ export function InvoiceNumberForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="padding">Stellen für Sequenz</Label>
-          <Input
+          <QuantityInput
             id="padding"
-            type="number"
-            min="1"
-            max="8"
+            min={1}
+            max={8}
             value={padding}
-            onChange={(e) => setPadding(Number(e.target.value) || 3)}
+            onChange={(v) => setPadding(v)}
           />
           <p className="text-xs text-muted-foreground">
             3 → 001, 4 → 0001.
@@ -85,12 +85,11 @@ export function InvoiceNumberForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="nextSeq">Nächste Nummer</Label>
-          <Input
+          <QuantityInput
             id="nextSeq"
-            type="number"
-            min="1"
+            min={1}
             value={nextSeq}
-            onChange={(e) => setNextSeq(Number(e.target.value) || 1)}
+            onChange={(v) => setNextSeq(v)}
           />
           <p className="text-xs text-muted-foreground">
             Sequenz, mit der die nächste Rechnung erstellt wird.

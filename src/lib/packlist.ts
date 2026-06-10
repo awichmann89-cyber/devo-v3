@@ -25,6 +25,9 @@ export type PackListItem =
       locationName: string | null;
       weightPerUnit: number;
       contents: { deviceId: string; deviceName: string; perUnit: number; total: number }[];
+      // Kabel die in dieser Packeinheit stecken — reisen mit Case mit.
+      // Bedarfsunabhängig: was im Case ist, kommt mit.
+      cables: { cableId: string; cableName: string; perUnit: number; total: number }[];
     }
   | {
       kind: "LOOSE";
@@ -48,6 +51,8 @@ type PackUnitInput = {
   weight: Prisma.Decimal | number | null;
   location: { name: string } | null;
   items: { deviceId: string; quantity: number; device: { name: string } }[];
+  // Optional: Kabel im Case. Wenn nicht übergeben, leeres Array.
+  cableItems?: { cableId: string; quantity: number; cable: { name: string } }[];
 };
 
 /**
@@ -96,17 +101,23 @@ export function buildPackList(
     }
 
     // Wie viele dieser PackUnits brauchen wir?
-    // FIXED  → max ⌈Bedarf / Inhalt⌉ (jedes enthaltene Gerät muss gedeckt sein)
-    // VARIABLE → min ⌊Bedarf / Inhalt⌋ (nur volle Cases — Rest fällt als LOOSE raus)
-    // Wenn auch nur EIN enthaltenes Gerät gar nicht im Bedarf steht, wird das Pack übersprungen.
+    // FIXED  → max ⌈Bedarf / Inhalt⌉ über alle Items MIT Bedarf
+    //          (Case wird komplett mitgenommen — Inhalte ohne Bedarf fahren
+    //          als Mitbringsel mit. Mindestens EIN Item muss aber gebucht sein,
+    //          sonst hätte das Case keinen Anlass mitzukommen.)
+    // VARIABLE → min ⌊Bedarf / Inhalt⌋ — alle Inhalte müssen gebucht sein,
+    //          sonst kann das Case nicht voll gepackt werden.
     let useCount = pu.packMode === "FIXED" ? 0 : Number.POSITIVE_INFINITY;
-    let anyZero = false;
+    let anyZero = false;       // gibt es Items ohne Bedarf? (für VARIABLE = Abbruch)
+    let anyNonZero = false;    // gibt es überhaupt einen Bedarf-Treffer? (für FIXED = Pflicht)
     for (const it of pu.items) {
       const dem = demandBefore.get(it.deviceId) ?? 0;
       if (dem <= 0) {
         anyZero = true;
-        break;
+        if (pu.packMode === "VARIABLE") break; // VARIABLE bricht direkt ab
+        continue; // FIXED ignoriert solche Items für useCount, packt sie aber mit
       }
+      anyNonZero = true;
       if (pu.packMode === "FIXED") {
         const need = Math.ceil(dem / it.quantity);
         if (need > useCount) useCount = need;
@@ -115,7 +126,12 @@ export function buildPackList(
         if (fits < useCount) useCount = fits;
       }
     }
-    if (anyZero || !Number.isFinite(useCount) || useCount === 0) continue;
+    if (pu.packMode === "VARIABLE") {
+      if (anyZero || !Number.isFinite(useCount) || useCount === 0) continue;
+    } else {
+      // FIXED braucht mindestens ein gebuchtes Item, um sich überhaupt zu lohnen.
+      if (!anyNonZero || useCount === 0) continue;
+    }
 
     // Geräte aus Demand abziehen
     // Bei beiden Modi: useCount Cases werden komplett gepackt (it.quantity * useCount Stück).
@@ -142,6 +158,12 @@ export function buildPackList(
         deviceName: it.device.name,
         perUnit: it.quantity,
         total: it.quantity * useCount,
+      })),
+      cables: (pu.cableItems ?? []).map((ci) => ({
+        cableId: ci.cableId,
+        cableName: ci.cable.name,
+        perUnit: ci.quantity,
+        total: ci.quantity * useCount,
       })),
     });
   }
