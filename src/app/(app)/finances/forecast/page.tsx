@@ -51,6 +51,7 @@ export default async function ForecastPage(props: {
         },
       },
       services: { include: { serviceItem: true } },
+      adHocItems: true,
       invoices: { select: { totalNet: true } },
     },
     orderBy: { planningStart: "asc" },
