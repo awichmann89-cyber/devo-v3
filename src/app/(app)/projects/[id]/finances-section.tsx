@@ -69,6 +69,22 @@ function invoiceGross(inv: FinancesInvoiceVM): number {
   return inv.totalGross ?? inv.totalNet;
 }
 
+/**
+ * Lädt das PDF unter `url` direkt herunter, statt es im Browser-Viewer zu
+ * öffnen. Funktioniert auch wenn das Backend Content-Disposition: inline
+ * setzen würde — wir setzen `download` per Anchor und stoßen einen Klick an.
+ * Wird für frisch erstellte Rechnungen/Angebote/Mahnungen genutzt.
+ */
+function triggerDownload(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 export interface FinancesInvoiceVM {
   id: string;
   number: string;
@@ -683,9 +699,8 @@ function InvoiceDialog({
             { relatedInvoiceId: reminderTarget }
           );
           toast.success(`Mahnung ${created.number} angelegt`);
-          window.open(
-            `/api/projects/${projectId}/invoices/${created.id}/pdf`,
-            "_blank"
+          triggerDownload(
+            `/api/projects/${projectId}/invoices/${created.id}/pdf?download=1`
           );
         } else {
           if (hasExisting) {
@@ -699,9 +714,8 @@ function InvoiceDialog({
               ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
               : `Rechnung ${inv.number} angelegt`
           );
-          window.open(
-            `/api/projects/${projectId}/invoices/${inv.id}/pdf`,
-            "_blank"
+          triggerDownload(
+            `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`
           );
         }
         onOpenChange(false);
@@ -867,7 +881,7 @@ function QuoteDialog({
             ? `Angebot ${q.number} angelegt (alte überschrieben)`
             : `Angebot ${q.number} angelegt`
         );
-        window.open(`/api/projects/${projectId}/quotes/${q.id}/pdf`, "_blank");
+        triggerDownload(`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`);
         onOpenChange(false);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");

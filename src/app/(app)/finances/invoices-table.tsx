@@ -127,10 +127,15 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
       try {
         const created = await createReminderForInvoice(inv.id);
         toast.success(`Mahnung ${created.number} angelegt`);
-        window.open(
-          `/api/projects/${inv.projectId}/invoices/${created.id}/pdf`,
-          "_blank"
-        );
+        // Direkt herunterladen — Browser-Vorschau gibt's beim Wieder-Ansehen
+        // über den ExternalLink-Button in der Tabelle.
+        const a = document.createElement("a");
+        a.href = `/api/projects/${inv.projectId}/invoices/${created.id}/pdf?download=1`;
+        a.download = "";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }

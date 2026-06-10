@@ -15,13 +15,16 @@ const INDENT_2 = "        "; // Gruppe
 const INDENT_3 = "            "; // Item
 
 export async function GET(
-  _req: Request,
+  req: Request,
   props: { params: Promise<{ id: string; invoiceId: string }> }
 ) {
   const session = await auth();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
   const { id, invoiceId } = await props.params;
+  // ?download=1 forciert den Download — wird beim frischen Erstellen genutzt,
+  // damit das PDF direkt im Download-Ordner landet statt im Browser-Viewer.
+  const download = new URL(req.url).searchParams.get("download") === "1";
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
@@ -559,7 +562,7 @@ export async function GET(
   return new NextResponse(finalBytes as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
 }

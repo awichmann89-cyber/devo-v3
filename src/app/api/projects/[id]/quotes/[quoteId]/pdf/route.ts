@@ -15,13 +15,15 @@ const INDENT_2 = "        "; // Gruppe
 const INDENT_3 = "            "; // Item
 
 export async function GET(
-  _req: Request,
+  req: Request,
   props: { params: Promise<{ id: string; quoteId: string }> }
 ) {
   const session = await auth();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
   const { id, quoteId } = await props.params;
+  // ?download=1 forciert den Download statt der Inline-Anzeige.
+  const download = new URL(req.url).searchParams.get("download") === "1";
   const quote = await prisma.quote.findUnique({
     where: { id: quoteId },
     include: {
@@ -542,7 +544,7 @@ export async function GET(
   return new NextResponse(finalBytes as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
 }
