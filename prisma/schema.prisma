@@ -32,6 +32,7 @@ model User {
 
   createdProjects     Project[] @relation("ProjectCreator")
   maintainedProjects  Project[] @relation("ProjectMaintainer")
+  uploadedFiles       ProjectFile[] @relation("ProjectFileUploader")
 }
 
 // ---------- Stammdaten ----------
@@ -359,6 +360,8 @@ model Project {
   // Lazy generiert, beim Klick auf "Token neu generieren" zurückgesetzt.
   packToken       String?       @unique
   packingScans    PackingScan[]
+  // Frei hochgeladene Dateien (PDFs, Bilder, Office-Dokumente) zur Doku.
+  files           ProjectFile[]
 
   @@index([status])
   @@index([customerId])
@@ -595,4 +598,26 @@ model PackingScan {
   @@index([projectId])
   @@index([packUnitId])
   @@index([deviceId])
+}
+
+// Hochgeladene Dateien zu einem Projekt (PDFs, Bilder, Office-Dokumente etc.).
+// Die eigentlichen Bytes liegen in Vercel Blob unter `blobPathname`;
+// `blobUrl` ist der direkte Download-Link.
+model ProjectFile {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name         String   // Original-Dateiname inkl. Endung
+  mimeType     String
+  sizeBytes    Int
+
+  blobUrl      String   // Public-Lese-URL aus @vercel/blob
+  blobPathname String   // Pathname im Blob-Store, zum Löschen via del()
+
+  uploadedById String?
+  uploadedBy   User?    @relation("ProjectFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedAt   DateTime @default(now())
+
+  @@index([projectId])
 }

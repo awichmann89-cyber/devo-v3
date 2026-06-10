@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet } from "lucide-react";
+import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import {
   projectKindLabel,
@@ -17,6 +17,7 @@ import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
 import { ProjectForm } from "../project-form";
 import { AssignmentsSection } from "./assignments-section";
 import { NotesSection } from "./notes-section";
+import { FilesSection } from "./files-section";
 import { PeriodsSection } from "./periods-section";
 import { ServicesSection } from "./services-section";
 import { FinancesSection } from "./finances-section";
@@ -58,6 +59,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         },
         packingScans: {
           select: { id: true, packUnitId: true, deviceId: true },
+        },
+        files: {
+          include: {
+            uploadedBy: { select: { name: true, email: true } },
+          },
+          orderBy: { uploadedAt: "desc" },
         },
         createdBy: { select: { name: true, email: true } },
       },
@@ -449,6 +456,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           <TabsTrigger value="details"><FileText className="h-4 w-4" /> Details</TabsTrigger>
           <TabsTrigger value="periods"><CalendarRange className="h-4 w-4" /> Zeiträume</TabsTrigger>
           <TabsTrigger value="notes"><StickyNote className="h-4 w-4" /> Notizen</TabsTrigger>
+          <TabsTrigger value="files"><Paperclip className="h-4 w-4" /> Dateien</TabsTrigger>
           <TabsTrigger value="material"><Boxes className="h-4 w-4" /> Material</TabsTrigger>
           <TabsTrigger value="services"><Truck className="h-4 w-4" /> Personal & Transport</TabsTrigger>
           <TabsTrigger value="finances"><Wallet className="h-4 w-4" /> Finanzen</TabsTrigger>
@@ -491,6 +499,24 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               updatedAt: n.updatedAt.toISOString(),
             }))}
             canWrite={canWrite}
+          />
+        </TabsContent>
+
+        <TabsContent value="files">
+          <FilesSection
+            projectId={project.id}
+            canWrite={canWrite}
+            files={project.files.map((f) => ({
+              id: f.id,
+              name: f.name,
+              mimeType: f.mimeType,
+              sizeBytes: f.sizeBytes,
+              blobUrl: f.blobUrl,
+              uploadedAt: f.uploadedAt.toISOString(),
+              uploadedBy: f.uploadedBy
+                ? { name: f.uploadedBy.name, email: f.uploadedBy.email }
+                : null,
+            }))}
           />
         </TabsContent>
 
