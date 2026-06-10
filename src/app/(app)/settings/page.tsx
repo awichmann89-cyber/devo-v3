@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { FolderTree, Receipt, FileText, Building2, CalendarClock } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
+import { ReminderNumberForm } from "./reminder-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
 import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
@@ -18,7 +19,7 @@ export default async function SettingsPage() {
   await requireRole(CAN_ADMIN);
 
   const year = new Date().getFullYear();
-  const [categories, settings, yearInvoices, yearQuotes, letterheads] = await Promise.all([
+  const [categories, settings, yearInvoices, yearReminders, yearQuotes, letterheads] = await Promise.all([
     prisma.category.findMany({
       include: {
         _count: { select: { devices: true, packUnits: true, children: true } },
@@ -27,7 +28,11 @@ export default async function SettingsPage() {
     }),
     getSettings(),
     prisma.invoice.findMany({
-      where: { number: { startsWith: `${year}-` } },
+      where: { kind: "INVOICE", number: { startsWith: `${year}-` } },
+      select: { number: true },
+    }),
+    prisma.invoice.findMany({
+      where: { kind: "REMINDER", number: { startsWith: `${year}-` } },
       select: { number: true },
     }),
     prisma.quote.findMany({
@@ -55,6 +60,14 @@ export default async function SettingsPage() {
     if (m) {
       const n = Number(m[1]);
       if (n > currentYearMaxQuote) currentYearMaxQuote = n;
+    }
+  }
+  let currentYearMaxReminder = 0;
+  for (const r of yearReminders) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > currentYearMaxReminder) currentYearMaxReminder = n;
     }
   }
 
@@ -153,6 +166,25 @@ export default async function SettingsPage() {
                 initialPadding={Number(settings.invoiceNumberPadding) || 3}
                 initialNextSequence={Number(settings.invoiceNumberNextSequence) || 1}
                 currentYearMax={currentYearMax}
+                year={year}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Mahnungsnummer-Format</CardTitle>
+              <CardDescription>
+                Eigener Nummernkreis für Mahnungen — z.B.{" "}
+                <code className="font-mono">2026-M-001</code>. Läuft pro Jahr
+                getrennt von den Rechnungsnummern.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReminderNumberForm
+                initialPrefix={settings.reminderNumberPrefix}
+                initialPadding={Number(settings.reminderNumberPadding) || 3}
+                initialNextSequence={Number(settings.reminderNumberNextSequence) || 1}
+                currentYearMax={currentYearMaxReminder}
                 year={year}
               />
             </CardContent>

@@ -425,11 +425,24 @@ model LetterheadTemplate {
 }
 
 // Rechnung an einem Projekt — mit fortlaufender Nummer und Zahlungsfrist
+enum InvoiceKind {
+  INVOICE  // Reguläre Rechnung
+  REMINDER // Mahnung zu einer bestehenden Rechnung
+}
+
 model Invoice {
-  id        String   @id @default(cuid())
-  number    String   @unique
+  id        String      @id @default(cuid())
+  number    String      @unique
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  // Art des Dokuments — bestimmt Titel im PDF und UI
+  kind      InvoiceKind @default(INVOICE)
+  // Mahnstufe (1 = 1. Mahnung, 2 = 2., 3 = letzte). Bei kind=INVOICE immer 0.
+  reminderLevel Int    @default(0)
+  // Bei kind=REMINDER: Verweis auf die ursprüngliche Rechnung
+  relatedInvoiceId String?
+  relatedInvoice   Invoice?  @relation("InvoiceReminders", fields: [relatedInvoiceId], references: [id], onDelete: Cascade)
+  reminders        Invoice[] @relation("InvoiceReminders")
   date      DateTime @default(now())
   dueDate   DateTime
   // Snapshot der Beträge zum Zeitpunkt der Erstellung
@@ -445,6 +458,7 @@ model Invoice {
   @@index([projectId])
   @@index([date])
   @@index([paidAt])
+  @@index([relatedInvoiceId])
 }
 
 // Angebot an einem Projekt — eigenständige Nummer, Gültigkeit/Ablaufdatum statt Fälligkeit.

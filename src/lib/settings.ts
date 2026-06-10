@@ -4,6 +4,9 @@ export const SETTING_DEFAULTS = {
   invoiceNumberPrefix: "",
   invoiceNumberPadding: "3",
   invoiceNumberNextSequence: "1",
+  reminderNumberPrefix: "M",
+  reminderNumberPadding: "3",
+  reminderNumberNextSequence: "1",
   quoteNumberPrefix: "AN",
   quoteNumberPadding: "3",
   quoteNumberNextSequence: "1",
@@ -57,7 +60,7 @@ export async function setSetting(key: SettingKey, value: string): Promise<void> 
 export async function recomputeInvoiceNextSequence(): Promise<void> {
   const year = new Date().getFullYear();
   const rows = await prisma.invoice.findMany({
-    where: { number: { startsWith: `${year}-` } },
+    where: { kind: "INVOICE", number: { startsWith: `${year}-` } },
     select: { number: true },
   });
   let maxSeq = 0;
@@ -69,6 +72,24 @@ export async function recomputeInvoiceNextSequence(): Promise<void> {
     }
   }
   await setSetting("invoiceNumberNextSequence" as SettingKey, String(maxSeq + 1));
+}
+
+/** Analog zu recomputeInvoiceNextSequence, für den Mahnungs-Nummernkreis. */
+export async function recomputeReminderNextSequence(): Promise<void> {
+  const year = new Date().getFullYear();
+  const rows = await prisma.invoice.findMany({
+    where: { kind: "REMINDER", number: { startsWith: `${year}-` } },
+    select: { number: true },
+  });
+  let maxSeq = 0;
+  for (const r of rows) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+  await setSetting("reminderNumberNextSequence" as SettingKey, String(maxSeq + 1));
 }
 
 /** Analog zu recomputeInvoiceNextSequence, für den Angebotsnummern-Kreis. */
@@ -112,6 +133,16 @@ export function buildInvoiceNumber(
 }
 
 export function buildQuoteNumber(
+  year: number,
+  sequence: number,
+  prefix: string,
+  padding: number
+): string {
+  const num = String(sequence).padStart(Math.max(1, padding), "0");
+  return prefix ? `${year}-${prefix}-${num}` : `${year}-${num}`;
+}
+
+export function buildReminderNumber(
   year: number,
   sequence: number,
   prefix: string,

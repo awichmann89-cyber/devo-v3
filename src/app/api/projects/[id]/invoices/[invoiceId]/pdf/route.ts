@@ -25,6 +25,9 @@ export async function GET(
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
+      relatedInvoice: {
+        select: { number: true, date: true, dueDate: true, totalGross: true, totalNet: true },
+      },
       project: {
         include: {
           customer: true,
@@ -196,14 +199,29 @@ export async function GET(
     doc.text(line, ADDR_X, RECIPIENT_Y + i * 5);
   });
 
+  const docTitle =
+    invoice.kind === "REMINDER"
+      ? invoice.reminderLevel > 1
+        ? `${invoice.reminderLevel}. Mahnung ${invoice.number}`
+        : `Mahnung ${invoice.number}`
+      : `Rechnung ${invoice.number}`;
   doc.setFontSize(14);
   doc.setFont(undefined as unknown as string, "bold");
-  doc.text(`Rechnung ${invoice.number}`, ADDR_X, 95);
+  doc.text(docTitle, ADDR_X, 95);
   doc.setFont(undefined as unknown as string, "normal");
   doc.setFontSize(10);
   let metaY = 102;
-  doc.text(`Rechnungsdatum: ${invoice.date.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
+  const dateLabel = invoice.kind === "REMINDER" ? "Mahndatum" : "Rechnungsdatum";
+  doc.text(`${dateLabel}: ${invoice.date.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
   metaY += 5;
+  if (invoice.kind === "REMINDER" && invoice.relatedInvoice) {
+    doc.text(
+      `Zur Rechnung: ${invoice.relatedInvoice.number} vom ${invoice.relatedInvoice.date.toLocaleDateString("de-DE")}`,
+      ADDR_X,
+      metaY
+    );
+    metaY += 5;
+  }
   doc.text(`Zahlbar bis: ${invoice.dueDate.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
   metaY += 5;
   doc.text(`Projekt: ${project.name}`, ADDR_X, metaY);
@@ -533,7 +551,7 @@ export async function GET(
   const finalBytes = await applyLetterhead(contentBytes);
 
   const filename = buildDocumentPdfFilename(
-    "Rechnung",
+    invoice.kind === "REMINDER" ? "Mahnung" : "Rechnung",
     invoice.number,
     project.customer?.name ?? null,
     project.name

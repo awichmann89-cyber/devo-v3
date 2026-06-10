@@ -18,6 +18,9 @@ export default async function FinancesInvoicesPage() {
   const rows = invoices.map((inv) => ({
     id: inv.id,
     number: inv.number,
+    kind: inv.kind,
+    reminderLevel: inv.reminderLevel,
+    relatedInvoiceId: inv.relatedInvoiceId,
     date: inv.date.toISOString(),
     dueDate: inv.dueDate.toISOString(),
     totalNet: Number(inv.totalNet),

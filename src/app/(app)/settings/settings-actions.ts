@@ -37,6 +37,24 @@ export async function saveInvoiceNumberSettings(
   revalidatePath("/settings");
 }
 
+export async function saveReminderNumberSettings(
+  prefix: string,
+  padding: number,
+  nextSequence: number
+) {
+  await requireRole(CAN_ADMIN);
+  const p = (prefix ?? "").trim().toUpperCase().slice(0, 10);
+  if (p && !/^[A-Z0-9-]+$/.test(p)) {
+    throw new Error("Prefix darf nur Großbuchstaben, Zahlen und Bindestriche enthalten.");
+  }
+  const pad = Math.max(1, Math.min(8, Math.floor(padding) || 3));
+  const next = Math.max(1, Math.floor(nextSequence) || 1);
+  await setSetting("reminderNumberPrefix" as SettingKey, p);
+  await setSetting("reminderNumberPadding" as SettingKey, String(pad));
+  await setSetting("reminderNumberNextSequence" as SettingKey, String(next));
+  revalidatePath("/settings");
+}
+
 export async function saveInvoiceDueDays(days: number) {
   await requireRole(CAN_ADMIN);
   const clamped = Math.max(0, Math.min(365, Math.floor(days) || 0));

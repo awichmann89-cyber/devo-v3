@@ -29,15 +29,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { setInvoicePaid, deleteInvoiceFromList } from "./actions";
+import { setInvoicePaid, deleteInvoiceFromList, createReminderForInvoice } from "./actions";
 
 export interface InvoiceVM {
   id: string;
   number: string;
+  kind: "INVOICE" | "REMINDER";
+  reminderLevel: number;
+  relatedInvoiceId: string | null;
   date: string;
   dueDate: string;
   totalNet: number;
@@ -50,6 +53,15 @@ export interface InvoiceVM {
 
 function gross(inv: InvoiceVM): number {
   return inv.totalGross ?? inv.totalNet;
+}
+
+function labelFor(inv: InvoiceVM): string {
+  if (inv.kind === "REMINDER") {
+    return inv.reminderLevel > 1
+      ? `${inv.reminderLevel}. Mahnung`
+      : "Mahnung";
+  }
+  return "Rechnung";
 }
 
 type StatusFilter = "all" | "open" | "overdue" | "paid";
@@ -103,7 +115,22 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
     startTransition(async () => {
       try {
         await setInvoicePaid(inv.id, null);
-        toast.success(`Rechnung ${inv.number} wieder als unbezahlt markiert`);
+        toast.success(`${labelFor(inv)} ${inv.number} wieder als unbezahlt markiert`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleCreateReminder(inv: InvoiceVM) {
+    startTransition(async () => {
+      try {
+        const created = await createReminderForInvoice(inv.id);
+        toast.success(`Mahnung ${created.number} angelegt`);
+        window.open(
+          `/api/projects/${inv.projectId}/invoices/${created.id}/pdf`,
+          "_blank"
+        );
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
@@ -189,6 +216,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Nummer</TableHead>
+                <TableHead>Typ</TableHead>
                 <TableHead>Projekt / Kunde</TableHead>
                 <TableHead>Datum</TableHead>
                 <TableHead>Fällig</TableHead>
@@ -196,13 +224,13 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                 <TableHead className="text-right">Brutto</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Bezahlt am</TableHead>
-                <TableHead className="w-[180px] text-right"></TableHead>
+                <TableHead className="w-[220px] text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
                     {invoices.length === 0
                       ? "Noch keine Rechnungen angelegt"
                       : "Keine Treffer für die Suche"}
@@ -218,6 +246,17 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                     className={cn(isOverdue && "bg-red-50/60 dark:bg-red-950/20")}
                   >
                     <TableCell className="font-mono text-sm">{inv.number}</TableCell>
+                    <TableCell>
+                      {inv.kind === "REMINDER" ? (
+                        <Badge variant="warning" className="text-[10px]">
+                          {labelFor(inv)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">
+                          Rechnung
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Link href={`/projects/${inv.projectId}`} className="block hover:underline">
                         <div className="font-medium">{inv.projectName}</div>
@@ -267,9 +306,22 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                             Storno
                           </Button>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => setPayDialog(inv)}>
-                            <CheckCircle2 className="h-4 w-4" /> Bezahlt
-                          </Button>
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => setPayDialog(inv)}>
+                              <CheckCircle2 className="h-4 w-4" /> Bezahlt
+                            </Button>
+                            {inv.kind === "INVOICE" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCreateReminder(inv)}
+                                disabled={pending}
+                                title="Mahnung zu dieser Rechnung anlegen"
+                              >
+                                <AlertTriangle className="h-4 w-4" /> Mahnung
+                              </Button>
+                            )}
+                          </>
                         )}
                         <Button
                           variant="ghost"

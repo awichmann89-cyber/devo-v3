@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -65,10 +72,13 @@ function invoiceGross(inv: FinancesInvoiceVM): number {
 export interface FinancesInvoiceVM {
   id: string;
   number: string;
+  kind: "INVOICE" | "REMINDER";
+  reminderLevel: number;
   date: string;
   dueDate: string;
   totalNet: number;
   totalGross: number | null;
+  paidAt: string | null;
 }
 
 export interface FinancesQuoteVM {
@@ -639,29 +649,61 @@ function InvoiceDialog({
   existingInvoices: FinancesInvoiceVM[];
 }) {
   const [pending, startTransition] = useTransition();
-  const hasExisting = existingInvoices.length > 0;
+  // Typ — Default ist immer "Rechnung". Mahnung nur wählbar wenn es eine
+  // reguläre Rechnung zum Bemahnen gibt (kind=INVOICE).
+  const [kind, setKind] = useState<"INVOICE" | "REMINDER">("INVOICE");
+  const baseInvoices = existingInvoices.filter((i) => i.kind === "INVOICE");
+  const canBeReminder = baseInvoices.length > 0;
+  const [reminderTarget, setReminderTarget] = useState<string>(
+    baseInvoices[0]?.id ?? ""
+  );
+
+  const hasExisting = kind === "INVOICE" && existingInvoices.length > 0;
   const computedDueDate = new Date();
   computedDueDate.setDate(computedDueDate.getDate() + dueDays);
+
+  const selectedOriginal = baseInvoices.find((i) => i.id === reminderTarget);
+  const reminderAmount = selectedOriginal
+    ? (selectedOriginal.totalGross ?? selectedOriginal.totalNet)
+    : 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
       try {
-        if (hasExisting) {
-          for (const inv of existingInvoices) {
-            await deleteInvoice(inv.id);
+        if (kind === "REMINDER") {
+          if (!reminderTarget) {
+            toast.error("Bitte eine Rechnung auswählen, die bemahnt werden soll");
+            return;
           }
+          const created = await createInvoice(
+            projectId,
+            computedDueDate,
+            0,
+            { relatedInvoiceId: reminderTarget }
+          );
+          toast.success(`Mahnung ${created.number} angelegt`);
+          window.open(
+            `/api/projects/${projectId}/invoices/${created.id}/pdf`,
+            "_blank"
+          );
+        } else {
+          if (hasExisting) {
+            for (const inv of existingInvoices) {
+              await deleteInvoice(inv.id);
+            }
+          }
+          const inv = await createInvoice(projectId, computedDueDate, defaultTotal);
+          toast.success(
+            hasExisting
+              ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
+              : `Rechnung ${inv.number} angelegt`
+          );
+          window.open(
+            `/api/projects/${projectId}/invoices/${inv.id}/pdf`,
+            "_blank"
+          );
         }
-        const inv = await createInvoice(projectId, computedDueDate, defaultTotal);
-        toast.success(
-          hasExisting
-            ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
-            : `Rechnung ${inv.number} angelegt`
-        );
-        window.open(
-          `/api/projects/${projectId}/invoices/${inv.id}/pdf`,
-          "_blank"
-        );
         onOpenChange(false);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
@@ -674,7 +716,11 @@ function InvoiceDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {hasExisting ? "Rechnung überschreiben?" : "Rechnung erstellen"}
+            {kind === "REMINDER"
+              ? "Mahnung erstellen"
+              : hasExisting
+                ? "Rechnung überschreiben?"
+                : "Rechnung erstellen"}
           </DialogTitle>
           <DialogDescription>
             Für Projekt <strong>{projectName}</strong>. Nummer wird automatisch
@@ -682,7 +728,47 @@ function InvoiceDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {hasExisting && (
+          <div className="space-y-2">
+            <Label>Typ</Label>
+            <Select
+              value={kind}
+              onValueChange={(v) => setKind(v as "INVOICE" | "REMINDER")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INVOICE">Rechnung</SelectItem>
+                <SelectItem value="REMINDER" disabled={!canBeReminder}>
+                  Mahnung{!canBeReminder && " (keine Rechnung vorhanden)"}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {kind === "REMINDER" && canBeReminder && (
+            <div className="space-y-2">
+              <Label>Zu bemahnende Rechnung</Label>
+              <Select value={reminderTarget} onValueChange={setReminderTarget}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Rechnung wählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {baseInvoices.map((inv) => (
+                    <SelectItem key={inv.id} value={inv.id}>
+                      {inv.number} ·{" "}
+                      {new Intl.NumberFormat("de-DE", {
+                        style: "currency",
+                        currency: "EUR",
+                      }).format(inv.totalGross ?? inv.totalNet)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {kind === "INVOICE" && hasExisting && (
             <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
               Es {existingInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
               <strong>
@@ -695,14 +781,17 @@ function InvoiceDialog({
               wiederverwendet.
             </div>
           )}
+
           <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Rechnungsbetrag</span>
+              <span className="text-muted-foreground">
+                {kind === "REMINDER" ? "Offener Betrag" : "Rechnungsbetrag"}
+              </span>
               <span className="font-mono font-medium tabular-nums">
                 {new Intl.NumberFormat("de-DE", {
                   style: "currency",
                   currency: "EUR",
-                }).format(defaultTotal)}
+                }).format(kind === "REMINDER" ? reminderAmount : defaultTotal)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -723,9 +812,16 @@ function InvoiceDialog({
             >
               Abbrechen
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button
+              type="submit"
+              disabled={pending || (kind === "REMINDER" && !canBeReminder)}
+            >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {hasExisting ? "Überschreiben" : "Rechnung erstellen"}
+              {kind === "REMINDER"
+                ? "Mahnung erstellen"
+                : hasExisting
+                  ? "Überschreiben"
+                  : "Rechnung erstellen"}
             </Button>
           </DialogFooter>
         </form>
