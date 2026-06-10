@@ -486,7 +486,7 @@ export function AssignmentsSection({
             quantity: adHocDialog.quantity,
             unitPrice: adHocDialog.unitPrice,
           });
-          toast.success("Position hinzugefügt");
+          toast.success("Vorübergehendes Gerät hinzugefügt");
         } else if (adHocDialog.id) {
           await updateAdHocItem(adHocDialog.id, {
             groupId: adHocDialog.groupId,
@@ -495,7 +495,7 @@ export function AssignmentsSection({
             quantity: adHocDialog.quantity,
             unitPrice: adHocDialog.unitPrice,
           });
-          toast.success("Position gespeichert");
+          toast.success("Vorübergehendes Gerät gespeichert");
         }
         setAdHocDialog(null);
       } catch (e) {
@@ -736,7 +736,7 @@ export function AssignmentsSection({
                     })
                   }
                 >
-                  <Plus className="h-4 w-4" /> Position hinzufügen
+                  <Plus className="h-4 w-4" /> Vorübergehendes Gerät hinzufügen
                 </Button>
               </div>
             </CardHeader>
@@ -1545,13 +1545,13 @@ export function AssignmentsSection({
           <DialogHeader>
             <DialogTitle>
               {adHocDialog?.mode === "create"
-                ? "Position hinzufügen"
-                : "Position bearbeiten"}
+                ? "Vorübergehendes Gerät hinzufügen"
+                : "Vorübergehendes Gerät bearbeiten"}
             </DialogTitle>
             <DialogDescription>
-              Freie Position für dieses Projekt — z.B. Weiterverkaufs-Geräte
-              ohne Lager-Stammdaten. Wird mit Stückpreis × Anzahl auf
-              Rechnungen/Angeboten ausgegeben, ohne Miet-Tagesfaktor.
+              Z.B. Weiterverkaufs-Geräte ohne Lager-Stammdaten. Wird mit
+              Stückpreis × Anzahl auf Rechnungen/Angeboten ausgegeben, ohne
+              Miet-Tagesfaktor.
             </DialogDescription>
           </DialogHeader>
           <form
