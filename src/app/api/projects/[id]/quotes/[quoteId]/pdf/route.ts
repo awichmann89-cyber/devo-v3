@@ -8,6 +8,7 @@ import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
+import { setupInterFont } from "@/lib/pdf-fonts";
 
 const fmt = (n: number) => n.toFixed(2).replace(".", ",") + " €";
 const INDENT_1 = "    "; // Bereich
@@ -193,6 +194,7 @@ export async function GET(
 
   // ===== PDF erstellen =====
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  setupInterFont(doc);
 
   const ADDR_X = 20;
   const SENDER_Y = 45;
