@@ -383,7 +383,7 @@ export async function GET(
             "",
             "",
             "",
-            "−" + fmt(info.disc),
+            "-" + fmt(info.disc),
             { lighter: true }
           )
         );
@@ -397,7 +397,7 @@ export async function GET(
           "",
           "",
           "",
-          "−" + fmt(materialBereichDisc),
+          "-" + fmt(materialBereichDisc),
           { lighter: true }
         )
       );
@@ -453,7 +453,7 @@ export async function GET(
             "",
             "",
             "",
-            "−" + fmt(info.disc),
+            "-" + fmt(info.disc),
             { lighter: true }
           )
         );
@@ -467,7 +467,7 @@ export async function GET(
           "",
           "",
           "",
-          "−" + fmt(servicesBereichDisc),
+          "-" + fmt(servicesBereichDisc),
           { lighter: true }
         )
       );
@@ -521,7 +521,7 @@ export async function GET(
         content: `Projekt-Rabatt ${Number(project.discountPercent)}%`,
         styles: { halign: "right" },
       },
-      { content: "−" + fmt(projectDiscount), styles: { halign: "right" } },
+      { content: "-" + fmt(projectDiscount), styles: { halign: "right" } },
     ]);
   }
   totalsBody.push([
