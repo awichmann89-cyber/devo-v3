@@ -772,7 +772,7 @@ export function AssignmentsSection({
                         + bereits in <span className="font-medium">{foreignNames}</span>
                       </>
                     )}
-                    , Lager: <span className="font-medium">{stock}</span>
+                    , Bestand: <span className="font-medium">{stock}</span>
                   </span>
                 </div>
               </TableCell>
@@ -880,7 +880,7 @@ export function AssignmentsSection({
                       in {conf.foreignBookings.map((f) => f.projectName).join(", ")}
                     </>
                   )}
-                  , Lager: <span className="font-medium">{stock}</span>
+                  , Bestand: <span className="font-medium">{stock}</span>
                 </span>
               </div>
             </TableCell>
@@ -1854,7 +1854,7 @@ export function AssignmentsSection({
                                                 in {conf.foreignBookings.map((f) => f.projectName).join(", ")}
                                               </>
                                             )}
-                                            , Lager: <span className="font-medium">{stock}</span>
+                                            , Bestand: <span className="font-medium">{stock}</span>
                                           </span>
                                         </div>
                                       </TableCell>
