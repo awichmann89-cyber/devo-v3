@@ -886,7 +886,7 @@ export function ServicesSection({
                                 <SortableRow
                                   id={r.sortId}
                                   key={r.sortId}
-                                  className="bg-muted/60 hover:bg-muted/70 border-t-2"
+                                  className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 border-t-2 border-blue-200 dark:border-blue-900/50"
                                 >
                                   <DragHandleCell />
                                   <TableCell colSpan={4} className="py-3 text-base font-semibold text-foreground">
