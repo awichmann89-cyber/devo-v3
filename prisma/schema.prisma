@@ -501,6 +501,9 @@ model Quote {
   totalNet   Decimal  @db.Decimal(10, 2)
   totalGross Decimal? @db.Decimal(10, 2)
   vatPercent Decimal  @default(0) @db.Decimal(5, 2)
+  // Freitext-Hinweis, der im PDF zwischen Begrüßung und Positionstabelle
+  // ausgegeben wird. Wird beim Erstellen des Angebots im Dialog eingegeben.
+  notes      String?
   createdAt  DateTime @default(now())
 
   @@index([projectId])

@@ -55,6 +55,16 @@ export async function saveReminderNumberSettings(
   revalidatePath("/settings");
 }
 
+export async function saveQuoteTexts(introText: string, outroText: string) {
+  await requireRole(CAN_ADMIN);
+  // Sehr lange Texte begrenzen, damit die Settings-Spalte nicht explodiert
+  const intro = (introText ?? "").slice(0, 4000);
+  const outro = (outroText ?? "").slice(0, 4000);
+  await setSetting("quoteIntroText" as SettingKey, intro);
+  await setSetting("quoteOutroText" as SettingKey, outro);
+  revalidatePath("/settings");
+}
+
 export async function saveInvoiceDueDays(days: number) {
   await requireRole(CAN_ADMIN);
   const clamped = Math.max(0, Math.min(365, Math.floor(days) || 0));

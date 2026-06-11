@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -888,6 +889,7 @@ function QuoteDialog({
   existingQuotes: FinancesQuoteVM[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [notes, setNotes] = useState("");
   const hasExisting = existingQuotes.length > 0;
   const computedExpiresAt = new Date();
   computedExpiresAt.setDate(computedExpiresAt.getDate() + validityDays);
@@ -901,7 +903,12 @@ function QuoteDialog({
             await deleteQuote(q.id);
           }
         }
-        const q = await createQuote(projectId, computedExpiresAt, defaultTotal);
+        const q = await createQuote(
+          projectId,
+          computedExpiresAt,
+          defaultTotal,
+          notes
+        );
         toast.success(
           hasExisting
             ? `Angebot ${q.number} angelegt (alte überschrieben)`
@@ -959,6 +966,20 @@ function QuoteDialog({
                 {computedExpiresAt.toLocaleDateString("de-DE")}
               </span>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-notes">Hinweis (optional)</Label>
+            <Textarea
+              id="quote-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Z.B. besondere Konditionen, Auf-/Abbau-Zeiten, individuelle Vereinbarungen…"
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              Wird im PDF direkt nach der Positionstabelle ausgegeben, vor
+              dem AGB-Hinweis.
+            </p>
           </div>
           <DialogFooter>
             <Button

@@ -37,6 +37,7 @@ export async function GET(
           },
           services: { include: { serviceItem: true } },
           adHocItems: { orderBy: { sortOrder: "asc" } },
+          maintainer: { select: { name: true, email: true } },
         },
       },
     },
@@ -251,7 +252,26 @@ export async function GET(
           .join(" | ");
   doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
 
-  const tableStartY = metaY + 10;
+  // ===== Einleitungstext vor der Tabelle =====
+  // Aus den Einstellungen (Settings → Angebote → „Texte im Angebots-PDF").
+  const INTRO_TEXT = (settings.quoteIntroText ?? "").trim();
+
+  let introY = metaY + 12;
+  doc.setFontSize(10);
+  doc.setFont(undefined as unknown as string, "normal");
+  // Auf maximal Seitenbreite umbrechen
+  const PAGE_WIDTH = doc.internal.pageSize.getWidth();
+  const TEXT_RIGHT_MARGIN = 14;
+  const textWidth = PAGE_WIDTH - ADDR_X - TEXT_RIGHT_MARGIN;
+  const introLines = INTRO_TEXT
+    ? (doc.splitTextToSize(INTRO_TEXT, textWidth) as string[])
+    : [];
+  for (const line of introLines) {
+    doc.text(line, ADDR_X, introY);
+    introY += 5;
+  }
+
+  const tableStartY = (introLines.length > 0 ? introY + 6 : metaY + 10);
 
   // ===== Eine große Tabelle für alles =====
   // Spalten: Bezeichnung | Menge | €/Einheit | Tage | Summe
@@ -578,6 +598,68 @@ export async function GET(
     doc.addPage();
     endY = 35;
   }
+
+  // ===== Schlusstext mit Hinweis, AGB, Grüßen und Signatur =====
+  // OUTRO_TEXT aus den Einstellungen (Settings → Angebote).
+  const OUTRO_TEXT = (settings.quoteOutroText ?? "").trim();
+
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.setFont(undefined as unknown as string, "normal");
+  const outroWidth = PAGE_WIDTH - ADDR_X - 14;
+  const noteText = quote.notes && quote.notes.trim() ? quote.notes.trim() : "";
+  const noteLines = noteText
+    ? (doc.splitTextToSize(noteText, outroWidth) as string[])
+    : [];
+  const outroLines = OUTRO_TEXT
+    ? (doc.splitTextToSize(OUTRO_TEXT, outroWidth) as string[])
+    : [];
+  // Seitenumbruch falls Hinweis + Schlusstext + Signatur nicht mehr passen
+  const REQUIRED_FOR_OUTRO =
+    (noteLines.length > 0 ? noteLines.length * 5 + 5 : 0) +
+    outroLines.length * 5 +
+    32;
+  if (endY + REQUIRED_FOR_OUTRO > PAGE_HEIGHT - PAGE_BOTTOM_RESERVED) {
+    doc.addPage();
+    endY = 35;
+  }
+  let outroY = endY + 4;
+  // 1. Optionaler Hinweistext aus dem Dialog
+  for (const line of noteLines) {
+    doc.text(line, ADDR_X, outroY);
+    outroY += 5;
+  }
+  if (noteLines.length > 0) {
+    outroY += 5;
+  }
+  // 2. Fester AGB-/Abschlusstext
+  for (const line of outroLines) {
+    doc.text(line, ADDR_X, outroY);
+    outroY += 5;
+  }
+
+  // Mit freundlichen Grüßen + Projektverantwortlicher + Firmenname (eingerückt)
+  outroY += 8;
+  doc.text("Mit freundlichen Grüßen", ADDR_X, outroY);
+  outroY += 10;
+  const SIGNATURE_INDENT = ADDR_X + 6;
+  const maintainerName =
+    project.maintainer?.name ||
+    project.maintainer?.email ||
+    "";
+  if (maintainerName) {
+    doc.setFont(undefined as unknown as string, "bold");
+    doc.text(maintainerName, SIGNATURE_INDENT, outroY);
+    outroY += 5;
+    doc.setFont(undefined as unknown as string, "normal");
+  }
+  const companyName = (settings.companyName || "PubliXound").trim();
+  if (companyName) {
+    doc.text(companyName, SIGNATURE_INDENT, outroY);
+    outroY += 5;
+  }
+
+  endY = outroY;
 
   // Footer-Hinweis
   doc.setFontSize(8);

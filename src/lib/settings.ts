@@ -10,6 +10,13 @@ export const SETTING_DEFAULTS = {
   quoteNumberPrefix: "AN",
   quoteNumberPadding: "3",
   quoteNumberNextSequence: "1",
+  // Texte für das Angebots-PDF — können in den Einstellungen angepasst werden.
+  // Der Intro-Text steht vor der Positionstabelle, der Outro-Text danach
+  // (gefolgt von „Mit freundlichen Grüßen" und der Signatur).
+  quoteIntroText:
+    "Sehr geehrte Damen und Herren,\n\nherzlichen Dank für Ihr Interesse an einer Zusammenarbeit. Nachfolgend erhalten Sie unser Angebot mit dem angefragten Leistungsumfang.",
+  quoteOutroText:
+    "Grundlage dieses Angebots sind unsere Allgemeinen Geschäftsbedingungen (AGB). Diese finden Sie unter www.publixound.de. Wir hoffen, ein Angebot in Ihrem Sinne erstellt zu haben und würden uns über eine Auftragserteilung und die damit einhergehende Zusammenarbeit sehr freuen.",
   companyName: "",
   companyStreet: "",
   companyZipCity: "",

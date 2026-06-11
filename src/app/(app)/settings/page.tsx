@@ -7,6 +7,7 @@ import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
 import { ReminderNumberForm } from "./reminder-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
+import { QuoteTextsForm } from "./quote-texts-form";
 import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
@@ -258,6 +259,23 @@ export default async function SettingsPage() {
                 description="0 = nur am Erstellungstag gültig. Max. 365."
                 onSave={saveQuoteValidityDays}
                 successMessage="Gültigkeit gespeichert"
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Texte im Angebots-PDF</CardTitle>
+              <CardDescription>
+                Standardtexte vor und nach der Positionstabelle. Pro Angebot
+                kann zusätzlich ein individueller Hinweistext im Dialog
+                eingegeben werden — der erscheint zwischen Tabelle und
+                Schlusstext.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <QuoteTextsForm
+                initialIntro={settings.quoteIntroText}
+                initialOutro={settings.quoteOutroText}
               />
             </CardContent>
           </Card>

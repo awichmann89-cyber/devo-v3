@@ -204,7 +204,8 @@ export async function deleteInvoice(invoiceId: string) {
 export async function createQuote(
   projectId: string,
   expiresAt: Date,
-  totalNet: number
+  totalNet: number,
+  notes?: string | null
 ): Promise<{ id: string; number: string }> {
   await requireRole(CAN_WRITE);
 
@@ -242,6 +243,7 @@ export async function createQuote(
       totalNet: totalNetDec,
       totalGross: totalGrossDec,
       vatPercent: new Prisma.Decimal(vatPercent),
+      notes: notes?.trim() || null,
     },
     select: { id: true, number: true },
   });
