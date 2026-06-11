@@ -42,6 +42,7 @@ export async function GET(
           },
           services: { include: { serviceItem: true } },
           adHocItems: { orderBy: { sortOrder: "asc" } },
+          groupComments: { orderBy: { sortOrder: "asc" } },
         },
       },
     },
@@ -67,6 +68,8 @@ export async function GET(
     description: string | null;
     dailyRate: number;
     quantity: number;
+    /** Reihenfolge: kleinstes sortOrder unter den aggregierten Assignments */
+    sortOrder: number;
   };
   // Nicht-abrechenbare Gruppen werden auf Angeboten/Rechnungen komplett
   // weggelassen — weder in Tabellen noch in Summen oder Rabatten.
@@ -86,10 +89,14 @@ export async function GET(
       lookup.set(`${r.name}|${r.manufacturer}|${r.model}|${r.dailyRate}`, r);
     }
     const qty = a.quantity;
+    const aSort = a.sortOrder ?? 0;
     const key = `${a.device.name}|${a.device.manufacturer}|${a.device.model}|${Number(a.device.dailyRate)}`;
     const existing = lookup.get(key);
-    if (existing) existing.quantity += qty;
-    else {
+    if (existing) {
+      existing.quantity += qty;
+      // Aggregat-Position = frühste sortOrder unter den vereinten Assignments
+      if (aSort < existing.sortOrder) existing.sortOrder = aSort;
+    } else {
       const row: MaterialRow = {
         name: a.device.name,
         manufacturer: a.device.manufacturer,
@@ -97,14 +104,16 @@ export async function GET(
         description: a.device.description,
         dailyRate: Number(a.device.dailyRate),
         quantity: qty,
+        sortOrder: aSort,
       };
       lookup.set(key, row);
       groupMap.push(row);
     }
     materialByGroup.set(a.groupId, groupMap);
   }
+  // Sortierung nach sortOrder statt nach Name — übernimmt die UI-Reihenfolge.
   for (const arr of materialByGroup.values()) {
-    arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
+    arr.sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   // ===== Ad-hoc-Positionen pro Gruppe (Verkauf etc.) =====
@@ -114,6 +123,7 @@ export async function GET(
     description: string | null;
     unitPrice: number;
     quantity: number;
+    sortOrder: number;
   };
   const adHocByGroup = new Map<string, AdHocRow[]>();
   for (const it of project.adHocItems) {
@@ -123,17 +133,27 @@ export async function GET(
       description: it.description,
       unitPrice: Number(it.unitPrice),
       quantity: it.quantity,
+      sortOrder: it.sortOrder ?? 0,
     });
     adHocByGroup.set(it.groupId, arr);
   }
   for (const arr of adHocByGroup.values()) {
-    arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
+    arr.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  // ===== Kommentar-Zeilen pro Gruppe =====
+  type CommentRow = { text: string; sortOrder: number };
+  const commentsByGroup = new Map<string, CommentRow[]>();
+  for (const c of project.groupComments) {
+    const arr = commentsByGroup.get(c.groupId) ?? [];
+    arr.push({ text: c.text, sortOrder: c.sortOrder ?? 0 });
+    commentsByGroup.set(c.groupId, arr);
   }
 
   // ===== Services pro Gruppe =====
   const servicesByGroup = new Map<
     string,
-    { name: string; kind: string; unit: string; quantity: number; price: number }[]
+    { name: string; kind: string; unit: string; quantity: number; price: number; sortOrder: number }[]
   >();
   for (const ps of project.services) {
     const arr = servicesByGroup.get(ps.groupId) ?? [];
@@ -145,11 +165,12 @@ export async function GET(
       price: ps.unitPriceOverride
         ? Number(ps.unitPriceOverride)
         : Number(ps.serviceItem.unitPrice),
+      sortOrder: ps.sortOrder ?? 0,
     });
     servicesByGroup.set(ps.groupId, arr);
   }
   for (const arr of servicesByGroup.values()) {
-    arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
+    arr.sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   // ===== Berechnungen =====
@@ -334,54 +355,73 @@ export async function GET(
     for (const group of materialGroups) {
       const rows = materialByGroup.get(group.id) ?? [];
       const adHoc = adHocByGroup.get(group.id) ?? [];
-      if (rows.length === 0 && adHoc.length === 0) continue;
+      const comments = commentsByGroup.get(group.id) ?? [];
+      if (rows.length === 0 && adHoc.length === 0 && comments.length === 0) continue;
       const info = groupNetMap.get(group.id)!;
 
       body.push(
         row(INDENT_1 + group.name, "", "", "", "", { bold: true, bg: GROUP_BG })
       );
-      for (const r of rows) {
-        const line = r.dailyRate * r.quantity * factor;
-        const make = [r.manufacturer, r.model].filter(Boolean).join(" ");
-        // Make-Zeile nur, wenn sie zusätzliche Info bringt
-        const label =
-          make && make.toLowerCase() !== r.name.toLowerCase()
-            ? `${INDENT_2}${r.name}\n${INDENT_2}${make}`
-            : `${INDENT_2}${r.name}`;
-        body.push(
-          row(
-            label,
-            String(r.quantity),
-            fmt(r.dailyRate),
-            factorLabel,
-            fmt(line)
-          )
-        );
-        if (r.description && r.description.trim()) {
+
+      // Devices + AdHoc + Comments in einer geordneten Liste nach sortOrder.
+      type Mixed =
+        | { kind: "DEVICE"; sortOrder: number; row: MaterialRow }
+        | { kind: "ADHOC"; sortOrder: number; row: AdHocRow }
+        | { kind: "COMMENT"; sortOrder: number; row: CommentRow };
+      const mixed: Mixed[] = [
+        ...rows.map((r) => ({ kind: "DEVICE" as const, sortOrder: r.sortOrder, row: r })),
+        ...adHoc.map((r) => ({ kind: "ADHOC" as const, sortOrder: r.sortOrder, row: r })),
+        ...comments.map((c) => ({ kind: "COMMENT" as const, sortOrder: c.sortOrder, row: c })),
+      ].sort((a, b) => a.sortOrder - b.sortOrder);
+
+      for (const item of mixed) {
+        if (item.kind === "COMMENT") {
+          // Kommentar-Zeile als gespannte, fette Zwischenüberschrift
           body.push([
             {
-              content: `${INDENT_3}${r.description.trim()}`,
+              content: `${INDENT_2}${item.row.text}`,
               colSpan: 5,
               styles: {
-                fontSize: 8,
-                textColor: 140,
-                cellPadding: { top: 0, bottom: 1.5, left: 2, right: 2 },
+                fontStyle: "bold",
+                fontSize: 10,
+                fillColor: [240, 240, 240] as [number, number, number],
+                cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
               },
             },
           ]);
+          continue;
         }
-      }
-      // Ad-hoc-Positionen: Stückpreis × Menge, KEIN Tagesfaktor (Faktor-Spalte leer)
-      for (const r of adHoc) {
+        if (item.kind === "DEVICE") {
+          const r = item.row;
+          const line = r.dailyRate * r.quantity * factor;
+          const make = [r.manufacturer, r.model].filter(Boolean).join(" ");
+          const label =
+            make && make.toLowerCase() !== r.name.toLowerCase()
+              ? `${INDENT_2}${r.name}\n${INDENT_2}${make}`
+              : `${INDENT_2}${r.name}`;
+          body.push(
+            row(label, String(r.quantity), fmt(r.dailyRate), factorLabel, fmt(line))
+          );
+          if (r.description && r.description.trim()) {
+            body.push([
+              {
+                content: `${INDENT_3}${r.description.trim()}`,
+                colSpan: 5,
+                styles: {
+                  fontSize: 8,
+                  textColor: 140,
+                  cellPadding: { top: 0, bottom: 1.5, left: 2, right: 2 },
+                },
+              },
+            ]);
+          }
+          continue;
+        }
+        // ADHOC
+        const r = item.row;
         const line = r.unitPrice * r.quantity;
         body.push(
-          row(
-            `${INDENT_2}${r.name}`,
-            String(r.quantity),
-            fmt(r.unitPrice),
-            "",
-            fmt(line)
-          )
+          row(`${INDENT_2}${r.name}`, String(r.quantity), fmt(r.unitPrice), "", fmt(line))
         );
         if (r.description && r.description.trim()) {
           body.push([
@@ -448,13 +488,40 @@ export async function GET(
 
     for (const group of serviceGroups) {
       const items = servicesByGroup.get(group.id) ?? [];
-      if (items.length === 0) continue;
+      const comments = commentsByGroup.get(group.id) ?? [];
+      if (items.length === 0 && comments.length === 0) continue;
       const info = groupNetMap.get(group.id)!;
 
       body.push(
         row(INDENT_1 + group.name, "", "", "", "", { bold: true, bg: GROUP_BG })
       );
-      for (const r of items) {
+
+      // Services + Comments nach sortOrder gemischt
+      type SMixed =
+        | { kind: "SERVICE"; sortOrder: number; row: (typeof items)[number] }
+        | { kind: "COMMENT"; sortOrder: number; row: CommentRow };
+      const smixed: SMixed[] = [
+        ...items.map((r) => ({ kind: "SERVICE" as const, sortOrder: r.sortOrder, row: r })),
+        ...comments.map((c) => ({ kind: "COMMENT" as const, sortOrder: c.sortOrder, row: c })),
+      ].sort((a, b) => a.sortOrder - b.sortOrder);
+
+      for (const item of smixed) {
+        if (item.kind === "COMMENT") {
+          body.push([
+            {
+              content: `${INDENT_2}${item.row.text}`,
+              colSpan: 5,
+              styles: {
+                fontStyle: "bold",
+                fontSize: 10,
+                fillColor: [240, 240, 240] as [number, number, number],
+                cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
+              },
+            },
+          ]);
+          continue;
+        }
+        const r = item.row;
         const line = r.quantity * r.price;
         const label = `${INDENT_2}${r.name}\n${INDENT_2}${r.kind} · ${r.unit}`;
         body.push(

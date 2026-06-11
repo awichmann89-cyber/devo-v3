@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -85,8 +86,31 @@ import {
   updateAdHocItem,
   deleteAdHocItem,
 } from "./adhoc-actions";
-import type { ProjectAdHocItem } from "@prisma/client";
-import { Plus } from "lucide-react";
+import {
+  reorderGroupItems,
+  addGroupComment,
+  updateGroupComment,
+  deleteGroupComment,
+  type GroupItemKind,
+} from "./group-items-actions";
+import type { ProjectAdHocItem, ProjectGroupComment } from "@prisma/client";
+import { Plus, MessageSquarePlus } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
 
 type DeviceLite = Device & { category: Category | null };
 type CableLite = Cable & { category: Category | null };
@@ -140,6 +164,7 @@ interface Props {
   groups: ProjectGroup[];
   cableGroups: ProjectGroup[];
   adHocItems: ProjectAdHocItem[];
+  groupComments: ProjectGroupComment[];
   categories: Category[];
   scanProgress: { packed: number; total: number };
 }
@@ -166,6 +191,7 @@ export function AssignmentsSection({
   groups,
   cableGroups,
   adHocItems,
+  groupComments,
   categories,
   scanProgress,
 }: Props) {
@@ -457,6 +483,116 @@ export function AssignmentsSection({
     adHocByGroup.set(it.groupId, arr);
   }
 
+  // Kommentar-Zeilen pro Gruppe
+  const commentsByGroup = new Map<string, ProjectGroupComment[]>();
+  for (const c of groupComments) {
+    const arr = commentsByGroup.get(c.groupId) ?? [];
+    arr.push(c);
+    commentsByGroup.set(c.groupId, arr);
+  }
+
+  // ----- DnD-Setup -----
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  type GroupRow = {
+    sortId: string; // "DEVICE:abc", "ADHOC:xyz", "COMMENT:c1", "CABLE:k1"
+    kind: GroupItemKind;
+    id: string;
+    sortOrder: number;
+  };
+
+  /** Items + AdHoc + Comments einer Gruppe als geordnete Liste (für DnD und Render). */
+  function buildDeviceGroupRows(groupId: string): GroupRow[] {
+    const out: GroupRow[] = [];
+    for (const a of assignmentsByGroup.get(groupId) ?? []) {
+      out.push({ sortId: `DEVICE:${a.id}`, kind: "DEVICE", id: a.id, sortOrder: a.sortOrder ?? 0 });
+    }
+    for (const it of adHocByGroup.get(groupId) ?? []) {
+      out.push({ sortId: `ADHOC:${it.id}`, kind: "ADHOC", id: it.id, sortOrder: it.sortOrder ?? 0 });
+    }
+    for (const c of commentsByGroup.get(groupId) ?? []) {
+      out.push({ sortId: `COMMENT:${c.id}`, kind: "COMMENT", id: c.id, sortOrder: c.sortOrder ?? 0 });
+    }
+    return out.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+  function buildCableGroupRows(groupId: string): GroupRow[] {
+    const out: GroupRow[] = [];
+    for (const ca of cableAssignmentsByGroup.get(groupId) ?? []) {
+      out.push({ sortId: `CABLE:${ca.id}`, kind: "CABLE", id: ca.id, sortOrder: ca.sortOrder ?? 0 });
+    }
+    for (const c of commentsByGroup.get(groupId) ?? []) {
+      out.push({ sortId: `COMMENT:${c.id}`, kind: "COMMENT", id: c.id, sortOrder: c.sortOrder ?? 0 });
+    }
+    return out.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  function handleDragEnd(rows: GroupRow[], e: DragEndEvent) {
+    if (!e.over || e.active.id === e.over.id) return;
+    const oldIdx = rows.findIndex((r) => r.sortId === e.active.id);
+    const newIdx = rows.findIndex((r) => r.sortId === e.over!.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const ordered = arrayMove(rows, oldIdx, newIdx);
+    startTransition(async () => {
+      try {
+        await reorderGroupItems(
+          project.id,
+          ordered.map((r) => ({ kind: r.kind, id: r.id }))
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Fehler beim Sortieren");
+      }
+    });
+  }
+
+  // ----- Kommentar-Dialog -----
+  const [commentDialog, setCommentDialog] = useState<{
+    mode: "create" | "edit";
+    id?: string;
+    groupId: string;
+    text: string;
+  } | null>(null);
+  const [commentDelete, setCommentDelete] = useState<ProjectGroupComment | null>(null);
+
+  function handleSaveComment() {
+    if (!commentDialog) return;
+    const text = commentDialog.text.trim();
+    if (!text) {
+      toast.error("Text darf nicht leer sein");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        if (commentDialog.mode === "create") {
+          await addGroupComment(project.id, commentDialog.groupId, text);
+          toast.success("Kommentar hinzugefügt");
+        } else if (commentDialog.id) {
+          await updateGroupComment(commentDialog.id, text);
+          toast.success("Kommentar gespeichert");
+        }
+        setCommentDialog(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleDeleteComment() {
+    if (!commentDelete) return;
+    const id = commentDelete.id;
+    startTransition(async () => {
+      try {
+        await deleteGroupComment(id);
+        setCommentDelete(null);
+        toast.success("Kommentar entfernt");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
   type AdHocDialogState = {
     mode: "create" | "edit";
     id?: string;
@@ -516,6 +652,289 @@ export function AssignmentsSection({
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
     });
+  }
+
+  /** Rendert eine sortierbare Geräte-Zeile innerhalb der Material-Tabelle. */
+  function renderDeviceRow(a: AssignmentWithDevice, sortId: string) {
+    const conflict = conflictMap[a.deviceId];
+    const isReserved = reservedSet.has(a.deviceId);
+    const isOver =
+      !isReserved &&
+      conflict &&
+      conflict.totalDemand > a.device.stockQuantity;
+    const rate = Number(a.device.dailyRate);
+    const lineTotal = rate * a.quantity * billingFactor;
+    return (
+      <Fragment key={sortId}>
+        <SortableRow
+          id={sortId}
+          className={cn(
+            isOver &&
+              "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+          )}
+        >
+          <DragHandleCell />
+          <TableCell>
+            <div className={cn("font-medium", isOver && "text-destructive")}>
+              {a.device.name}
+            </div>
+            {a.device.description?.trim() && (
+              <div className="text-[11px] text-muted-foreground truncate">
+                {a.device.description}
+              </div>
+            )}
+          </TableCell>
+          <TableCell className="text-right">
+            <QuantityInput
+              min={1}
+              value={a.quantity}
+              onChange={(v) => handleQtyChange(a.id, v)}
+              disabled={pending}
+              className={cn(
+                "h-8 w-16 text-right tabular-nums ml-auto",
+                isOver && "border-destructive focus-visible:ring-destructive"
+              )}
+            />
+          </TableCell>
+          <TableCell className="text-right tabular-nums font-mono text-sm">
+            {formatCurrency(rate)}
+          </TableCell>
+          <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+            {formatCurrency(lineTotal)}
+          </TableCell>
+          <TableCell>
+            {isReserved ? (
+              <span className="text-xs font-medium text-green-600">gebucht</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center justify-end gap-1">
+              {groups.length > 1 && (
+                <Select
+                  value={a.groupId}
+                  onValueChange={(v) => handleMoveToGroup(a.id, v)}
+                >
+                  <SelectTrigger className="h-7 w-[110px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((og) => (
+                      <SelectItem key={og.id} value={og.id}>
+                        {og.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => handleRemove(a.id)}
+                disabled={pending}
+                title="Entfernen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </TableCell>
+        </SortableRow>
+        {isOver && (() => {
+          const stock = a.device.stockQuantity;
+          const booked = conflict.ownBookedQuantity || a.quantity;
+          const ownEff = conflict.ownEffectiveQuantity || booked;
+          const ownExtra = ownEff - booked;
+          const ownPacks = conflict.ownBlockingPackUnits;
+          const overBy = conflict.totalDemand - stock;
+          const foreignNames = conflict.otherProjects
+            .map((op) => op.projectName)
+            .join(", ");
+          return (
+            <TableRow className="bg-destructive/10 hover:bg-destructive/10">
+              <TableCell colSpan={7} className="py-1.5 text-xs text-destructive">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    <span className="font-semibold">{overBy} zu viel:</span>{" "}
+                    <span className="font-medium">{booked}</span> gebucht
+                    {ownExtra > 0 && ownPacks.length > 0 && (
+                      <>
+                        {" "}
+                        → <span className="font-medium">{ownEff}</span> belegt
+                        durch Case „{ownPacks[0].name}" ({ownPacks[0].perUnit}/Case)
+                      </>
+                    )}
+                    {foreignNames && (
+                      <>
+                        {" "}
+                        + bereits in <span className="font-medium">{foreignNames}</span>
+                      </>
+                    )}
+                    , Lager: <span className="font-medium">{stock}</span>
+                  </span>
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+        })()}
+      </Fragment>
+    );
+  }
+
+  /** Rendert eine sortierbare Kabel-Zeile innerhalb der Kabel-Tabelle. */
+  function renderCableRow(ca: CableAssignmentWithCable, sortId: string) {
+    const conf = cableConflictMap[ca.cableId];
+    const totalDemand =
+      (conf?.packAllocation ?? 0) + (conf?.foreignTotal ?? 0) + ca.quantity;
+    const stock = conf?.stock ?? ca.cable.stockQuantity;
+    const isOver = totalDemand > stock;
+    const overBy = totalDemand - stock;
+    return (
+      <Fragment key={sortId}>
+        <SortableRow
+          id={sortId}
+          className={cn(
+            isOver &&
+              "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+          )}
+        >
+          <DragHandleCell />
+          <TableCell>
+            <div className={cn("font-medium", isOver && "text-destructive")}>
+              {ca.cable.name}
+            </div>
+            {ca.cable.cableType && (
+              <div className="text-[11px] text-muted-foreground">
+                {ca.cable.cableType}
+                {ca.cable.lengthMeters
+                  ? ` · ${Number(ca.cable.lengthMeters)} m`
+                  : ""}
+              </div>
+            )}
+          </TableCell>
+          <TableCell className="text-right">
+            <QuantityInput
+              min={1}
+              value={ca.quantity}
+              onChange={(v) => handleCableQtyChange(ca.id, v)}
+              disabled={pending}
+              className={cn(
+                "h-8 w-16 text-right tabular-nums ml-auto",
+                isOver && "border-destructive focus-visible:ring-destructive"
+              )}
+            />
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center justify-end gap-1">
+              {cableGroups.length > 1 && (
+                <Select
+                  value={ca.groupId}
+                  onValueChange={(v) => handleMoveCableToGroup(ca.id, v)}
+                >
+                  <SelectTrigger className="h-7 w-[110px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cableGroups.map((og) => (
+                      <SelectItem key={og.id} value={og.id}>
+                        {og.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => handleRemoveCable(ca.id)}
+                disabled={pending}
+                title="Entfernen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </TableCell>
+        </SortableRow>
+        {isOver && (
+          <TableRow className="bg-destructive/10 hover:bg-destructive/10">
+            <TableCell colSpan={4} className="py-1.5 text-xs text-destructive">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <span className="font-semibold">{overBy} zu viel:</span>{" "}
+                  <span className="font-medium">{ca.quantity}</span> gebucht
+                  {conf && conf.packAllocation > 0 && (
+                    <>
+                      {" "}
+                      + <span className="font-medium">{conf.packAllocation}</span>{" "}
+                      in Packeinheiten
+                    </>
+                  )}
+                  {conf && conf.foreignBookings.length > 0 && (
+                    <>
+                      {" "}
+                      + <span className="font-medium">{conf.foreignTotal}</span>{" "}
+                      in {conf.foreignBookings.map((f) => f.projectName).join(", ")}
+                    </>
+                  )}
+                  , Lager: <span className="font-medium">{stock}</span>
+                </span>
+              </div>
+            </TableCell>
+          </TableRow>
+        )}
+      </Fragment>
+    );
+  }
+
+  /** Comment-Row mit demselben Stil wie Geräte-Comments, aber colSpan an die
+   *  Spaltenzahl der Kabel-Tabelle angepasst (Kabel hat 4 Spalten). */
+  function renderCommentRow(c: ProjectGroupComment, sortId: string, colSpan: number) {
+    return (
+      <SortableRow
+        id={sortId}
+        key={sortId}
+        className="bg-muted/60 hover:bg-muted/70 border-t-2"
+      >
+        <DragHandleCell />
+        <TableCell colSpan={colSpan} className="py-3 text-base font-semibold text-foreground">
+          {c.text}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() =>
+                setCommentDialog({
+                  mode: "edit",
+                  id: c.id,
+                  groupId: c.groupId,
+                  text: c.text,
+                })
+              }
+              title="Bearbeiten"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              onClick={() => setCommentDelete(c)}
+              disabled={pending}
+              title="Entfernen"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </SortableRow>
+    );
   }
 
   return (
@@ -793,6 +1212,22 @@ export function AssignmentsSection({
                           className="h-7 w-7"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setCommentDialog({
+                              mode: "create",
+                              groupId: g.id,
+                              text: "",
+                            });
+                          }}
+                          title="Kommentar hinzufügen"
+                        >
+                          <MessageSquarePlus className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setGroupDialog({ mode: "rename", id: g.id, name: g.name, billable: g.billable, kind: "MATERIAL" });
                           }}
                           title="Umbenennen"
@@ -814,16 +1249,31 @@ export function AssignmentsSection({
                       </div>
                     </CardHeader>
                     <CardContent className="pb-3" onClick={(e) => e.stopPropagation()}>
-                    {groupAssignments.length === 0 ? (
+                    {(() => {
+                      // Geräte + Comments gemixt nach sortOrder — AdHoc-Items
+                      // bleiben separat im Bereich darunter.
+                      const mainRows = buildDeviceGroupRows(g.id).filter(
+                        (r) => r.kind !== "ADHOC"
+                      );
+                      if (mainRows.length === 0) {
+                      return (
                       <p className="py-4 text-center text-xs text-muted-foreground">
                         Noch nichts in dieser Gruppe. Klicke ein Gerät aus dem
                         Katalog (Pfeil-Button) — es wird der aktiven Gruppe
                         hinzugefügt.
                       </p>
-                    ) : (
+                      );
+                      }
+                      return (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(e) => handleDragEnd(mainRows, e)}
+                      >
                       <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-6"></TableHead>
                             <TableHead>Gerät</TableHead>
                             <TableHead className="text-right w-[80px]">Anzahl</TableHead>
                             <TableHead className="text-right w-[100px]">€ / Tag</TableHead>
@@ -833,139 +1283,73 @@ export function AssignmentsSection({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {groupAssignments.map((a) => {
-                            const conflict = conflictMap[a.deviceId];
-                            const isReserved = reservedSet.has(a.deviceId);
-                            // Wenn dieses Projekt für das Gerät als reserviert gilt,
-                            // entfällt die Konflikt-Warnung — es hat ja Vorrang.
-                            const isOver =
-                              !isReserved &&
-                              conflict &&
-                              conflict.totalDemand > a.device.stockQuantity;
-                            const rate = Number(a.device.dailyRate);
-                            const lineTotal = rate * a.quantity * billingFactor;
-                            return (
-                              <Fragment key={a.id}>
-                                <TableRow
-                                  className={cn(
-                                    isOver &&
-                                      "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
-                                  )}
-                                >
-                                  <TableCell>
-                                    <div className={cn("font-medium", isOver && "text-destructive")}>
-                                      {a.device.name}
-                                    </div>
-                                    {a.device.description?.trim() && (
-                                      <div className="text-[11px] text-muted-foreground truncate">
-                                        {a.device.description}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <QuantityInput
-                                      min={1}
-                                      value={a.quantity}
-                                      onChange={(v) => handleQtyChange(a.id, v)}
-                                      disabled={pending}
-                                      className={cn(
-                                        "h-8 w-16 text-right tabular-nums ml-auto",
-                                        isOver && "border-destructive focus-visible:ring-destructive"
-                                      )}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-right tabular-nums font-mono text-sm">
-                                    {formatCurrency(rate)}
-                                  </TableCell>
-                                  <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                                    {formatCurrency(lineTotal)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {isReserved ? (
-                                      <span className="text-xs font-medium text-green-600">
-                                        gebucht
-                                      </span>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">—</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center justify-end gap-1">
-                                      {groups.length > 1 && (
-                                        <Select
-                                          value={a.groupId}
-                                          onValueChange={(v) => handleMoveToGroup(a.id, v)}
-                                        >
-                                          <SelectTrigger className="h-7 w-[110px] text-xs">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {groups.map((og) => (
-                                              <SelectItem key={og.id} value={og.id}>
-                                                {og.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      )}
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => handleRemove(a.id)}
-                                        disabled={pending}
-                                        title="Entfernen"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                                {isOver && (() => {
-                                  const stock = a.device.stockQuantity;
-                                  const booked = conflict.ownBookedQuantity || a.quantity;
-                                  const ownEff = conflict.ownEffectiveQuantity || booked;
-                                  const ownExtra = ownEff - booked;
-                                  const ownPacks = conflict.ownBlockingPackUnits;
-                                  const overBy = conflict.totalDemand - stock;
-                                  const foreignNames = conflict.otherProjects
-                                    .map((op) => op.projectName)
-                                    .join(", ");
-
-                                  return (
-                                    <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-                                      <TableCell colSpan={6} className="py-1.5 text-xs text-destructive">
-                                        <div className="flex items-center gap-1.5">
-                                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                          <span>
-                                            <span className="font-semibold">{overBy} zu viel:</span>{" "}
-                                            <span className="font-medium">{booked}</span> gebucht
-                                            {ownExtra > 0 && ownPacks.length > 0 && (
-                                              <>
-                                                {" "}
-                                                → <span className="font-medium">{ownEff}</span> belegt
-                                                durch Case „{ownPacks[0].name}" ({ownPacks[0].perUnit}/Case)
-                                              </>
-                                            )}
-                                            {foreignNames && (
-                                              <>
-                                                {" "}
-                                                + bereits in <span className="font-medium">{foreignNames}</span>
-                                              </>
-                                            )}
-                                            , Lager: <span className="font-medium">{stock}</span>
-                                          </span>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })()}
-                              </Fragment>
+                        <SortableContext
+                          items={mainRows.map((r) => r.sortId)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                        {mainRows.map((r) => {
+                          if (r.kind === "COMMENT") {
+                            const c = (commentsByGroup.get(g.id) ?? []).find(
+                              (x) => x.id === r.id
                             );
-                          })}
+                            if (!c) return null;
+                            return (
+                              <SortableRow
+                                id={r.sortId}
+                                key={r.sortId}
+                                className="bg-muted/60 hover:bg-muted/70 border-t-2"
+                              >
+                                <DragHandleCell />
+                                <TableCell
+                                  colSpan={5}
+                                  className="py-3 text-base font-semibold text-foreground"
+                                >
+                                  {c.text}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() =>
+                                        setCommentDialog({
+                                          mode: "edit",
+                                          id: c.id,
+                                          groupId: c.groupId,
+                                          text: c.text,
+                                        })
+                                      }
+                                      title="Bearbeiten"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive hover:text-destructive"
+                                      onClick={() => setCommentDelete(c)}
+                                      disabled={pending}
+                                      title="Entfernen"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </SortableRow>
+                            );
+                          }
+                          // DEVICE
+                          const a = groupAssignments.find((x) => x.id === r.id);
+                          if (!a) return null;
+                          return renderDeviceRow(a, r.sortId);
+                        })}
+                        </SortableContext>
                         </TableBody>
                       </Table>
-                    )}
+                      </DndContext>
+                      );
+                    })()}
 
                     {/* Ad-hoc-Positionen (Verkauf etc.) — nur sichtbar, wenn
                         die Gruppe welche enthält. Hinzufügen erfolgt über den
@@ -1287,6 +1671,22 @@ export function AssignmentsSection({
                           className="h-7 w-7"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setCommentDialog({
+                              mode: "create",
+                              groupId: g.id,
+                              text: "",
+                            });
+                          }}
+                          title="Kommentar hinzufügen"
+                        >
+                          <MessageSquarePlus className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setGroupDialog({ mode: "rename", id: g.id, name: g.name, billable: g.billable, kind: "CABLE" });
                           }}
                           title="Umbenennen"
@@ -1308,21 +1708,57 @@ export function AssignmentsSection({
                       </div>
                     </CardHeader>
                     <CardContent className="pb-3" onClick={(e) => e.stopPropagation()}>
-                      {groupCables.length === 0 ? (
-                        <p className="py-4 text-center text-xs text-muted-foreground">
-                          Noch nichts in dieser Gruppe. Klicke ein Kabel aus dem
-                          Katalog (Pfeil-Button) — es wird der aktiven Gruppe
-                          hinzugefügt.
-                        </p>
-                      ) : (
-                        <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Kabel</TableHead>
-                              <TableHead className="text-right w-[80px]">Anzahl</TableHead>
-                              <TableHead className="w-[120px]"></TableHead>
-                            </TableRow>
-                          </TableHeader>
+                      {(() => {
+                        const cableRows = buildCableGroupRows(g.id);
+                        if (cableRows.length === 0) {
+                          return (
+                            <p className="py-4 text-center text-xs text-muted-foreground">
+                              Noch nichts in dieser Gruppe. Klicke ein Kabel aus dem
+                              Katalog (Pfeil-Button) — es wird der aktiven Gruppe
+                              hinzugefügt.
+                            </p>
+                          );
+                        }
+                        return (
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={(e) => handleDragEnd(cableRows, e)}
+                          >
+                            <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-6"></TableHead>
+                                  <TableHead>Kabel</TableHead>
+                                  <TableHead className="text-right w-[80px]">Anzahl</TableHead>
+                                  <TableHead className="w-[120px]"></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <SortableContext
+                                  items={cableRows.map((r) => r.sortId)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {cableRows.map((r) => {
+                                    if (r.kind === "COMMENT") {
+                                      const c = (commentsByGroup.get(g.id) ?? []).find(
+                                        (x) => x.id === r.id
+                                      );
+                                      if (!c) return null;
+                                      return renderCommentRow(c, r.sortId, 2);
+                                    }
+                                    const ca = groupCables.find((x) => x.id === r.id);
+                                    if (!ca) return null;
+                                    return renderCableRow(ca, r.sortId);
+                                  })}
+                                </SortableContext>
+                              </TableBody>
+                            </Table>
+                          </DndContext>
+                        );
+                      })()}
+                      {false && (
+                        <Table>
                           <TableBody>
                             {groupCables.map((ca) => {
                               const conf = cableConflictMap[ca.cableId];
@@ -1430,6 +1866,7 @@ export function AssignmentsSection({
                           </TableBody>
                         </Table>
                       )}
+                      {/* /false dead-code */}
                     </CardContent>
                   </Card>
                 );
@@ -1666,6 +2103,68 @@ export function AssignmentsSection({
         confirmLabel="Entfernen"
         pending={pending}
         onConfirm={handleDeleteAdHoc}
+      />
+
+      {/* Kommentar-Dialog (für alle Tabs) */}
+      <Dialog
+        open={commentDialog !== null}
+        onOpenChange={(o) => !o && setCommentDialog(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {commentDialog?.mode === "create"
+                ? "Kommentar hinzufügen"
+                : "Kommentar bearbeiten"}
+            </DialogTitle>
+            <DialogDescription>
+              Freier Text in der Material-/Kabel-/Service-Tabelle. Erscheint
+              auch auf Angeboten und Rechnungen an der gleichen Position.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveComment();
+            }}
+            className="space-y-3"
+          >
+            <Textarea
+              value={commentDialog?.text ?? ""}
+              onChange={(e) =>
+                setCommentDialog((d) => (d ? { ...d, text: e.target.value } : d))
+              }
+              rows={3}
+              autoFocus
+              required
+              placeholder="z.B. Zwischenüberschrift, Hinweis, Erläuterung…"
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCommentDialog(null)}
+                disabled={pending}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {commentDialog?.mode === "create" ? "Hinzufügen" : "Speichern"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={commentDelete !== null}
+        onOpenChange={(o) => !o && setCommentDelete(null)}
+        title="Kommentar entfernen?"
+        description={commentDelete && <>„{commentDelete.text}" wird entfernt.</>}
+        confirmLabel="Entfernen"
+        pending={pending}
+        onConfirm={handleDeleteComment}
       />
       </Card>
 

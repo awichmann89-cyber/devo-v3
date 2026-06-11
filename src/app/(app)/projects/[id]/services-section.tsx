@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Card,
   CardContent,
@@ -51,7 +51,32 @@ import {
   Users,
   Truck,
   Package,
+  MessageSquarePlus,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
+import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  reorderGroupItems,
+  addGroupComment,
+  updateGroupComment,
+  deleteGroupComment,
+} from "./group-items-actions";
 
 /** Icon je ServiceItemKind */
 function kindIcon(kind: ServiceItemKind) {
@@ -79,7 +104,7 @@ import {
 } from "@/lib/labels";
 import { cn, formatCurrency } from "@/lib/utils";
 import { BillingUnit, ServiceItemKind } from "@prisma/client";
-import type { ProjectGroup } from "@prisma/client";
+import type { ProjectGroup, ProjectGroupComment } from "@prisma/client";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
 
 export interface ProjectServiceVM {
@@ -104,11 +129,13 @@ export function ServicesSection({
   projectServices,
   catalog,
   groups,
+  groupComments,
 }: {
   projectId: string;
   projectServices: ProjectServiceVM[];
   catalog: ServiceItemVM[];
   groups: ProjectGroup[];
+  groupComments: ProjectGroupComment[];
 }) {
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<string>("all");
@@ -136,6 +163,109 @@ export function ServicesSection({
     billable: boolean;
   } | null>(null);
   const [deleteGroupPrompt, setDeleteGroupPrompt] = useState<ProjectGroup | null>(null);
+
+  // DnD + Comments
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const commentsByGroup = useMemo(() => {
+    const map = new Map<string, ProjectGroupComment[]>();
+    for (const c of groupComments) {
+      const arr = map.get(c.groupId) ?? [];
+      arr.push(c);
+      map.set(c.groupId, arr);
+    }
+    return map;
+  }, [groupComments]);
+  const [commentDialog, setCommentDialog] = useState<{
+    mode: "create" | "edit";
+    id?: string;
+    groupId: string;
+    text: string;
+  } | null>(null);
+  const [commentDelete, setCommentDelete] = useState<ProjectGroupComment | null>(null);
+
+  type ServiceRow = {
+    sortId: string;
+    kind: "SERVICE" | "COMMENT";
+    id: string;
+    sortOrder: number;
+  };
+  function buildServiceGroupRows(groupId: string): ServiceRow[] {
+    const out: ServiceRow[] = [];
+    for (const ps of projectServices) {
+      if (ps.groupId !== groupId) continue;
+      out.push({
+        sortId: `SERVICE:${ps.id}`,
+        kind: "SERVICE",
+        id: ps.id,
+        sortOrder: (ps as unknown as { sortOrder?: number }).sortOrder ?? 0,
+      });
+    }
+    for (const c of commentsByGroup.get(groupId) ?? []) {
+      out.push({
+        sortId: `COMMENT:${c.id}`,
+        kind: "COMMENT",
+        id: c.id,
+        sortOrder: c.sortOrder,
+      });
+    }
+    return out.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+  function handleDragEnd(rows: ServiceRow[], e: DragEndEvent) {
+    if (!e.over || e.active.id === e.over.id) return;
+    const oldIdx = rows.findIndex((r) => r.sortId === e.active.id);
+    const newIdx = rows.findIndex((r) => r.sortId === e.over!.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const ordered = arrayMove(rows, oldIdx, newIdx);
+    startTransition(async () => {
+      try {
+        await reorderGroupItems(
+          projectId,
+          ordered.map((r) => ({ kind: r.kind, id: r.id }))
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Fehler beim Sortieren");
+      }
+    });
+  }
+
+  function handleSaveComment() {
+    if (!commentDialog) return;
+    const text = commentDialog.text.trim();
+    if (!text) {
+      toast.error("Text darf nicht leer sein");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        if (commentDialog.mode === "create") {
+          await addGroupComment(projectId, commentDialog.groupId, text);
+          toast.success("Kommentar hinzugefügt");
+        } else if (commentDialog.id) {
+          await updateGroupComment(commentDialog.id, text);
+          toast.success("Kommentar gespeichert");
+        }
+        setCommentDialog(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+  function handleDeleteComment() {
+    if (!commentDelete) return;
+    const id = commentDelete.id;
+    startTransition(async () => {
+      try {
+        await deleteGroupComment(id);
+        setCommentDelete(null);
+        toast.success("Kommentar entfernt");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
 
   const usedIds = useMemo(
     () => new Set(projectServices.map((p) => p.serviceItemId)),
@@ -304,6 +434,106 @@ export function ServicesSection({
       sum + p.quantity * (p.unitPriceOverride ?? p.serviceItem.unitPrice),
     0
   );
+
+  /** Rendert eine sortierbare Service-Zeile (Personal/Transport). */
+  function renderServiceRow(ps: ProjectServiceVM, sortId: string) {
+    const otherGroups = groups.filter((g) => g.id !== ps.groupId);
+    const effectivePrice = ps.unitPriceOverride ?? ps.serviceItem.unitPrice;
+    const line = ps.quantity * effectivePrice;
+    const hasOverride = ps.unitPriceOverride !== null;
+    const KindIcon = kindIcon(ps.serviceItem.kind);
+    return (
+      <SortableRow id={sortId} key={sortId}>
+        <DragHandleCell />
+        <TableCell>
+          <div className="flex items-center gap-2 font-medium">
+            <KindIcon
+              className="h-4 w-4 text-muted-foreground"
+              aria-label={serviceItemKindLabel(ps.serviceItem.kind)}
+            />
+            {ps.serviceItem.name}
+          </div>
+          <div className="ml-6 text-[11px] text-muted-foreground">
+            {billingUnitLabel(ps.serviceItem.unit)}
+          </div>
+        </TableCell>
+        <TableCell className="text-right">
+          <Input
+            type="number"
+            step="0.5"
+            min="0"
+            defaultValue={ps.quantity}
+            onBlur={(e) => {
+              const v = Number(e.target.value);
+              if (v !== ps.quantity) handleQty(ps, e.target.value);
+            }}
+            className="h-8 text-right"
+          />
+        </TableCell>
+        <TableCell className="text-right">
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder={ps.serviceItem.unitPrice.toFixed(2)}
+            defaultValue={
+              ps.unitPriceOverride === null ? "" : String(ps.unitPriceOverride)
+            }
+            onBlur={(e) => {
+              const raw = e.target.value;
+              const newVal = raw.trim() === "" ? null : Number(raw);
+              if (newVal !== ps.unitPriceOverride) {
+                handleOverride(ps, raw);
+              }
+            }}
+            className={"h-8 text-right " + (hasOverride ? "border-amber-500" : "")}
+            title={
+              hasOverride
+                ? `Katalogpreis: ${formatCurrency(ps.serviceItem.unitPrice)}`
+                : "Leer = Katalogpreis"
+            }
+          />
+        </TableCell>
+        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+          {formatCurrency(line)}
+        </TableCell>
+        <TableCell>
+          <div className="flex gap-0.5">
+            {otherGroups.length > 0 && (
+              <Select
+                value=""
+                onValueChange={(v) => handleMoveToGroup(ps.id, v)}
+              >
+                <SelectTrigger
+                  className="h-7 w-7 p-0 [&>svg]:hidden"
+                  title="In andere Gruppe verschieben"
+                >
+                  <ChevronRight className="h-3.5 w-3.5 mx-auto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {otherGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      → {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              onClick={() => setConfirmRemove(ps)}
+              disabled={pending}
+              title="Entfernen"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </SortableRow>
+    );
+  }
 
   return (
     <>
@@ -571,6 +801,22 @@ export function ServicesSection({
                           className="h-7 w-7"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setCommentDialog({
+                              mode: "create",
+                              groupId: group.id,
+                              text: "",
+                            });
+                          }}
+                          title="Kommentar hinzufügen"
+                        >
+                          <MessageSquarePlus className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setGroupDialog({
                               mode: "rename",
                               id: group.id,
@@ -597,16 +843,27 @@ export function ServicesSection({
                       </div>
                     </CardHeader>
                     <CardContent className="pb-3">
-                      {groupItems.length === 0 ? (
-                        <p className="py-4 text-center text-xs text-muted-foreground">
-                          Noch nichts in dieser Gruppe. Wähle eine Position aus dem
-                          Katalog (Pfeil-Button) — sie wird der aktiven Gruppe
-                          hinzugefügt.
-                        </p>
-                      ) : (
+                      {(() => {
+                        const serviceRows = buildServiceGroupRows(group.id);
+                        if (serviceRows.length === 0) {
+                          return (
+                            <p className="py-4 text-center text-xs text-muted-foreground">
+                              Noch nichts in dieser Gruppe. Wähle eine Position aus dem
+                              Katalog (Pfeil-Button) — sie wird der aktiven Gruppe
+                              hinzugefügt.
+                            </p>
+                          );
+                        }
+                        return (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => handleDragEnd(serviceRows, e)}
+                        >
                         <Table className="[&_td]:py-2 [&_td]:px-2 [&_th]:h-9 [&_th]:px-2">
                           <TableHeader>
                             <TableRow>
+                              <TableHead className="w-6"></TableHead>
                               <TableHead>Position</TableHead>
                               <TableHead className="w-[90px] text-right">Menge</TableHead>
                               <TableHead className="w-[120px] text-right">€ / Einheit</TableHead>
@@ -614,6 +871,82 @@ export function ServicesSection({
                               <TableHead className="w-[80px]"></TableHead>
                             </TableRow>
                           </TableHeader>
+                          <TableBody>
+                          <SortableContext
+                            items={serviceRows.map((r) => r.sortId)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                          {serviceRows.map((r) => {
+                            if (r.kind === "COMMENT") {
+                              const c = (commentsByGroup.get(group.id) ?? []).find(
+                                (x) => x.id === r.id
+                              );
+                              if (!c) return null;
+                              return (
+                                <SortableRow
+                                  id={r.sortId}
+                                  key={r.sortId}
+                                  className="bg-muted/60 hover:bg-muted/70 border-t-2"
+                                >
+                                  <DragHandleCell />
+                                  <TableCell colSpan={4} className="py-3 text-base font-semibold text-foreground">
+                                    {c.text}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() =>
+                                          setCommentDialog({
+                                            mode: "edit",
+                                            id: c.id,
+                                            groupId: c.groupId,
+                                            text: c.text,
+                                          })
+                                        }
+                                        title="Bearbeiten"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => setCommentDelete(c)}
+                                        disabled={pending}
+                                        title="Entfernen"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </SortableRow>
+                              );
+                            }
+                            const ps = groupItems.find((x) => x.id === r.id);
+                            if (!ps) return null;
+                            return renderServiceRow(ps, r.sortId);
+                          })}
+                          </SortableContext>
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-right font-medium">
+                              Gruppen-Zwischensumme
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                              {formatCurrency(groupSubtotal)}
+                            </TableCell>
+                            <TableCell />
+                          </TableRow>
+                          </TableBody>
+                        </Table>
+                        </DndContext>
+                        );
+                      })()}
+
+                      {false && (
+                        <Table>
                           <TableBody>
                             {groupItems.map((ps) => {
                               const effectivePrice =
@@ -878,6 +1211,68 @@ export function ServicesSection({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Kommentar-Dialog */}
+      <Dialog
+        open={commentDialog !== null}
+        onOpenChange={(o) => !o && setCommentDialog(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {commentDialog?.mode === "create"
+                ? "Kommentar hinzufügen"
+                : "Kommentar bearbeiten"}
+            </DialogTitle>
+            <DialogDescription>
+              Freier Text als Zwischenüberschrift in der Service-Tabelle.
+              Erscheint auch auf Angeboten und Rechnungen.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveComment();
+            }}
+            className="space-y-3"
+          >
+            <Textarea
+              value={commentDialog?.text ?? ""}
+              onChange={(e) =>
+                setCommentDialog((d) => (d ? { ...d, text: e.target.value } : d))
+              }
+              rows={3}
+              autoFocus
+              required
+              placeholder="z.B. Zwischenüberschrift, Hinweis, Erläuterung…"
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCommentDialog(null)}
+                disabled={pending}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {commentDialog?.mode === "create" ? "Hinzufügen" : "Speichern"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={commentDelete !== null}
+        onOpenChange={(o) => !o && setCommentDelete(null)}
+        title="Kommentar entfernen?"
+        description={commentDelete && <>„{commentDelete.text}" wird entfernt.</>}
+        confirmLabel="Entfernen"
+        pending={pending}
+        onConfirm={handleDeleteComment}
+      />
     </>
   );
 }

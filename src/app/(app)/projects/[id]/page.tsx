@@ -43,21 +43,24 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         quotes: { orderBy: { date: "desc" } },
         services: {
           include: { serviceItem: true },
-          orderBy: [{ serviceItem: { kind: "asc" } }, { serviceItem: { name: "asc" } }],
+          orderBy: { sortOrder: "asc" },
         },
         assignments: {
           include: {
             device: { include: { category: true } },
           },
-          orderBy: { device: { name: "asc" } },
+          orderBy: { sortOrder: "asc" },
         },
         cableAssignments: {
           include: {
             cable: { include: { category: true } },
           },
-          orderBy: { cable: { name: "asc" } },
+          orderBy: { sortOrder: "asc" },
         },
         adHocItems: {
+          orderBy: { sortOrder: "asc" },
+        },
+        groupComments: {
           orderBy: { sortOrder: "asc" },
         },
         packingScans: {
@@ -550,6 +553,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
             cableGroups={serialize(project.groups.filter((g) => g.kind === "CABLE"))}
             adHocItems={serialize(project.adHocItems)}
+            groupComments={serialize(project.groupComments)}
             categories={serialize(allCategories)}
             scanProgress={{ packed: scanTotalDone, total: scanTotalRequired }}
           />
@@ -561,6 +565,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             projectServices={serialize(project.services) as never}
             catalog={serialize(serviceCatalog) as never}
             groups={serialize(project.groups.filter((g) => g.kind === "SERVICE"))}
+            groupComments={serialize(project.groupComments)}
           />
         </TabsContent>
 

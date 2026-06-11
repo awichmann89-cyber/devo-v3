@@ -196,6 +196,7 @@ model ProjectCableAssignment {
 
   quantity  Int      @default(1)
   notes     String?
+  sortOrder Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,6 +346,7 @@ model Project {
   assignments     ProjectAssignment[]
   cableAssignments ProjectCableAssignment[]
   adHocItems      ProjectAdHocItem[]
+  groupComments   ProjectGroupComment[]
   // Berechnungszeiträume: Tage für die Mietkalkulation (mehrere möglich)
   billingPeriods  BillingPeriod[]
   // Freie Markdown-Notizen mit Titel
@@ -398,8 +400,28 @@ model ProjectGroup {
   services         ProjectService[]
   cableAssignments ProjectCableAssignment[]
   adHocItems       ProjectAdHocItem[]
+  comments         ProjectGroupComment[]
 
   @@index([projectId, kind, sortOrder])
+}
+
+// Freie Kommentar-/Zwischenüberschrift-Zeile innerhalb einer Gruppe.
+// Wird in der Material-/Service-Tabelle wie eine normale Zeile gerendert,
+// teilt sich den `sortOrder`-Raum mit den anderen Zeilen der Gruppe (Geräte,
+// Kabel, Services, AdHoc-Items).
+model ProjectGroupComment {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  text      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([groupId])
 }
 
 // Freie Position innerhalb eines Projekts — z.B. Weiterverkaufs-Geräte, die
@@ -559,6 +581,7 @@ model ProjectService {
   quantity          Decimal  @default(1) @db.Decimal(10, 2)
   unitPriceOverride Decimal? @db.Decimal(10, 2)
   notes             String?
+  sortOrder         Int      @default(0)
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -611,6 +634,9 @@ model ProjectAssignment {
 
   quantity   Int      @default(1)
   notes      String?
+  // Reihenfolge innerhalb der Gruppe (für Drag & Drop in der UI und damit
+  // auch im Angebots-/Rechnungs-PDF)
+  sortOrder  Int      @default(0)
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
