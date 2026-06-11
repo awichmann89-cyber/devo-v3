@@ -165,13 +165,30 @@ export function FinancesSection({
     // aber Summen nur über abrechenbare bilden.
     const items = groups.filter((g) => g.kind === kind);
     const billableItems = items.filter((g) => g.billable);
-    const subtotal = billableItems.reduce((s, g) => s + groupNet(g).net, 0);
+    // Zwischensumme = Brutto vor allen Rabatten. Bleibt stabil, wenn
+    // Gruppen-Rabatte geändert werden.
+    const subtotal = billableItems.reduce((s, g) => s + g.subtotal, 0);
+    // Summe der Gruppen-Rabatte (in €) — Bereichs-Rabatt setzt darauf an.
+    const groupDiscountsSum = billableItems.reduce(
+      (s, g) => s + groupNet(g).discount,
+      0
+    );
+    const afterGroupDiscounts = subtotal - groupDiscountsSum;
     const discountPercent = safePct(
       kind === "MATERIAL" ? materialDiscountPercent : servicesDiscountPercent
     );
-    const discount = (subtotal * discountPercent) / 100;
-    const net = subtotal - discount;
-    return { items, subtotal, discountPercent, discount, net };
+    // Bereichs-Rabatt wird auf den um Gruppen-Rabatte reduzierten Wert
+    // gerechnet — sonst würde derselbe Betrag doppelt rabattiert.
+    const discount = (afterGroupDiscounts * discountPercent) / 100;
+    const net = afterGroupDiscounts - discount;
+    return {
+      items,
+      subtotal,
+      groupDiscountsSum,
+      discountPercent,
+      discount,
+      net,
+    };
   }
 
   const material = bereich("MATERIAL");
