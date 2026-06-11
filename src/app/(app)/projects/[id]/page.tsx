@@ -252,9 +252,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     return sum + Number(s.quantity) * price;
   }, 0);
 
-  function groupNet(groupId: string, kind: "MATERIAL" | "SERVICE"): number {
-    const g = project!.groups.find((x) => x.id === groupId);
-    if (!g) return 0;
+  /** Brutto-Summe einer Gruppe (vor Gruppen-Rabatt). */
+  function groupGross(groupId: string, kind: "MATERIAL" | "SERVICE"): number {
     let sub = 0;
     if (kind === "MATERIAL") {
       for (const a of project!.assignments) {
@@ -275,6 +274,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         sub += Number(s.quantity) * price;
       }
     }
+    return sub;
+  }
+  /** Netto-Summe einer Gruppe (nach Gruppen-Rabatt). */
+  function groupNet(groupId: string, kind: "MATERIAL" | "SERVICE"): number {
+    const g = project!.groups.find((x) => x.id === groupId);
+    if (!g) return 0;
+    const sub = groupGross(groupId, kind);
     const pct = Number(g.discountPercent ?? 0) || 0;
     return sub - (sub * pct) / 100;
   }
@@ -580,7 +586,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 name: g.name,
                 kind: g.kind as "MATERIAL" | "SERVICE",
                 discountPercent: Number(g.discountPercent ?? 0),
-                subtotal: groupNet(g.id, g.kind as "MATERIAL" | "SERVICE"),
+                // BRUTTO der Gruppe — Gruppen-Rabatt wird in der UI erneut
+                // angewandt und muss daher hier raus, sonst doppelt rabattiert.
+                subtotal: groupGross(g.id, g.kind as "MATERIAL" | "SERVICE"),
                 billable: g.billable,
               }))}
             projectDiscountPercent={projPct}

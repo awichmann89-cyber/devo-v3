@@ -319,8 +319,20 @@ export function FinancesSection({
               disabled={data.items.length === 0}
             />
           </TableCell>
-          <TableCell className="text-right tabular-nums text-muted-foreground">
-            {data.discount > 0 ? "−" + formatCurrency(data.discount) : "—"}
+          <TableCell
+            className="text-right tabular-nums text-muted-foreground"
+            title={
+              data.groupDiscountsSum > 0
+                ? `${formatCurrency(data.groupDiscountsSum)} aus Gruppen-Rabatten` +
+                  (data.discount > 0
+                    ? ` + ${formatCurrency(data.discount)} Bereichs-Rabatt`
+                    : "")
+                : undefined
+            }
+          >
+            {data.subtotal - data.net > 0
+              ? "−" + formatCurrency(data.subtotal - data.net)
+              : "—"}
           </TableCell>
           <TableCell className="text-right tabular-nums font-mono font-semibold">
             {formatCurrency(data.net)}
