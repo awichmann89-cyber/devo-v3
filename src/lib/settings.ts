@@ -108,7 +108,11 @@ export async function recomputeInvoiceNextSequence(): Promise<void> {
       if (n > maxSeq) maxSeq = n;
     }
   }
-  await setSetting("invoiceNumberNextSequence" as SettingKey, String(maxSeq + 1));
+  // Manuell in den Einstellungen hinterlegter Wert (Sprung-Start) wird als
+  // Untergrenze respektiert — sonst würde das Löschen einer Rechnung den
+  // User-Wert versehentlich zurücksetzen.
+  const current = Math.max(1, Number(await getSetting("invoiceNumberNextSequence")) || 1);
+  await setSetting("invoiceNumberNextSequence" as SettingKey, String(Math.max(maxSeq + 1, current)));
 }
 
 /** Analog zu recomputeInvoiceNextSequence, für den Mahnungs-Nummernkreis. */
@@ -126,7 +130,8 @@ export async function recomputeReminderNextSequence(): Promise<void> {
       if (n > maxSeq) maxSeq = n;
     }
   }
-  await setSetting("reminderNumberNextSequence" as SettingKey, String(maxSeq + 1));
+  const current = Math.max(1, Number(await getSetting("reminderNumberNextSequence")) || 1);
+  await setSetting("reminderNumberNextSequence" as SettingKey, String(Math.max(maxSeq + 1, current)));
 }
 
 /** Analog zu recomputeInvoiceNextSequence, für den Angebotsnummern-Kreis. */
@@ -144,7 +149,8 @@ export async function recomputeQuoteNextSequence(): Promise<void> {
       if (n > maxSeq) maxSeq = n;
     }
   }
-  await setSetting("quoteNumberNextSequence" as SettingKey, String(maxSeq + 1));
+  const current = Math.max(1, Number(await getSetting("quoteNumberNextSequence")) || 1);
+  await setSetting("quoteNumberNextSequence" as SettingKey, String(Math.max(maxSeq + 1, current)));
 }
 
 /** Liefert den Kalender-Token, erzeugt einen, falls noch keiner gespeichert ist. */
