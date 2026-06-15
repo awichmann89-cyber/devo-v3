@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { jsPDF } from "jspdf";
 import autoTable, { RowInput } from "jspdf-autotable";
 import { daysBetween } from "@/lib/utils";
-import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
+import { billingUnitLabel, serviceItemKindLabel, projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
@@ -54,8 +54,10 @@ export async function GET(
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
-  const factor = getDayFactor(days, parseDayFactorMap(settings.dayFactorMap));
-  const factorLabel = `${days} (${String(factor).replace(".", ",")})`;
+  // Bei Verkauf-Projekten gilt kein Tagesfaktor — die Spalte „Tage" bleibt leer.
+  const isSale = project.kind === "VERKAUF";
+  const factor = isSale ? 1 : getDayFactor(days, parseDayFactorMap(settings.dayFactorMap));
+  const factorLabel = isSale ? "" : `${days} (${String(factor).replace(".", ",")})`;
 
   // ===== Material aggregieren pro Gruppe =====
   type MaterialRow = {
@@ -259,18 +261,24 @@ export async function GET(
   metaY += 5;
   doc.text(`Gültig bis: ${quote.expiresAt.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
   metaY += 5;
-  doc.text(`Projekt: ${project.name}`, ADDR_X, metaY);
+  doc.text(
+    `Projekt: ${project.name} (${projectKindLabel(project.kind)})`,
+    ADDR_X,
+    metaY
+  );
   metaY += 5;
-  const periodsText =
-    project.billingPeriods.length === 1
-      ? `${project.billingPeriods[0].start.toLocaleDateString("de-DE")} – ${project.billingPeriods[0].end.toLocaleDateString("de-DE")}`
-      : project.billingPeriods
-          .map(
-            (p, i) =>
-              `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
-          )
-          .join(" | ");
-  doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
+  if (!isSale) {
+    const periodsText =
+      project.billingPeriods.length === 1
+        ? `${project.billingPeriods[0].start.toLocaleDateString("de-DE")} – ${project.billingPeriods[0].end.toLocaleDateString("de-DE")}`
+        : project.billingPeriods
+            .map(
+              (p, i) =>
+                `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
+            )
+            .join(" | ");
+    doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
+  }
 
   // ===== Einleitungstext vor der Tabelle =====
   // Aus den Einstellungen (Settings → Angebote → „Texte im Angebots-PDF").
@@ -409,11 +417,17 @@ export async function GET(
           }
           continue;
         }
-        // ADHOC
+        // ADHOC — wie Geräte mit Tagesfaktor (bei Verkauf = 1).
         const r = item.row;
-        const line = r.unitPrice * r.quantity;
+        const line = r.unitPrice * r.quantity * factor;
         body.push(
-          row(`${INDENT_2}${r.name}`, String(r.quantity), fmt(r.unitPrice), "", fmt(line))
+          row(
+            `${INDENT_2}${r.name}`,
+            String(r.quantity),
+            fmt(r.unitPrice),
+            factorLabel,
+            fmt(line)
+          )
         );
         if (r.description && r.description.trim()) {
           body.push([
@@ -575,8 +589,8 @@ export async function GET(
       [
         { content: "Bezeichnung", styles: { halign: "left" } },
         { content: "Menge", styles: { halign: "right" } },
-        { content: "€ / Einheit", styles: { halign: "right" } },
-        { content: "Tage (Faktor)", styles: { halign: "right" } },
+        { content: isSale ? "€ / Stück" : "€ / Einheit", styles: { halign: "right" } },
+        { content: isSale ? "" : "Tage (Faktor)", styles: { halign: "right" } },
         { content: "Summe", styles: { halign: "right" } },
       ],
     ],

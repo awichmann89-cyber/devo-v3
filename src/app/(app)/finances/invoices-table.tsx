@@ -33,7 +33,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X }
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { setInvoicePaid, deleteInvoiceFromList, createReminderForInvoice } from "./actions";
+import { setInvoicePaid, deleteInvoiceFromList, createReminderForInvoice, setInvoicePrepayment } from "./actions";
 
 export interface InvoiceVM {
   id: string;
@@ -41,6 +41,7 @@ export interface InvoiceVM {
   kind: "INVOICE" | "REMINDER";
   reminderLevel: number;
   relatedInvoiceId: string | null;
+  isPrepayment: boolean;
   date: string;
   dueDate: string;
   totalNet: number;
@@ -61,7 +62,7 @@ function labelFor(inv: InvoiceVM): string {
       ? `${inv.reminderLevel}. Mahnung`
       : "Mahnung";
   }
-  return "Rechnung";
+  return inv.isPrepayment ? "Vorkasse" : "Rechnung";
 }
 
 type StatusFilter = "all" | "open" | "overdue" | "paid";
@@ -116,6 +117,21 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
       try {
         await setInvoicePaid(inv.id, null);
         toast.success(`${labelFor(inv)} ${inv.number} wieder als unbezahlt markiert`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleTogglePrepayment(inv: InvoiceVM) {
+    startTransition(async () => {
+      try {
+        await setInvoicePrepayment(inv.id, !inv.isPrepayment);
+        toast.success(
+          !inv.isPrepayment
+            ? `${inv.number} auf Vorkasse umgestellt`
+            : `${inv.number} auf Rechnung umgestellt`
+        );
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
@@ -256,9 +272,31 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                         <Badge variant="warning" className="text-[10px]">
                           {labelFor(inv)}
                         </Badge>
+                      ) : !inv.paidAt ? (
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePrepayment(inv)}
+                          disabled={pending}
+                          className={cn(
+                            "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-muted disabled:opacity-50",
+                            inv.isPrepayment
+                              ? "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200"
+                              : "border-border"
+                          )}
+                          title={
+                            inv.isPrepayment
+                              ? "Klick: auf reguläre Rechnung umstellen"
+                              : "Klick: auf Vorkasse umstellen"
+                          }
+                        >
+                          {inv.isPrepayment ? "Vorkasse" : "Rechnung"}
+                        </button>
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">
-                          Rechnung
+                        <Badge
+                          variant={inv.isPrepayment ? "secondary" : "outline"}
+                          className="text-[10px]"
+                        >
+                          {inv.isPrepayment ? "Vorkasse" : "Rechnung"}
                         </Badge>
                       )}
                     </TableCell>

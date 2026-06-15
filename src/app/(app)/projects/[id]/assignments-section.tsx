@@ -167,6 +167,8 @@ interface Props {
   groupComments: ProjectGroupComment[];
   categories: Category[];
   scanProgress: { packed: number; total: number };
+  /** Verkauf-Modus: Tagesfaktor ist 1, „€/Tag" wird zu „€/Stück", Faktor-Spalte entfällt. */
+  isSale: boolean;
 }
 
 type ConflictPrompt = {
@@ -194,6 +196,7 @@ export function AssignmentsSection({
   groupComments,
   categories,
   scanProgress,
+  isSale,
 }: Props) {
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
@@ -654,6 +657,90 @@ export function AssignmentsSection({
     });
   }
 
+  /** Rendert eine sortierbare AdHoc-Zeile in der Geräte-Tabelle (gelb hinterlegt). */
+  function renderAdHocRow(it: ProjectAdHocItem, sortId: string) {
+    const unit = Number(it.unitPrice);
+    const line = unit * it.quantity * billingFactor;
+    return (
+      <SortableRow
+        id={sortId}
+        key={sortId}
+        className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40"
+      >
+        <DragHandleCell />
+        <TableCell>
+          <div className="font-medium">{it.name}</div>
+          {it.description?.trim() && (
+            <div className="text-[11px] text-muted-foreground">{it.description}</div>
+          )}
+        </TableCell>
+        <TableCell className="text-right">
+          <QuantityInput
+            min={1}
+            value={it.quantity}
+            onChange={(v) =>
+              startTransition(async () => {
+                try {
+                  await updateAdHocItem(it.id, {
+                    groupId: it.groupId,
+                    name: it.name,
+                    description: it.description ?? "",
+                    quantity: v,
+                    unitPrice: unit,
+                  });
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Fehler");
+                }
+              })
+            }
+            disabled={pending}
+            className="h-8 w-16 text-right tabular-nums ml-auto"
+          />
+        </TableCell>
+        <TableCell className="text-right tabular-nums font-mono text-sm">
+          {formatCurrency(unit)}
+        </TableCell>
+        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+          {formatCurrency(line)}
+        </TableCell>
+        {!isSale && <TableCell />}
+        <TableCell>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() =>
+                setAdHocDialog({
+                  mode: "edit",
+                  id: it.id,
+                  groupId: it.groupId,
+                  name: it.name,
+                  description: it.description ?? "",
+                  quantity: it.quantity,
+                  unitPrice: unit,
+                })
+              }
+              title="Bearbeiten"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              onClick={() => setAdHocDelete(it)}
+              disabled={pending}
+              title="Entfernen"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </SortableRow>
+    );
+  }
+
   /** Rendert eine sortierbare Geräte-Zeile innerhalb der Material-Tabelle. */
   function renderDeviceRow(a: AssignmentWithDevice, sortId: string) {
     const conflict = conflictMap[a.deviceId];
@@ -702,13 +789,15 @@ export function AssignmentsSection({
           <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
             {formatCurrency(lineTotal)}
           </TableCell>
-          <TableCell>
-            {isReserved ? (
-              <span className="text-xs font-medium text-green-600">gebucht</span>
-            ) : (
-              <span className="text-xs text-muted-foreground">—</span>
-            )}
-          </TableCell>
+          {!isSale && (
+            <TableCell>
+              {isReserved ? (
+                <span className="text-xs font-medium text-green-600">gebucht</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+              )}
+            </TableCell>
+          )}
           <TableCell>
             <div className="flex items-center justify-end gap-1">
               {groups.length > 1 && (
@@ -753,7 +842,7 @@ export function AssignmentsSection({
             .join(", ");
           return (
             <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-              <TableCell colSpan={7} className="py-1.5 text-xs text-destructive">
+              <TableCell colSpan={isSale ? 6 : 7} className="py-1.5 text-xs text-destructive">
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <span>
@@ -1250,11 +1339,11 @@ export function AssignmentsSection({
                     </CardHeader>
                     <CardContent className="pb-3" onClick={(e) => e.stopPropagation()}>
                     {(() => {
-                      // Geräte + Comments gemixt nach sortOrder — AdHoc-Items
-                      // bleiben separat im Bereich darunter.
-                      const mainRows = buildDeviceGroupRows(g.id).filter(
-                        (r) => r.kind !== "ADHOC"
-                      );
+                      // Geräte + AdHoc + Comments gemixt nach sortOrder.
+                      // AdHoc-Items werden wie Geräte als normale Zeilen
+                      // gerendert (mit gelbem Hintergrund) und mit dem
+                      // Tagesfaktor multipliziert.
+                      const mainRows = buildDeviceGroupRows(g.id);
                       if (mainRows.length === 0) {
                       return (
                       <p className="py-4 text-center text-xs text-muted-foreground">
@@ -1276,9 +1365,11 @@ export function AssignmentsSection({
                             <TableHead className="w-6"></TableHead>
                             <TableHead>Gerät</TableHead>
                             <TableHead className="text-right w-[80px]">Anzahl</TableHead>
-                            <TableHead className="text-right w-[100px]">€ / Tag</TableHead>
+                            <TableHead className="text-right w-[100px]">
+                              {isSale ? "€ / Stück" : "€ / Tag"}
+                            </TableHead>
                             <TableHead className="text-right w-[120px]">Summe</TableHead>
-                            <TableHead className="w-[100px]">Status</TableHead>
+                            {!isSale && <TableHead className="w-[100px]">Status</TableHead>}
                             <TableHead className="w-[120px]"></TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1301,7 +1392,7 @@ export function AssignmentsSection({
                               >
                                 <DragHandleCell />
                                 <TableCell
-                                  colSpan={5}
+                                  colSpan={isSale ? 4 : 5}
                                   className="py-3 text-base font-semibold text-foreground"
                                 >
                                   {c.text}
@@ -1339,6 +1430,13 @@ export function AssignmentsSection({
                               </SortableRow>
                             );
                           }
+                          if (r.kind === "ADHOC") {
+                            const it = (adHocByGroup.get(g.id) ?? []).find(
+                              (x) => x.id === r.id
+                            );
+                            if (!it) return null;
+                            return renderAdHocRow(it, r.sortId);
+                          }
                           // DEVICE
                           const a = groupAssignments.find((x) => x.id === r.id);
                           if (!a) return null;
@@ -1351,91 +1449,9 @@ export function AssignmentsSection({
                       );
                     })()}
 
-                    {/* Ad-hoc-Positionen (Verkauf etc.) — nur sichtbar, wenn
-                        die Gruppe welche enthält. Hinzufügen erfolgt über den
-                        Button im Card-Header oben. */}
-                    {(() => {
-                      const groupAdHoc = adHocByGroup.get(g.id) ?? [];
-                      if (groupAdHoc.length === 0) return null;
-                      return (
-                        <div className="mt-3 border-t pt-3">
-                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                            Freie Positionen
-                          </div>
-                          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Bezeichnung</TableHead>
-                                <TableHead className="text-right w-[80px]">Anzahl</TableHead>
-                                <TableHead className="text-right w-[120px]">Stückpreis</TableHead>
-                                <TableHead className="text-right w-[120px]">Summe</TableHead>
-                                <TableHead className="w-[80px]"></TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {groupAdHoc.map((it) => {
-                                const unit = Number(it.unitPrice);
-                                const total = unit * it.quantity;
-                                return (
-                                  <TableRow key={it.id}>
-                                    <TableCell>
-                                      <div className="font-medium">{it.name}</div>
-                                      {it.description && (
-                                        <div className="text-[11px] text-muted-foreground">
-                                          {it.description}
-                                        </div>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm">
-                                      {it.quantity}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums font-mono text-sm">
-                                      {formatCurrency(unit)}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                                      {formatCurrency(total)}
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex items-center justify-end gap-1">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7"
-                                          onClick={() =>
-                                            setAdHocDialog({
-                                              mode: "edit",
-                                              id: it.id,
-                                              groupId: it.groupId,
-                                              name: it.name,
-                                              description: it.description ?? "",
-                                              quantity: it.quantity,
-                                              unitPrice: unit,
-                                            })
-                                          }
-                                          title="Bearbeiten"
-                                        >
-                                          <Pencil className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 text-destructive hover:text-destructive"
-                                          onClick={() => setAdHocDelete(it)}
-                                          disabled={pending}
-                                          title="Entfernen"
-                                        >
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </div>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      );
-                    })()}
+                    {/* AdHoc-Items werden jetzt direkt in der Hauptliste oben
+                        gerendert (gelber Hintergrund). Kein separater Bereich
+                        mehr nötig. */}
                     </CardContent>
                   </Card>
                 );
@@ -1459,9 +1475,11 @@ export function AssignmentsSection({
                     <span>Material gesamt</span>
                     <span className="tabular-nums font-mono">{formatCurrency(total)}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {billingDays} Tag(e) · Mietfaktor ×{billingFactor.toFixed(2)}
-                  </p>
+                  {!isSale && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {billingDays} Tag(e) · Mietfaktor ×{billingFactor.toFixed(2)}
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>

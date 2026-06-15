@@ -7,6 +7,27 @@ import { recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeRemi
 import { createInvoice } from "../projects/[id]/finances-actions";
 
 /**
+ * Schaltet eine bestehende Rechnung zwischen regulärer Rechnung und Vorkasse
+ * um. Bei `true` wird im PDF der „Vorkasse zum"-Hinweis ausgegeben statt
+ * „Rechnungsdatum". Mahnungen können nicht auf Vorkasse umgestellt werden —
+ * sie behalten ihr Kind.
+ */
+export async function setInvoicePrepayment(
+  invoiceId: string,
+  isPrepayment: boolean
+) {
+  await requireRole(CAN_WRITE);
+  const inv = await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { isPrepayment },
+    select: { projectId: true },
+  });
+  revalidatePath("/finances");
+  revalidatePath("/finances/invoices");
+  revalidatePath(`/projects/${inv.projectId}`);
+}
+
+/**
  * Setzt das `paidAt`-Datum einer Rechnung. `null` = wieder als unbezahlt markieren.
  */
 export async function setInvoicePaid(invoiceId: string, paidAt: Date | null) {

@@ -96,6 +96,7 @@ export interface FinancesInvoiceVM {
   totalNet: number;
   totalGross: number | null;
   paidAt: string | null;
+  isPrepayment: boolean;
 }
 
 export interface FinancesQuoteVM {
@@ -808,10 +809,6 @@ function InvoiceDialog({
               />
               <span>
                 <span className="font-medium">Vorkasse</span>
-                <span className="block text-xs text-muted-foreground">
-                  Auf dem PDF wird statt „Rechnungsdatum" der Text „Vorkasse zum"
-                  ausgegeben. Beträge bleiben unverändert.
-                </span>
               </span>
             </label>
           )}
@@ -866,10 +863,12 @@ function InvoiceDialog({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">
-                Zahlbar bis ({dueDays} Tage)
+                Zahlbar bis{kind === "INVOICE" && isPrepayment ? "" : ` (${dueDays} Tage)`}
               </span>
               <span className="font-medium">
-                {computedDueDate.toLocaleDateString("de-DE")}
+                {kind === "INVOICE" && isPrepayment
+                  ? "Vorkasse"
+                  : computedDueDate.toLocaleDateString("de-DE")}
               </span>
             </div>
           </div>

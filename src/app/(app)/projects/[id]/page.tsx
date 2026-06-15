@@ -234,14 +234,17 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   );
   const appSettings = await getSettings();
   const factorMap = parseDayFactorMap(appSettings.dayFactorMap);
-  const billingFactor = getDayFactor(billingDays, factorMap);
+  // Bei Verkauf-Projekten wird der Tagesfaktor ignoriert (effektiv 1) —
+  // Preise sind Verkaufspreise pro Stück.
+  const isSale = project.kind === "VERKAUF";
+  const billingFactor = isSale ? 1 : getDayFactor(billingDays, factorMap);
 
   const materialSubtotal =
     project.assignments.reduce((sum, a) => {
       return sum + Number(a.device.dailyRate) * a.quantity * billingFactor;
     }, 0) +
     project.adHocItems.reduce(
-      (sum, it) => sum + Number(it.unitPrice) * it.quantity,
+      (sum, it) => sum + Number(it.unitPrice) * it.quantity * billingFactor,
       0
     );
 
@@ -260,10 +263,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         if (a.groupId !== groupId) continue;
         sub += Number(a.device.dailyRate) * a.quantity * billingFactor;
       }
-      // Ad-hoc-Positionen: Stückpreis × Anzahl, OHNE Miet-Faktor.
+      // Ad-hoc-Positionen: Stückpreis × Anzahl × Tagesfaktor (wie Geräte).
+      // Bei Verkauf-Projekten ist billingFactor = 1.
       for (const it of project!.adHocItems) {
         if (it.groupId !== groupId) continue;
-        sub += Number(it.unitPrice) * it.quantity;
+        sub += Number(it.unitPrice) * it.quantity * billingFactor;
       }
     } else {
       for (const s of project!.services) {
@@ -562,6 +566,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             groupComments={serialize(project.groupComments)}
             categories={serialize(allCategories)}
             scanProgress={{ packed: scanTotalDone, total: scanTotalRequired }}
+            isSale={isSale}
           />
         </TabsContent>
 
@@ -599,6 +604,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               number: inv.number,
               kind: inv.kind,
               reminderLevel: inv.reminderLevel,
+              isPrepayment: inv.isPrepayment,
               date: inv.date.toISOString(),
               dueDate: inv.dueDate.toISOString(),
               totalNet: Number(inv.totalNet),

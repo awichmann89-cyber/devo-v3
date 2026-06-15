@@ -26,7 +26,11 @@ export function calculateProjectTotal(
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
-  const factor = getDayFactor(days, factorMap);
+  // Bei Verkauf-Projekten gilt kein Tagesfaktor.
+  const factor =
+    (project.kind as string) === "VERKAUF"
+      ? 1
+      : getDayFactor(days, factorMap);
 
   // Pro-Gruppe-Netto sammeln. Nicht-abrechenbare Gruppen werden komplett
   // ignoriert — sie fließen nicht in Summen oder Rabatte ein und tauchen
@@ -40,10 +44,10 @@ export function calculateProjectTotal(
         if (a.groupId !== g.id) continue;
         sub += Number(a.device.dailyRate) * a.quantity * factor;
       }
-      // Ad-hoc-Positionen (Verkauf etc.) — fester Stückpreis, KEIN Miet-Faktor
+      // Ad-hoc-Positionen — wie Geräte mit Tagesfaktor (bei Verkauf = 1).
       for (const it of project.adHocItems) {
         if (it.groupId !== g.id) continue;
-        sub += Number(it.unitPrice) * it.quantity;
+        sub += Number(it.unitPrice) * it.quantity * factor;
       }
     } else {
       for (const s of project.services) {

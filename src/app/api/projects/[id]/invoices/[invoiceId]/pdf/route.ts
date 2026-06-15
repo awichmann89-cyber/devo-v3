@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { jsPDF } from "jspdf";
 import autoTable, { RowInput } from "jspdf-autotable";
 import { daysBetween } from "@/lib/utils";
-import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
+import { billingUnitLabel, serviceItemKindLabel, projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
@@ -57,8 +57,10 @@ export async function GET(
     (sum, p) => sum + daysBetween(p.start, p.end),
     0
   );
-  const factor = getDayFactor(days, parseDayFactorMap(settings.dayFactorMap));
-  const factorLabel = `${days} (${String(factor).replace(".", ",")})`;
+  // Bei Verkauf-Projekten gilt kein Tagesfaktor — die Spalte „Tage" bleibt leer.
+  const isSale = project.kind === "VERKAUF";
+  const factor = isSale ? 1 : getDayFactor(days, parseDayFactorMap(settings.dayFactorMap));
+  const factorLabel = isSale ? "" : `${days} (${String(factor).replace(".", ",")})`;
 
   // ===== Material aggregieren pro Gruppe =====
   type MaterialRow = {
@@ -268,12 +270,12 @@ export async function GET(
   doc.setFontSize(10);
   let metaY = 102;
   const dateLabel =
-    invoice.kind === "REMINDER"
-      ? "Mahndatum"
-      : invoice.isPrepayment
-        ? "Vorkasse zum"
-        : "Rechnungsdatum";
-  doc.text(`${dateLabel}: ${invoice.date.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
+    invoice.kind === "REMINDER" ? "Mahndatum" : "Rechnungsdatum";
+  doc.text(
+    `${dateLabel}: ${invoice.date.toLocaleDateString("de-DE")}`,
+    ADDR_X,
+    metaY
+  );
   metaY += 5;
   if (invoice.kind === "REMINDER" && invoice.relatedInvoice) {
     doc.text(
@@ -283,22 +285,34 @@ export async function GET(
     );
     metaY += 5;
   }
-  doc.text(`Zahlbar bis: ${invoice.dueDate.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
+  // Bei Vorkasse-Rechnungen wird statt eines Datums der Text „Vorkasse"
+  // ausgegeben.
+  const dueValue =
+    invoice.kind === "INVOICE" && invoice.isPrepayment
+      ? "Vorkasse"
+      : invoice.dueDate.toLocaleDateString("de-DE");
+  doc.text(`Zahlbar bis: ${dueValue}`, ADDR_X, metaY);
   metaY += 5;
-  doc.text(`Projekt: ${project.name}`, ADDR_X, metaY);
+  doc.text(
+    `Projekt: ${project.name} (${projectKindLabel(project.kind)})`,
+    ADDR_X,
+    metaY
+  );
   metaY += 5;
-  const periodsText =
-    project.billingPeriods.length === 1
-      ? `${project.billingPeriods[0].start.toLocaleDateString("de-DE")} – ${project.billingPeriods[0].end.toLocaleDateString("de-DE")}`
-      : project.billingPeriods
-          .map(
-            (p, i) =>
-              `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
-          )
-          .join(" | ");
-  doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
+  if (!isSale) {
+    const periodsText =
+      project.billingPeriods.length === 1
+        ? `${project.billingPeriods[0].start.toLocaleDateString("de-DE")} – ${project.billingPeriods[0].end.toLocaleDateString("de-DE")}`
+        : project.billingPeriods
+            .map(
+              (p, i) =>
+                `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
+            )
+            .join(" | ");
+    doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
+  }
 
-  const tableStartY = metaY + 10;
+  const tableStartY = metaY + (isSale ? 5 : 10);
 
   // ===== Eine große Tabelle für alles =====
   // Spalten: Bezeichnung | Menge | €/Einheit | Tage | Summe
@@ -417,11 +431,17 @@ export async function GET(
           }
           continue;
         }
-        // ADHOC
+        // ADHOC — wie Geräte mit Tagesfaktor (bei Verkauf = 1).
         const r = item.row;
-        const line = r.unitPrice * r.quantity;
+        const line = r.unitPrice * r.quantity * factor;
         body.push(
-          row(`${INDENT_2}${r.name}`, String(r.quantity), fmt(r.unitPrice), "", fmt(line))
+          row(
+            `${INDENT_2}${r.name}`,
+            String(r.quantity),
+            fmt(r.unitPrice),
+            factorLabel,
+            fmt(line)
+          )
         );
         if (r.description && r.description.trim()) {
           body.push([
@@ -583,8 +603,8 @@ export async function GET(
       [
         { content: "Bezeichnung", styles: { halign: "left" } },
         { content: "Menge", styles: { halign: "right" } },
-        { content: "€ / Einheit", styles: { halign: "right" } },
-        { content: "Tage (Faktor)", styles: { halign: "right" } },
+        { content: isSale ? "€ / Stück" : "€ / Einheit", styles: { halign: "right" } },
+        { content: isSale ? "" : "Tage (Faktor)", styles: { halign: "right" } },
         { content: "Summe", styles: { halign: "right" } },
       ],
     ],

@@ -21,6 +21,7 @@ export default async function FinancesInvoicesPage() {
     kind: inv.kind,
     reminderLevel: inv.reminderLevel,
     relatedInvoiceId: inv.relatedInvoiceId,
+    isPrepayment: inv.isPrepayment,
     date: inv.date.toISOString(),
     dueDate: inv.dueDate.toISOString(),
     totalNet: Number(inv.totalNet),
