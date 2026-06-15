@@ -3,7 +3,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  // truncate (= whitespace-nowrap + overflow-hidden + text-ellipsis) sorgt
+  // dafür, dass Badges nie umbrechen — lange Texte werden bei Überlauf mit
+  // „…" gekürzt. Die Default max-width ist eng genug, damit z.B. „Full-Service"
+  // sichtbar gekürzt wird; an einzelnen Stellen lässt sich das via className
+  // (z.B. `max-w-none` oder `max-w-[12rem]`) überschreiben.
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 max-w-[6rem] truncate",
   {
     variants: {
       variant: {
