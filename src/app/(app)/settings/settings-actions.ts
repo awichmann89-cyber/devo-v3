@@ -65,6 +65,20 @@ export async function saveQuoteTexts(introText: string, outroText: string) {
   revalidatePath("/settings");
 }
 
+/**
+ * Akzentfarbe für die Angebots-/Rechnungs-PDFs. Validiert auf das Hex-Format
+ * "#RRGGBB". Ungültige Werte werden abgewiesen.
+ */
+export async function savePdfAccentColor(hex: string) {
+  await requireRole(CAN_ADMIN);
+  const cleaned = (hex ?? "").trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(cleaned)) {
+    throw new Error("Farbe muss im Format #RRGGBB angegeben sein.");
+  }
+  await setSetting("pdfAccentColor" as SettingKey, cleaned.toLowerCase());
+  revalidatePath("/settings");
+}
+
 export async function saveInvoiceDueDays(days: number) {
   await requireRole(CAN_ADMIN);
   const clamped = Math.max(0, Math.min(365, Math.floor(days) || 0));

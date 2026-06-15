@@ -101,6 +101,8 @@ export interface DocumentSnapshot {
     /** Nur für Angebote relevant — bei Rechnungen leer. */
     quoteIntroText: string;
     quoteOutroText: string;
+    /** Akzentfarbe als Hex-String, z.B. "#1e3a8a". Für Gruppen-Header & Trennstrich. */
+    pdfAccentColor: string;
   };
 
   /** Zur Anzeige berechnete Summen — informativ, wird beim Rendern neu berechnet. */
@@ -134,6 +136,7 @@ export interface SettingsForSnapshot {
   dayFactorMap: string;
   quoteIntroText?: string | null;
   quoteOutroText?: string | null;
+  pdfAccentColor?: string | null;
 }
 
 /**
@@ -336,6 +339,7 @@ export function buildSnapshotFromProject(
       companyZipCity: settings.companyZipCity,
       quoteIntroText: (settings.quoteIntroText ?? "").trim(),
       quoteOutroText: (settings.quoteOutroText ?? "").trim(),
+      pdfAccentColor: (settings.pdfAccentColor ?? "").trim() || "#1e3a8a",
     },
     totals: {
       totalNet: round2(totalNet),

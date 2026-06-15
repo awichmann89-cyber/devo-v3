@@ -6,7 +6,7 @@ import autoTable, { RowInput } from "jspdf-autotable";
 import { projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
-import { getSettings } from "@/lib/settings";
+import { getSettings, parseHexColor } from "@/lib/settings";
 import { setupInterFont } from "@/lib/pdf-fonts";
 import {
   buildSnapshotFromProject,
@@ -68,6 +68,7 @@ export async function GET(
         dayFactorMap: liveSettings.dayFactorMap,
         quoteIntroText: liveSettings.quoteIntroText,
         quoteOutroText: liveSettings.quoteOutroText,
+        pdfAccentColor: liveSettings.pdfAccentColor,
       });
 
   // Aliasse aus dem Snapshot — der Render-Code unten wird damit lesbarer.
@@ -276,8 +277,56 @@ export async function GET(
   const SECTION_FONT_SIZE = 12;
 
   const SECTION_BG: [number, number, number] = [220, 220, 220];
-  const GROUP_BG: [number, number, number] = [240, 240, 240];
   const TOTAL_BG: [number, number, number] = [232, 232, 232];
+  // Akzentfarbe für Gruppen-Header + Trennstrich über Zwischensumme. Wird
+  // pro Dokument im Snapshot konserviert, sodass alte PDFs ihre Farbe behalten.
+  const ACCENT_RGB = parseHexColor(snapshot.settings.pdfAccentColor);
+
+  function groupHeaderRow(name: string): RowInput {
+    return [
+      {
+        content: INDENT_1 + name,
+        colSpan: 5,
+        styles: {
+          fontStyle: "bold",
+          fontSize: 11,
+          fillColor: ACCENT_RGB,
+          textColor: 255,
+          cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
+        },
+      },
+    ];
+  }
+
+  function spacerRow(): RowInput {
+    return [
+      {
+        content: "",
+        colSpan: 5,
+        styles: {
+          cellPadding: { top: 2, bottom: 2, left: 0, right: 0 },
+          fillColor: [255, 255, 255] as [number, number, number],
+        },
+      },
+    ];
+  }
+
+  function subtotalRow(label: string, sum: string): RowInput {
+    const labelStyles = {
+      fontStyle: "bold",
+      lineWidth: { top: 0.6 },
+      lineColor: ACCENT_RGB,
+      cellPadding: { top: 2.5, bottom: 1.5, left: 2, right: 2 },
+    };
+    const rightStyles = { ...labelStyles, halign: "right" };
+    return [
+      { content: label, styles: labelStyles },
+      { content: "", styles: rightStyles },
+      { content: "", styles: rightStyles },
+      { content: "", styles: rightStyles },
+      { content: sum, styles: rightStyles },
+    ];
+  }
 
   const hasMaterial = materialGroups.some(
     (g) => g.materialRows.length > 0 || g.adHocRows.length > 0,
@@ -301,9 +350,7 @@ export async function GET(
       if (rows.length === 0 && adHoc.length === 0 && comments.length === 0) continue;
       const info = groupNetMap.get(group.id)!;
 
-      body.push(
-        row(INDENT_1 + group.name, "", "", "", "", { bold: true, bg: GROUP_BG })
-      );
+      body.push(groupHeaderRow(group.name));
 
       // Devices + AdHoc + Comments nach sortOrder gemischt
       type Mixed =
@@ -384,11 +431,7 @@ export async function GET(
           ]);
         }
       }
-      body.push(
-        row(INDENT_2 + "Zwischensumme " + group.name, "", "", "", fmt(info.sub), {
-          bold: true,
-        })
-      );
+      body.push(subtotalRow(INDENT_2 + "Zwischensumme " + group.name, fmt(info.sub)));
       if (info.disc > 0) {
         body.push(
           row(
@@ -401,6 +444,7 @@ export async function GET(
           )
         );
       }
+      body.push(spacerRow());
     }
 
     if (snapMaterialDiscountPercent > 0) {
@@ -439,9 +483,7 @@ export async function GET(
       if (items.length === 0 && comments.length === 0) continue;
       const info = groupNetMap.get(group.id)!;
 
-      body.push(
-        row(INDENT_1 + group.name, "", "", "", "", { bold: true, bg: GROUP_BG })
-      );
+      body.push(groupHeaderRow(group.name));
 
       // Services + Comments nach sortOrder gemischt
       type SMixed =
@@ -481,11 +523,7 @@ export async function GET(
           )
         );
       }
-      body.push(
-        row(INDENT_2 + "Zwischensumme " + group.name, "", "", "", fmt(info.sub), {
-          bold: true,
-        })
-      );
+      body.push(subtotalRow(INDENT_2 + "Zwischensumme " + group.name, fmt(info.sub)));
       if (info.disc > 0) {
         body.push(
           row(
@@ -498,6 +536,7 @@ export async function GET(
           )
         );
       }
+      body.push(spacerRow());
     }
 
     if (snapServicesDiscountPercent > 0) {
@@ -689,6 +728,23 @@ export async function GET(
     14,
     endY + 4
   );
+
+  // ===== Seitenzahl auf jeder Seite ("Seite 1 von 4") =====
+  // Wird nach Abschluss des Render-Loops über ALLE Seiten gestempelt, damit
+  // die Gesamtanzahl korrekt ist. Position knapp oberhalb des Briefpapier-
+  // Footers (ca. y = 240 mm), rechtsbündig in der Spaltenbreite.
+  const totalPages = doc.getNumberOfPages();
+  const PAGE_NUM_Y = 240;
+  const PAGE_NUM_RIGHT_X = 196; // A4 = 210 mm, 14 mm Rand rechts
+  doc.setFontSize(8);
+  doc.setTextColor(110);
+  doc.setFont(undefined as unknown as string, "normal");
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.text(`Seite ${i} von ${totalPages}`, PAGE_NUM_RIGHT_X, PAGE_NUM_Y, {
+      align: "right",
+    });
+  }
 
   // Letterhead-PDF darüberlegen (falls hinterlegt)
   const contentBytes = new Uint8Array(doc.output("arraybuffer"));

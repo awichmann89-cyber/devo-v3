@@ -12,6 +12,7 @@ import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
 import { CompanyAddressForm } from "./company-address-form";
+import { PdfAccentColorForm } from "./pdf-accent-color-form";
 import { getSettings } from "@/lib/settings";
 import { DaysSettingForm } from "./days-setting-form";
 import { saveInvoiceDueDays, saveQuoteValidityDays } from "./settings-actions";
@@ -135,7 +136,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="letterhead">
+        <TabsContent value="letterhead" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Briefpapier-Vorlagen</CardTitle>
@@ -148,6 +149,19 @@ export default async function SettingsPage() {
                 first={first ? { kind: first.kind, fileName: first.fileName, updatedAt: first.updatedAt.toISOString() } : null}
                 following={following ? { kind: following.kind, fileName: following.fileName, updatedAt: following.updatedAt.toISOString() } : null}
               />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Akzentfarbe</CardTitle>
+              <CardDescription>
+                Farbe für Gruppen-Überschriften und Trennstriche in Angebots-
+                und Rechnungs-PDFs. Bereits ausgegebene Dokumente behalten ihre
+                ursprüngliche Farbe (Snapshot), neue verwenden die hier gewählte.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PdfAccentColorForm initialColor={settings.pdfAccentColor} />
             </CardContent>
           </Card>
         </TabsContent>

@@ -198,6 +198,7 @@ export async function createInvoice(
       // beim Snapshot der Rechnung daher leer halten.
       quoteIntroText: null,
       quoteOutroText: null,
+      pdfAccentColor: settings.pdfAccentColor,
     });
     snapshotJson = snap as unknown as Prisma.InputJsonValue;
     useTotalNet = snap.totals.totalNet;
@@ -296,6 +297,7 @@ export async function createQuote(
     dayFactorMap: settings.dayFactorMap,
     quoteIntroText: settings.quoteIntroText,
     quoteOutroText: settings.quoteOutroText,
+    pdfAccentColor: settings.pdfAccentColor,
   });
   const snapshotJson = snap as unknown as Prisma.InputJsonValue;
 

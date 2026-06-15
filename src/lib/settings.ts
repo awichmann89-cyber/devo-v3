@@ -26,7 +26,37 @@ export const SETTING_DEFAULTS = {
   // Vorgegebene Fristen ab Erstellungs-Datum
   quoteValidityDays: "14",
   invoiceDueDays: "7",
+  // Akzentfarbe für Angebots-/Rechnungs-PDFs — wird für Gruppen-Header und
+  // den Trennstrich über der Zwischensumme verwendet. Hex-String, z.B.
+  // "#1e3a8a". Bei leerem Wert fällt das PDF auf einen neutralen Grauton zurück.
+  pdfAccentColor: "#1e3a8a",
 } as const;
+
+/**
+ * Hex-Farbe ("#RRGGBB" oder "#RGB") in eine [r,g,b]-Tupel für jsPDF parsen.
+ * Bei ungültiger Eingabe wird ein neutraler Grauton zurückgegeben, damit das
+ * PDF nicht crashed.
+ */
+export function parseHexColor(hex: string | null | undefined): [number, number, number] {
+  const fallback: [number, number, number] = [60, 60, 60];
+  if (!hex) return fallback;
+  const cleaned = hex.trim().replace(/^#/, "");
+  if (cleaned.length === 3) {
+    const r = parseInt(cleaned[0] + cleaned[0], 16);
+    const g = parseInt(cleaned[1] + cleaned[1], 16);
+    const b = parseInt(cleaned[2] + cleaned[2], 16);
+    if ([r, g, b].some(Number.isNaN)) return fallback;
+    return [r, g, b];
+  }
+  if (cleaned.length === 6) {
+    const r = parseInt(cleaned.slice(0, 2), 16);
+    const g = parseInt(cleaned.slice(2, 4), 16);
+    const b = parseInt(cleaned.slice(4, 6), 16);
+    if ([r, g, b].some(Number.isNaN)) return fallback;
+    return [r, g, b];
+  }
+  return fallback;
+}
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 
