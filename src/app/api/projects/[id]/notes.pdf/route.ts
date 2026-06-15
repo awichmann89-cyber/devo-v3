@@ -4,10 +4,12 @@ import { auth } from "@/auth";
 import { jsPDF } from "jspdf";
 import { buildProjectPdfFilename } from "@/lib/utils";
 
-export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
+  // ?download=1 forciert den Download statt der Inline-Anzeige.
+  const download = new URL(req.url).searchParams.get("download") === "1";
   const { id } = await props.params;
   const project = await prisma.project.findUnique({
     where: { id },
@@ -111,7 +113,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   return new NextResponse(blob, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
 }

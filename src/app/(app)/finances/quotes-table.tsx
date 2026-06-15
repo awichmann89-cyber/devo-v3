@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ExternalLink, Search, Trash2, X } from "lucide-react";
+import { Download, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -229,12 +229,12 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                           className="h-8 w-8"
                         >
                           <a
-                            href={`/api/projects/${q.projectId}/quotes/${q.id}/pdf`}
-                            target="_blank"
+                            href={`/api/projects/${q.projectId}/quotes/${q.id}/pdf?download=1`}
+                            download
                             rel="noopener"
-                            title="PDF öffnen"
+                            title="PDF herunterladen"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <Download className="h-4 w-4" />
                           </a>
                         </Button>
                         <Button

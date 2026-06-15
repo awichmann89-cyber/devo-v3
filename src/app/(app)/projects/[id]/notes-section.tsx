@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Pencil, Trash2, Loader2, StickyNote, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, StickyNote, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   createProjectNote,
@@ -82,22 +82,27 @@ export function NotesSection({
     <div className="space-y-4">
       <div className="flex justify-end">
         <Button
+          asChild
           size="sm"
           variant="default"
-          onClick={() =>
-            window.open(
-              `/api/projects/${projectId}/notes.pdf`,
-              "_blank"
-            )
-          }
           disabled={notes.length === 0}
-          title={
-            notes.length === 0
-              ? "Erst eine Notiz anlegen"
-              : "Notizen als PDF öffnen"
-          }
         >
-          <Printer className="h-4 w-4" /> Notizen drucken
+          <a
+            href={`/api/projects/${projectId}/notes.pdf?download=1`}
+            download
+            rel="noopener"
+            title={
+              notes.length === 0
+                ? "Erst eine Notiz anlegen"
+                : "Notizen herunterladen"
+            }
+            aria-disabled={notes.length === 0}
+            onClick={(e) => {
+              if (notes.length === 0) e.preventDefault();
+            }}
+          >
+            <Download className="h-4 w-4" /> Notizen herunterladen
+          </a>
         </Button>
       </div>
 

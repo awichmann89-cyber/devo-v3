@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Loader2, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -144,7 +144,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
         const created = await createReminderForInvoice(inv.id);
         toast.success(`Mahnung ${created.number} angelegt`);
         // Direkt herunterladen — Browser-Vorschau gibt's beim Wieder-Ansehen
-        // über den ExternalLink-Button in der Tabelle.
+        // über den Download-Button in der Tabelle.
         const a = document.createElement("a");
         a.href = `/api/projects/${inv.projectId}/invoices/${created.id}/pdf?download=1`;
         a.download = "";
@@ -330,12 +330,12 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                       <div className="flex justify-end gap-1">
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8">
                           <a
-                            href={`/api/projects/${inv.projectId}/invoices/${inv.id}/pdf`}
-                            target="_blank"
+                            href={`/api/projects/${inv.projectId}/invoices/${inv.id}/pdf?download=1`}
+                            download
                             rel="noopener"
-                            title="PDF öffnen"
+                            title="PDF herunterladen"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <Download className="h-4 w-4" />
                           </a>
                         </Button>
                         {inv.paidAt ? (

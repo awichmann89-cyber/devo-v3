@@ -44,7 +44,7 @@ import {
   FolderPlus,
   Folder,
   FolderOpen,
-  Printer,
+  Download,
 } from "lucide-react";
 import {
   addAssignment,
@@ -1036,22 +1036,27 @@ export function AssignmentsSection({
           totalCount={scanProgress.total}
         />
         <Button
+          asChild
           size="sm"
           variant="default"
-          onClick={() =>
-            window.open(
-              `/api/projects/${project.id}/packlist.pdf`,
-              "_blank"
-            )
-          }
           disabled={project.assignments.length === 0}
-          title={
-            project.assignments.length === 0
-              ? "Erst Geräte buchen"
-              : "Packliste als PDF öffnen"
-          }
         >
-          <Printer className="h-4 w-4" /> Packliste drucken
+          <a
+            href={`/api/projects/${project.id}/packlist.pdf?download=1`}
+            download
+            rel="noopener"
+            title={
+              project.assignments.length === 0
+                ? "Erst Geräte buchen"
+                : "Packliste herunterladen"
+            }
+            aria-disabled={project.assignments.length === 0}
+            onClick={(e) => {
+              if (project.assignments.length === 0) e.preventDefault();
+            }}
+          >
+            <Download className="h-4 w-4" /> Packliste herunterladen
+          </a>
         </Button>
       </div>
       <Card className="p-4">

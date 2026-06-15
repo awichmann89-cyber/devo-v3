@@ -41,7 +41,7 @@ import {
   Receipt,
   Loader2,
   Trash2,
-  ExternalLink,
+  Download,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -531,12 +531,12 @@ export function FinancesSection({
                       <div className="flex justify-end gap-1">
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8">
                           <a
-                            href={`/api/projects/${projectId}/quotes/${q.id}/pdf`}
-                            target="_blank"
+                            href={`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`}
+                            download
                             rel="noopener"
-                            title="PDF öffnen"
+                            title="PDF herunterladen"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <Download className="h-4 w-4" />
                           </a>
                         </Button>
                         <Button
@@ -591,12 +591,12 @@ export function FinancesSection({
                       <div className="flex justify-end gap-1">
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8">
                           <a
-                            href={`/api/projects/${projectId}/invoices/${inv.id}/pdf`}
-                            target="_blank"
+                            href={`/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`}
+                            download
                             rel="noopener"
-                            title="PDF öffnen"
+                            title="PDF herunterladen"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <Download className="h-4 w-4" />
                           </a>
                         </Button>
                         <Button
