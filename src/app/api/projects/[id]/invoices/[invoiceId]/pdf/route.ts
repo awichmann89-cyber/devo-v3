@@ -702,7 +702,7 @@ export async function GET(
   // die Gesamtanzahl korrekt ist. Position knapp oberhalb des Briefpapier-
   // Footers (ca. y = 240 mm), zentriert in der Spaltenbreite.
   const totalPages = doc.getNumberOfPages();
-  const PAGE_NUM_Y = 240;
+  const PAGE_NUM_Y = 258;
   const PAGE_NUM_RIGHT_X = 196; // A4 = 210 mm, 14 mm Rand rechts
   doc.setFontSize(8);
   doc.setTextColor(110);
