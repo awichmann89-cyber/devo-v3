@@ -112,7 +112,11 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   );
   return new NextResponse(blob, {
     headers: {
-      "Content-Type": "application/pdf",
+      // iOS Safari ignoriert Content-Disposition: attachment bei application/pdf
+      // und öffnet das Dokument trotzdem inline im Viewer. Für Downloads senden
+      // wir deshalb application/octet-stream — dann landet die Datei sicher im
+      // Download-Ordner statt im PDF-Viewer.
+      "Content-Type": download ? "application/octet-stream" : "application/pdf",
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
