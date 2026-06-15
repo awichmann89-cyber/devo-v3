@@ -288,7 +288,7 @@ export async function GET(
         content: INDENT_1 + name,
         colSpan: 5,
         styles: {
-          fontStyle: "bold",
+          fontStyle: "bold" as const,
           fontSize: 11,
           fillColor: ACCENT_RGB,
           textColor: 255,
@@ -313,12 +313,12 @@ export async function GET(
 
   function subtotalRow(label: string, sum: string): RowInput {
     const labelStyles = {
-      fontStyle: "bold",
+      fontStyle: "bold" as const,
       lineWidth: { top: 0.6 },
       lineColor: ACCENT_RGB,
       cellPadding: { top: 2.5, bottom: 1.5, left: 2, right: 2 },
     };
-    const rightStyles = { ...labelStyles, halign: "right" };
+    const rightStyles = { ...labelStyles, halign: "right" as const };
     return [
       { content: label, styles: labelStyles },
       { content: "", styles: rightStyles },
