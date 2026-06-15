@@ -54,7 +54,7 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{device.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{device.name}</h1>
             {device.inspectionExempt && (
               <Badge variant="secondary" className="gap-1">
                 <ShieldOff className="h-3 w-3" />
@@ -230,4 +230,4 @@ function Field({ label, value }: { label: string; value: string | null | undefin
       <dd className="font-medium">{value || "—"}</dd>
     </>
   );
-}
+}

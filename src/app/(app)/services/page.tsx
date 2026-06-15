@@ -22,7 +22,7 @@ export default async function ServicesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Personal & Transport</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Personal & Transport</h1>
         <p className="text-muted-foreground">
           Stammdaten-Katalog für Personal-, Transport- und sonstige Positionen,
           die in Projekten und Angeboten abgerechnet werden.

@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useMobileNav } from "@/components/layout/mobile-nav-context";
 
 interface HeaderProps {
   user: {
@@ -23,6 +24,7 @@ interface HeaderProps {
 }
 
 export function Header({ user }: HeaderProps) {
+  const { setOpen } = useMobileNav();
   const initials = (user.name ?? user.email ?? "?")
     .split(/[\s@]/)
     .filter(Boolean)
@@ -31,7 +33,18 @@ export function Header({ user }: HeaderProps) {
     .join("");
 
   return (
-    <header className="flex h-16 items-center justify-end gap-2 border-b bg-background px-6">
+    <header className="flex h-16 items-center gap-2 border-b bg-background px-4 sm:px-6">
+      {/* Burger-Button — nur Mobile */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden"
+        onClick={() => setOpen(true)}
+        aria-label="Menü öffnen"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+      <div className="flex-1" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="gap-2 px-2">

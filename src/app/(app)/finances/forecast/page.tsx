@@ -90,7 +90,7 @@ export default async function ForecastPage(props: {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Forecast</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Forecast</h1>
         <p className="text-muted-foreground">
           Erwarteter Umsatz aus geplanten Projekten im gewählten Zeitraum —
           Differenz zwischen Projektwert und bereits erstellten Rechnungen.{" "}

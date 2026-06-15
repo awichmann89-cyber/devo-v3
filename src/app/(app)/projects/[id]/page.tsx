@@ -392,10 +392,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         </Button>
       </div>
 
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              {project.name}
+            </h1>
             <Badge variant={projectStatusVariant(project.status)}>
               {projectStatusLabel(project.status)}
             </Badge>
@@ -412,7 +414,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             </Link>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           {canWrite && (
             <CopyProjectButton
               id={project.id}
@@ -425,7 +427,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardDescription>Planung</CardDescription></CardHeader>
           <CardContent>
@@ -479,13 +481,34 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
 
       <Tabs defaultValue="details">
         <TabsList>
-          <TabsTrigger value="details"><FileText className="h-4 w-4" /> Details</TabsTrigger>
-          <TabsTrigger value="periods"><CalendarRange className="h-4 w-4" /> Zeiträume</TabsTrigger>
-          <TabsTrigger value="notes"><StickyNote className="h-4 w-4" /> Notizen</TabsTrigger>
-          <TabsTrigger value="files"><Paperclip className="h-4 w-4" /> Dateien</TabsTrigger>
-          <TabsTrigger value="material"><Boxes className="h-4 w-4" /> Material</TabsTrigger>
-          <TabsTrigger value="services"><Truck className="h-4 w-4" /> Personal & Transport</TabsTrigger>
-          <TabsTrigger value="finances"><Wallet className="h-4 w-4" /> Finanzen</TabsTrigger>
+          <TabsTrigger value="details">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Details</span>
+          </TabsTrigger>
+          <TabsTrigger value="periods">
+            <CalendarRange className="h-4 w-4" />
+            <span className="hidden sm:inline">Zeiträume</span>
+          </TabsTrigger>
+          <TabsTrigger value="notes">
+            <StickyNote className="h-4 w-4" />
+            <span className="hidden sm:inline">Notizen</span>
+          </TabsTrigger>
+          <TabsTrigger value="files">
+            <Paperclip className="h-4 w-4" />
+            <span className="hidden sm:inline">Dateien</span>
+          </TabsTrigger>
+          <TabsTrigger value="material">
+            <Boxes className="h-4 w-4" />
+            <span className="hidden sm:inline">Material</span>
+          </TabsTrigger>
+          <TabsTrigger value="services">
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Personal & Transport</span>
+          </TabsTrigger>
+          <TabsTrigger value="finances">
+            <Wallet className="h-4 w-4" />
+            <span className="hidden sm:inline">Finanzen</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">

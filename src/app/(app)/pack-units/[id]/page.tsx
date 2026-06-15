@@ -114,7 +114,7 @@ export default async function PackUnitDetailPage(props: {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{packUnit.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{packUnit.name}</h1>
             <Badge variant={packUnit.packMode === "VARIABLE" ? "outline" : "secondary"}>
               {packUnit.packMode === "VARIABLE" ? "Variabel" : "Fix"}
             </Badge>

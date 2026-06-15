@@ -16,7 +16,7 @@ export default async function NewProjectPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Projekt anlegen</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Projekt anlegen</h1>
         <p className="text-muted-foreground">Lege ein neues Projekt mit Planungs- und Berechnungszeitraum an</p>
       </div>
 
