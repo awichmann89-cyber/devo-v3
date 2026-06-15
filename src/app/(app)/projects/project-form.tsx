@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { createProject, updateProject } from "./actions";
 import { toast } from "sonner";
@@ -238,24 +239,17 @@ export function ProjectForm({
         <div className="space-y-2">
           <Label htmlFor="customer">Kunde</Label>
           <div className="flex gap-2">
-            <Select
-              value={form.customerId || "none"}
-              onValueChange={(v) =>
-                setForm({ ...form, customerId: v === "none" ? "" : v })
-              }
-            >
-              <SelectTrigger id="customer" className="flex-1">
-                <SelectValue placeholder="Kunde wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Kein Kunde —</SelectItem>
-                {allCustomers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex-1">
+              <Combobox
+                id="customer"
+                value={form.customerId}
+                onValueChange={(v) => setForm({ ...form, customerId: v })}
+                options={allCustomers.map((c) => ({ value: c.id, label: c.name }))}
+                placeholder="Kunde suchen…"
+                emptyLabel="— Kein Kunde —"
+                clearable
+              />
+            </div>
             <Button
               type="button"
               variant="outline"
