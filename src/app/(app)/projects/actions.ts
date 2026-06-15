@@ -121,14 +121,11 @@ export async function addAssignment(
     }
   }
 
-  await prisma.projectAssignment.upsert({
-    where: { projectId_deviceId: { projectId, deviceId: data.deviceId } },
-    update: {
-      quantity: data.quantity,
-      groupId: data.groupId,
-      notes: data.notes || null,
-    },
-    create: {
+  // Immer eine neue Buchung anlegen — dasselbe Gerät darf bewusst mehrfach
+  // im Projekt vorkommen (z.B. einmal pro Gruppe). Anzahl-Änderungen laufen
+  // über updateAssignmentQuantity / Drag&Drop in der UI.
+  await prisma.projectAssignment.create({
+    data: {
       projectId,
       deviceId: data.deviceId,
       groupId: data.groupId,

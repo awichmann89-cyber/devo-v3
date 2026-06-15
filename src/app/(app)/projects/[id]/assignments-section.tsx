@@ -1161,14 +1161,10 @@ export function AssignmentsSection({
                                 0,
                                 d.stockQuantity - bookedQty,
                               );
-                              const isAlreadyBooked = bookedQty > 0;
                               return (
                                 <li
                                   key={d.id}
-                                  className={cn(
-                                    "group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40",
-                                    isAlreadyBooked && "opacity-60",
-                                  )}
+                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
                                   style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
                                 >
                                   <div className="flex-1 min-w-0">
@@ -1185,14 +1181,6 @@ export function AssignmentsSection({
                                         </>
                                       )}
                                       <span>Bestand {remainingStock}</span>
-                                      {isAlreadyBooked && (
-                                        <>
-                                          <span>·</span>
-                                          <span className="text-primary font-medium">
-                                            {bookedQty}× gebucht
-                                          </span>
-                                        </>
-                                      )}
                                       <span>·</span>
                                       <span>{formatCurrency(dailyRate)}/T</span>
                                     </div>
@@ -1201,12 +1189,10 @@ export function AssignmentsSection({
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
-                                    disabled={pending || isAlreadyBooked}
+                                    disabled={pending}
                                     onClick={() => handleAdd(d.id)}
                                     title={
-                                      isAlreadyBooked
-                                        ? "Bereits gebucht — Anzahl rechts in der Tabelle anpassen"
-                                        : activeGroupId
+                                      activeGroupId
                                         ? `Zur Gruppe "${groups.find((g) => g.id === activeGroupId)?.name}" hinzufügen`
                                         : "Eine Standardgruppe wird automatisch angelegt"
                                     }
@@ -1600,14 +1586,10 @@ export function AssignmentsSection({
                                 0,
                                 c.stockQuantity - reserved - bookedQty,
                               );
-                              const isAlreadyBooked = bookedQty > 0;
                               return (
                                 <li
                                   key={c.id}
-                                  className={cn(
-                                    "group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40",
-                                    isAlreadyBooked && "opacity-60",
-                                  )}
+                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
                                   style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
                                 >
                                   <div className="flex-1 min-w-0">
@@ -1622,26 +1604,16 @@ export function AssignmentsSection({
                                       <span className={cn(free <= 0 && "text-destructive font-semibold")}>
                                         {free} frei / {c.stockQuantity}
                                       </span>
-                                      {isAlreadyBooked && (
-                                        <>
-                                          <span>·</span>
-                                          <span className="text-primary font-medium">
-                                            {bookedQty}× gebucht
-                                          </span>
-                                        </>
-                                      )}
                                     </div>
                                   </div>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
-                                    disabled={pending || isAlreadyBooked}
+                                    disabled={pending}
                                     onClick={() => handleAddCable(c.id)}
                                     title={
-                                      isAlreadyBooked
-                                        ? "Bereits gebucht — Anzahl rechts in der Tabelle anpassen"
-                                        : activeCableGroupId
+                                      activeCableGroupId
                                         ? `Zur Gruppe "${cableGroups.find((g) => g.id === activeCableGroupId)?.name}" hinzufügen`
                                         : "Eine Standardgruppe wird automatisch angelegt"
                                     }

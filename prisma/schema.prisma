@@ -201,7 +201,8 @@ model ProjectCableAssignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([projectId, cableId])
+  // Kein Unique-Constraint auf (projectId, cableId) — dasselbe Kabel kann
+  // bewusst mehrfach gebucht werden (z.B. in unterschiedliche Gruppen).
   @@index([cableId])
   @@index([projectId])
   @@index([groupId])
@@ -651,7 +652,8 @@ model ProjectAssignment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([projectId, deviceId])
+  // Kein Unique-Constraint auf (projectId, deviceId) — dasselbe Gerät kann
+  // bewusst mehrfach gebucht werden (z.B. in unterschiedliche Gruppen).
   @@index([deviceId])
   @@index([projectId])
   @@index([groupId])

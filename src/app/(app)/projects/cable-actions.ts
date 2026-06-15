@@ -13,15 +13,11 @@ export async function addCableAssignment(projectId: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = cableAssignmentSchema.parse(input);
 
-  await prisma.projectCableAssignment.upsert({
-    where: {
-      projectId_cableId: { projectId, cableId: data.cableId },
-    },
-    update: {
-      quantity: { increment: data.quantity },
-      groupId: data.groupId,
-    },
-    create: {
+  // Immer eine neue Buchung anlegen — dasselbe Kabel darf bewusst mehrfach
+  // im Projekt vorkommen (z.B. einmal pro Gruppe). Anzahl-Änderungen laufen
+  // über updateCableAssignmentQuantity.
+  await prisma.projectCableAssignment.create({
+    data: {
       projectId,
       cableId: data.cableId,
       groupId: data.groupId,

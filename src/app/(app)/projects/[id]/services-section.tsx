@@ -267,11 +267,6 @@ export function ServicesSection({
     });
   }
 
-  const usedIds = useMemo(
-    () => new Set(projectServices.map((p) => p.serviceItemId)),
-    [projectServices]
-  );
-
   const [extraItems, setExtraItems] = useState<ServiceItemVM[]>([]);
 
   const fullCatalog = useMemo(() => {
@@ -280,9 +275,9 @@ export function ServicesSection({
     return Array.from(map.values());
   }, [catalog, extraItems]);
 
-  // Bereits im Projekt gebuchte Service-Items bleiben sichtbar — wir
-  // disable nur den Hinzufügen-Button (siehe handleAdd unten), damit ein
-  // erneutes Klicken nicht versehentlich Anzahl/Gruppe überschreibt.
+  // Bereits im Projekt gebuchte Service-Items bleiben sichtbar — derselbe
+  // Service kann bewusst mehrfach gebucht werden (z.B. eine Position pro
+  // Gruppe).
   const availableFromFullCatalog = useMemo(() => {
     return fullCatalog.filter((c) => {
       if (!c.active) return false;
@@ -673,45 +668,28 @@ export function ServicesSection({
                                 </button>
                                 {!isCollapsed && (
                                   <ul className="divide-y">
-                                    {items.map((s) => {
-                                      const isAlreadyBooked = usedIds.has(s.id);
-                                      return (
+                                    {items.map((s) => (
                                       <li
                                         key={s.id}
-                                        className={cn(
-                                          "group flex items-center gap-2 pl-8 pr-3 py-2 hover:bg-accent/40",
-                                          isAlreadyBooked && "opacity-60",
-                                        )}
+                                        className="group flex items-center gap-2 pl-8 pr-3 py-2 hover:bg-accent/40"
                                       >
                                         <div className="flex-1 min-w-0">
                                           <div className="truncate text-sm font-medium">
                                             {s.name}
                                           </div>
-                                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                            <span>
-                                              {formatCurrency(s.unitPrice)} /{" "}
-                                              {billingUnitShort(s.unit)}
-                                            </span>
-                                            {isAlreadyBooked && (
-                                              <>
-                                                <span>·</span>
-                                                <span className="text-primary font-medium">
-                                                  gebucht
-                                                </span>
-                                              </>
-                                            )}
+                                          <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                            {formatCurrency(s.unitPrice)} /{" "}
+                                            {billingUnitShort(s.unit)}
                                           </div>
                                         </div>
                                         <Button
                                           variant="ghost"
                                           size="icon"
                                           className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
-                                          disabled={pending || isAlreadyBooked}
+                                          disabled={pending}
                                           onClick={() => handleAdd(s.id)}
                                           title={
-                                            isAlreadyBooked
-                                              ? "Bereits gebucht — Anzahl rechts in der Tabelle anpassen"
-                                              : activeGroupId
+                                            activeGroupId
                                               ? `Zur Gruppe „${groups.find((g) => g.id === activeGroupId)?.name}“ hinzufügen`
                                               : "Eine Standardgruppe wird automatisch angelegt"
                                           }
@@ -719,8 +697,7 @@ export function ServicesSection({
                                           <ArrowRight className="h-4 w-4" />
                                         </Button>
                                       </li>
-                                      );
-                                    })}
+                                    ))}
                                   </ul>
                                 )}
                               </li>
