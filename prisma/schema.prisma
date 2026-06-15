@@ -504,6 +504,12 @@ model Invoice {
   vatPercent Decimal  @default(0) @db.Decimal(5, 2)
   // Zahlungseingang — null wenn noch nicht bezahlt
   paidAt    DateTime?
+  // Vollständiger Snapshot der Render-Daten zum Zeitpunkt der Erstellung:
+  // Empfänger, Positionen, Preise, Rabatte, Summen, Settings (MwSt, Firma).
+  // Wird im PDF verwendet, damit nachträgliche Änderungen am Projekt die
+  // ausgegebene Rechnung NICHT mehr verändern (GoBD/§14 UStG).
+  // Bei Alt-Rechnungen ohne Snapshot wird auf Live-Daten zurückgefallen.
+  snapshot  Json?
   createdAt DateTime @default(now())
 
   @@index([projectId])
@@ -526,6 +532,10 @@ model Quote {
   // Freitext-Hinweis, der im PDF zwischen Begrüßung und Positionstabelle
   // ausgegeben wird. Wird beim Erstellen des Angebots im Dialog eingegeben.
   notes      String?
+  // Vollständiger Snapshot der Render-Daten zum Zeitpunkt der Erstellung —
+  // siehe Invoice.snapshot. Stellt sicher, dass der Kunde immer die gleiche
+  // Version des Angebots sieht wie ursprünglich rausgegeben.
+  snapshot   Json?
   createdAt  DateTime @default(now())
 
   @@index([projectId])

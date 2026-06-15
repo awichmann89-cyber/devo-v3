@@ -5,6 +5,28 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { Prisma } from "@prisma/client";
 import { getSettings, buildInvoiceNumber, buildQuoteNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
+import { buildSnapshotFromProject } from "@/lib/document-snapshot";
+
+/**
+ * Lädt das Projekt mit allen für den Snapshot benötigten Relationen.
+ * Wird vor createInvoice / createQuote aufgerufen, damit der ausgegebene
+ * Stand des Dokuments unveränderlich konserviert werden kann.
+ */
+async function loadProjectForSnapshot(projectId: string) {
+  return prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      customer: true,
+      billingPeriods: { orderBy: { start: "asc" } },
+      groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
+      assignments: { include: { device: true } },
+      services: { include: { serviceItem: true } },
+      adHocItems: { orderBy: { sortOrder: "asc" } },
+      groupComments: { orderBy: { sortOrder: "asc" } },
+      maintainer: { select: { name: true, email: true } },
+    },
+  });
+}
 
 export async function updateGroupDiscount(groupId: string, discountPercent: number) {
   await requireRole(CAN_WRITE);
@@ -73,6 +95,7 @@ export async function createInvoice(
   const settings = await getSettings();
   const vatPercent = Math.max(0, Math.min(100, Number(settings.vatPercent) || 0));
   const isReminder = !!options?.relatedInvoiceId;
+  void totalNet; // wird vom Snapshot überschrieben — Parameter bleibt nur für Backward-Compat
 
   // Nummernkreis abhängig vom Typ: Mahnungen haben eigenen Prefix/Counter
   const prefix = isReminder
@@ -122,11 +145,18 @@ export async function createInvoice(
     ? buildReminderNumber(year, nextSequence, prefix, padding)
     : buildInvoiceNumber(year, nextSequence, prefix, padding);
 
-  // Wenn Mahnung: Beträge aus Original-Rechnung übernehmen
-  let useTotalNet = totalNet;
+  // Snapshot bauen — entweder aus dem Original (bei Mahnung) oder aus dem
+  // aktuellen Projekt-Stand (bei normaler Rechnung). Der Snapshot ist die
+  // Quelle der Wahrheit für totalNet/totalGross und das spätere PDF-Rendering.
+  let snapshotJson: Prisma.InputJsonValue | undefined;
+  let useTotalNet: number;
   let useVatPercent = vatPercent;
   let reminderLevel = 0;
+
   if (options?.relatedInvoiceId) {
+    // Mahnung: Snapshot, Beträge und Steuersatz aus der Original-Rechnung
+    // übernehmen — die Mahnung ist inhaltlich identisch zur Rechnung,
+    // nur mit anderem Titel und anderem Datum.
     const orig = await prisma.invoice.findUnique({
       where: { id: options.relatedInvoiceId },
       select: {
@@ -135,11 +165,10 @@ export async function createInvoice(
         kind: true,
         reminderLevel: true,
         relatedInvoiceId: true,
+        snapshot: true,
       },
     });
     if (!orig) throw new Error("Ursprungs-Rechnung nicht gefunden");
-    // Mahnung zur ursprünglichen Rechnung — falls relatedInvoiceId selbst auf
-    // eine Mahnung zeigt, hangeln wir uns zur Original-Rechnung hoch.
     const rootInvoiceId =
       orig.kind === "REMINDER" && orig.relatedInvoiceId
         ? orig.relatedInvoiceId
@@ -151,6 +180,27 @@ export async function createInvoice(
     useTotalNet = Number(orig.totalNet);
     useVatPercent = Number(orig.vatPercent);
     options.relatedInvoiceId = rootInvoiceId;
+    // Snapshot der Original-Rechnung 1:1 übernehmen (falls vorhanden)
+    if (orig.snapshot !== null && orig.snapshot !== undefined) {
+      snapshotJson = orig.snapshot as Prisma.InputJsonValue;
+    }
+  } else {
+    // Normale Rechnung: Snapshot aus dem aktuellen Projekt-Stand bauen.
+    const project = await loadProjectForSnapshot(projectId);
+    if (!project) throw new Error("Projekt nicht gefunden");
+    const snap = buildSnapshotFromProject(project, {
+      vatPercent: settings.vatPercent,
+      companyName: settings.companyName,
+      companyStreet: settings.companyStreet,
+      companyZipCity: settings.companyZipCity,
+      dayFactorMap: settings.dayFactorMap,
+      // Intro-/Outro-Text gehören nur ins Angebot, nicht in die Rechnung —
+      // beim Snapshot der Rechnung daher leer halten.
+      quoteIntroText: null,
+      quoteOutroText: null,
+    });
+    snapshotJson = snap as unknown as Prisma.InputJsonValue;
+    useTotalNet = snap.totals.totalNet;
   }
 
   const totalNetDec = new Prisma.Decimal(useTotalNet);
@@ -170,6 +220,7 @@ export async function createInvoice(
       totalNet: totalNetDec,
       totalGross: totalGrossDec,
       vatPercent: new Prisma.Decimal(useVatPercent),
+      snapshot: snapshotJson,
     },
     select: { id: true, number: true },
   });
@@ -215,6 +266,7 @@ export async function createQuote(
   const padding = Math.max(1, Math.min(8, Number(settings.quoteNumberPadding) || 3));
   const minSequence = Math.max(1, Number(settings.quoteNumberNextSequence) || 1);
   const vatPercent = Math.max(0, Math.min(100, Number(settings.vatPercent) || 0));
+  void totalNet; // wird vom Snapshot überschrieben — bleibt nur für Backward-Compat
 
   const yearQuotes = await prisma.quote.findMany({
     where: { number: { startsWith: `${year}-` } },
@@ -231,7 +283,23 @@ export async function createQuote(
   const nextSequence = Math.max(maxSeq + 1, minSequence);
   const number = buildQuoteNumber(year, nextSequence, prefix, padding);
 
-  const totalNetDec = new Prisma.Decimal(totalNet);
+  // Snapshot aus dem aktuellen Projekt-Stand bauen — friert die zum
+  // Zeitpunkt der Ausgabe gültige Version des Angebots ein. Nachträgliche
+  // Projekt-Änderungen verändern das Angebots-PDF dann nicht mehr.
+  const project = await loadProjectForSnapshot(projectId);
+  if (!project) throw new Error("Projekt nicht gefunden");
+  const snap = buildSnapshotFromProject(project, {
+    vatPercent: settings.vatPercent,
+    companyName: settings.companyName,
+    companyStreet: settings.companyStreet,
+    companyZipCity: settings.companyZipCity,
+    dayFactorMap: settings.dayFactorMap,
+    quoteIntroText: settings.quoteIntroText,
+    quoteOutroText: settings.quoteOutroText,
+  });
+  const snapshotJson = snap as unknown as Prisma.InputJsonValue;
+
+  const totalNetDec = new Prisma.Decimal(snap.totals.totalNet);
   const totalGrossDec = totalNetDec.mul(new Prisma.Decimal(1 + vatPercent / 100));
 
   const q = await prisma.quote.create({
@@ -244,6 +312,7 @@ export async function createQuote(
       totalGross: totalGrossDec,
       vatPercent: new Prisma.Decimal(vatPercent),
       notes: notes?.trim() || null,
+      snapshot: snapshotJson,
     },
     select: { id: true, number: true },
   });
