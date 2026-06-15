@@ -243,20 +243,26 @@ export function AssignmentsSection({
     });
   }
 
-  // Verfügbare Geräte (nicht bereits gebucht)
-  const assignedDeviceIds = new Set(project.assignments.map((a) => a.deviceId));
-  const availableDevices = allDevices
-    .filter((d) => !assignedDeviceIds.has(d.id))
-    .filter((d) => {
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (
-        d.name.toLowerCase().includes(q) ||
-        (d.manufacturer ?? "").toLowerCase().includes(q) ||
-        (d.model ?? "").toLowerCase().includes(q) ||
-        (d.description ?? "").toLowerCase().includes(q)
-      );
-    });
+  // Gebuchte Menge pro Gerät in DIESEM Projekt. Wird unten verwendet, um
+  // den verbleibenden Bestand in der Katalog-Spalte anzuzeigen — gebuchte
+  // Geräte bleiben sichtbar, ihr Bestand-Wert sinkt aber entsprechend.
+  const bookedQtyByDevice = new Map<string, number>();
+  for (const a of project.assignments) {
+    bookedQtyByDevice.set(
+      a.deviceId,
+      (bookedQtyByDevice.get(a.deviceId) ?? 0) + a.quantity,
+    );
+  }
+  const availableDevices = allDevices.filter((d) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      d.name.toLowerCase().includes(q) ||
+      (d.manufacturer ?? "").toLowerCase().includes(q) ||
+      (d.model ?? "").toLowerCase().includes(q) ||
+      (d.description ?? "").toLowerCase().includes(q)
+    );
+  });
 
   async function handleAdd(deviceId: string, force = false) {
     if (!activeGroupId && groups.length === 0) {
@@ -346,20 +352,26 @@ export function AssignmentsSection({
 
   // ----- Kabel-Buchungen -----
   const [cableSearch, setCableSearch] = useState("");
-  const assignedCableIds = new Set(cableAssignments.map((c) => c.cableId));
-  const availableCables = allCables
-    .filter((c) => !assignedCableIds.has(c.id))
-    .filter((c) => {
-      if (!cableSearch) return true;
-      const q = cableSearch.toLowerCase();
-      return (
-        c.name.toLowerCase().includes(q) ||
-        (c.cableType ?? "").toLowerCase().includes(q) ||
-        (c.connectorA ?? "").toLowerCase().includes(q) ||
-        (c.connectorB ?? "").toLowerCase().includes(q) ||
-        (c.description ?? "").toLowerCase().includes(q)
-      );
-    });
+  // Gebuchte Menge pro Kabel in DIESEM Projekt. Analog zur Geräte-Logik:
+  // gebuchte Kabel bleiben im Katalog sichtbar, nur der freie Bestand sinkt.
+  const bookedQtyByCable = new Map<string, number>();
+  for (const ca of cableAssignments) {
+    bookedQtyByCable.set(
+      ca.cableId,
+      (bookedQtyByCable.get(ca.cableId) ?? 0) + ca.quantity,
+    );
+  }
+  const availableCables = allCables.filter((c) => {
+    if (!cableSearch) return true;
+    const q = cableSearch.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.cableType ?? "").toLowerCase().includes(q) ||
+      (c.connectorA ?? "").toLowerCase().includes(q) ||
+      (c.connectorB ?? "").toLowerCase().includes(q) ||
+      (c.description ?? "").toLowerCase().includes(q)
+    );
+  });
 
   async function handleAddCable(cableId: string) {
     let groupId = activeCableGroupId;
@@ -1103,7 +1115,7 @@ export function AssignmentsSection({
                 <p className="px-3 py-8 text-center text-xs text-muted-foreground">
                   {allDevices.length === 0
                     ? "Noch keine Geräte angelegt"
-                    : "Alle passenden bereits gebucht"}
+                    : "Keine Treffer"}
                 </p>
               ) : (
                 <ul className="divide-y">
@@ -1142,10 +1154,21 @@ export function AssignmentsSection({
                           <ul className="divide-y">
                             {catGroup.items.map((d) => {
                               const dailyRate = Number(d.dailyRate);
+                              const bookedQty = bookedQtyByDevice.get(d.id) ?? 0;
+                              // Bestand wird um die im Projekt bereits gebuchten
+                              // Stücke reduziert, kann nicht unter 0 fallen.
+                              const remainingStock = Math.max(
+                                0,
+                                d.stockQuantity - bookedQty,
+                              );
+                              const isAlreadyBooked = bookedQty > 0;
                               return (
                                 <li
                                   key={d.id}
-                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
+                                  className={cn(
+                                    "group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40",
+                                    isAlreadyBooked && "opacity-60",
+                                  )}
                                   style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
                                 >
                                   <div className="flex-1 min-w-0">
@@ -1161,7 +1184,15 @@ export function AssignmentsSection({
                                           <span>·</span>
                                         </>
                                       )}
-                                      <span>Bestand {d.stockQuantity}</span>
+                                      <span>Bestand {remainingStock}</span>
+                                      {isAlreadyBooked && (
+                                        <>
+                                          <span>·</span>
+                                          <span className="text-primary font-medium">
+                                            {bookedQty}× gebucht
+                                          </span>
+                                        </>
+                                      )}
                                       <span>·</span>
                                       <span>{formatCurrency(dailyRate)}/T</span>
                                     </div>
@@ -1170,10 +1201,12 @@ export function AssignmentsSection({
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
-                                    disabled={pending}
+                                    disabled={pending || isAlreadyBooked}
                                     onClick={() => handleAdd(d.id)}
                                     title={
-                                      activeGroupId
+                                      isAlreadyBooked
+                                        ? "Bereits gebucht — Anzahl rechts in der Tabelle anpassen"
+                                        : activeGroupId
                                         ? `Zur Gruppe "${groups.find((g) => g.id === activeGroupId)?.name}" hinzufügen`
                                         : "Eine Standardgruppe wird automatisch angelegt"
                                     }
@@ -1521,7 +1554,7 @@ export function AssignmentsSection({
                 <p className="px-3 py-8 text-center text-xs text-muted-foreground">
                   {allCables.length === 0
                     ? "Noch keine Kabel angelegt"
-                    : "Alle passenden bereits gebucht"}
+                    : "Keine Treffer"}
                 </p>
               ) : (
                 <ul className="divide-y">
@@ -1560,11 +1593,21 @@ export function AssignmentsSection({
                             {catGroup.items.map((c) => {
                               const conf = cableConflictMap[c.id];
                               const reserved = conf?.packAllocation ?? 0;
-                              const free = c.stockQuantity - reserved;
+                              const bookedQty = bookedQtyByCable.get(c.id) ?? 0;
+                              // Frei = Bestand minus Pack-Reservierung minus
+                              // bereits in DIESEM Projekt gebuchte Stück.
+                              const free = Math.max(
+                                0,
+                                c.stockQuantity - reserved - bookedQty,
+                              );
+                              const isAlreadyBooked = bookedQty > 0;
                               return (
                                 <li
                                   key={c.id}
-                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
+                                  className={cn(
+                                    "group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40",
+                                    isAlreadyBooked && "opacity-60",
+                                  )}
                                   style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
                                 >
                                   <div className="flex-1 min-w-0">
@@ -1579,16 +1622,26 @@ export function AssignmentsSection({
                                       <span className={cn(free <= 0 && "text-destructive font-semibold")}>
                                         {free} frei / {c.stockQuantity}
                                       </span>
+                                      {isAlreadyBooked && (
+                                        <>
+                                          <span>·</span>
+                                          <span className="text-primary font-medium">
+                                            {bookedQty}× gebucht
+                                          </span>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
-                                    disabled={pending}
+                                    disabled={pending || isAlreadyBooked}
                                     onClick={() => handleAddCable(c.id)}
                                     title={
-                                      activeCableGroupId
+                                      isAlreadyBooked
+                                        ? "Bereits gebucht — Anzahl rechts in der Tabelle anpassen"
+                                        : activeCableGroupId
                                         ? `Zur Gruppe "${cableGroups.find((g) => g.id === activeCableGroupId)?.name}" hinzufügen`
                                         : "Eine Standardgruppe wird automatisch angelegt"
                                     }

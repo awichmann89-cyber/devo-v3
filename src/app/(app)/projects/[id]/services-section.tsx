@@ -280,10 +280,12 @@ export function ServicesSection({
     return Array.from(map.values());
   }, [catalog, extraItems]);
 
+  // Bereits im Projekt gebuchte Service-Items bleiben sichtbar — wir
+  // disable nur den Hinzufügen-Button (siehe handleAdd unten), damit ein
+  // erneutes Klicken nicht versehentlich Anzahl/Gruppe überschreibt.
   const availableFromFullCatalog = useMemo(() => {
     return fullCatalog.filter((c) => {
       if (!c.active) return false;
-      if (usedIds.has(c.id)) return false;
       if (kindFilter !== "all" && c.kind !== kindFilter) return false;
       if (!search) return true;
       const q = search.toLowerCase();
@@ -292,7 +294,7 @@ export function ServicesSection({
         (c.description ?? "").toLowerCase().includes(q)
       );
     });
-  }, [fullCatalog, usedIds, kindFilter, search]);
+  }, [fullCatalog, kindFilter, search]);
 
   async function handleAdd(serviceItemId: string) {
     let groupId = activeGroupId;
@@ -620,7 +622,7 @@ export function ServicesSection({
                   <p className="px-4 py-8 text-center text-xs text-muted-foreground">
                     {search || kindFilter !== "all"
                       ? "Keine passenden Positionen"
-                      : "Alle aktiven Positionen bereits gebucht — über „Neue Position“ kannst du eine anlegen."}
+                      : "Noch keine aktiven Positionen — über „Neue Position“ kannst du eine anlegen."}
                   </p>
                 ) : (
                   (() => {
@@ -671,28 +673,45 @@ export function ServicesSection({
                                 </button>
                                 {!isCollapsed && (
                                   <ul className="divide-y">
-                                    {items.map((s) => (
+                                    {items.map((s) => {
+                                      const isAlreadyBooked = usedIds.has(s.id);
+                                      return (
                                       <li
                                         key={s.id}
-                                        className="group flex items-center gap-2 pl-8 pr-3 py-2 hover:bg-accent/40"
+                                        className={cn(
+                                          "group flex items-center gap-2 pl-8 pr-3 py-2 hover:bg-accent/40",
+                                          isAlreadyBooked && "opacity-60",
+                                        )}
                                       >
                                         <div className="flex-1 min-w-0">
                                           <div className="truncate text-sm font-medium">
                                             {s.name}
                                           </div>
-                                          <div className="mt-0.5 text-[11px] text-muted-foreground">
-                                            {formatCurrency(s.unitPrice)} /{" "}
-                                            {billingUnitShort(s.unit)}
+                                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                                            <span>
+                                              {formatCurrency(s.unitPrice)} /{" "}
+                                              {billingUnitShort(s.unit)}
+                                            </span>
+                                            {isAlreadyBooked && (
+                                              <>
+                                                <span>·</span>
+                                                <span className="text-primary font-medium">
+                                                  gebucht
+                                                </span>
+                                              </>
+                                            )}
                                           </div>
                                         </div>
                                         <Button
                                           variant="ghost"
                                           size="icon"
                                           className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
-                                          disabled={pending}
+                                          disabled={pending || isAlreadyBooked}
                                           onClick={() => handleAdd(s.id)}
                                           title={
-                                            activeGroupId
+                                            isAlreadyBooked
+                                              ? "Bereits gebucht — Anzahl rechts in der Tabelle anpassen"
+                                              : activeGroupId
                                               ? `Zur Gruppe „${groups.find((g) => g.id === activeGroupId)?.name}“ hinzufügen`
                                               : "Eine Standardgruppe wird automatisch angelegt"
                                           }
@@ -700,7 +719,8 @@ export function ServicesSection({
                                           <ArrowRight className="h-4 w-4" />
                                         </Button>
                                       </li>
-                                    ))}
+                                      );
+                                    })}
                                   </ul>
                                 )}
                               </li>
