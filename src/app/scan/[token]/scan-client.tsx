@@ -82,10 +82,18 @@ export function ScanClient({
   const [confirmReset, setConfirmReset] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // Visuelles Feedback im Kamera-Bild: kurz nach erfolgreichem Scan zeigt sich
+  // ein grüner Haken, der nach ~1.5s wieder verschwindet, damit man weiß,
+  // dass der Code erfasst wurde, ohne dass der Scan-Modus unterbrochen wird.
+  const [scanSuccess, setScanSuccess] = useState(false);
+  const scanSuccessTimerRef = useRef<number | null>(null);
 
   // html5-qrcode Scanner-Instance. Lib übernimmt video-element + Decoding intern.
   const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
+  // Zweiter Decoder-Loop für invertierte QR-Codes (weiß auf schwarz). html5-qrcode
+  // erkennt nur normale Codes, jsQR macht parallel den invertierten Pass.
+  const invertedLoopRef = useRef<number | null>(null);
 
   const totalRequired = items.reduce((s, it) => s + it.required, 0);
   const totalScanned = items.reduce((s, it) => s + it.scanned, 0);
@@ -126,6 +134,16 @@ export function ScanClient({
         navigator.vibrate?.(60);
       }
       setManual("");
+      // Grüner Haken im Kamera-Bild kurz einblenden, dann ausblenden, damit
+      // weiter gescannt werden kann.
+      setScanSuccess(true);
+      if (scanSuccessTimerRef.current !== null) {
+        window.clearTimeout(scanSuccessTimerRef.current);
+      }
+      scanSuccessTimerRef.current = window.setTimeout(() => {
+        setScanSuccess(false);
+        scanSuccessTimerRef.current = null;
+      }, 1500);
     });
   }
 
@@ -156,11 +174,26 @@ export function ScanClient({
         ],
       });
       await scanner.start(
-        { facingMode: "environment" },
+        // Maximale Auflösung anfordern — kleine ausgedruckte QR-Codes brauchen
+        // genug Pixel pro Modul (≥3) um zuverlässig dekodiert zu werden.
+        // `ideal` heißt: der Browser nimmt diese Werte wenn möglich, fällt
+        // sonst auf die nächstmögliche Auflösung zurück (z.B. 1280×720).
+        // `focusMode: continuous` hält den Bereich vor der Linse scharf,
+        // wichtig bei sich bewegenden Boxen.
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.333,
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          // @ts-expect-error — focusMode ist nicht in allen Browser-Typings,
+          // wird aber von iOS Safari und Android Chrome unterstützt.
+          focusMode: "continuous",
+        },
+        {
+          fps: 15,
+          // Kein qrbox setzen — html5-qrcode durchsucht so den GESAMTEN Frame
+          // statt nur ein zentriertes Quadrat. Das macht die Erfassung
+          // deutlich zuverlässiger, gerade bei kleinen ausgedruckten Codes.
+          aspectRatio: 1.0,
         },
         (decodedText: string) => {
           void handleScan(decodedText);
@@ -171,6 +204,13 @@ export function ScanClient({
       );
       scannerRef.current = scanner;
       setCameraOn(true);
+
+      // Zweiter Decoder-Pfad: invertierte QR-Codes (weiß auf schwarz).
+      // html5-qrcode (ZXing) probiert von Haus aus keine Color-Inversion,
+      // deshalb läuft hier jsQR mit `inversionAttempts: "onlyInvert"` parallel
+      // auf demselben Video-Element. Wer zuerst was findet, gewinnt — die
+      // Dedup-Logik in handleScan verhindert Doppelauslösungen.
+      startInvertedLoop();
     } catch (err: unknown) {
       const msg =
         err instanceof Error
@@ -180,7 +220,65 @@ export function ScanClient({
     }
   }
 
+  /**
+   * Inverter-Loop: greift das von html5-qrcode angelegte <video>-Element ab,
+   * zeichnet alle ~150 ms einen Frame auf ein Offscreen-Canvas, und lässt
+   * jsQR mit `inversionAttempts: "onlyInvert"` darauf laufen. Trifft jsQR
+   * einen weißen-auf-schwarz QR-Code, geht das Ergebnis durch dieselbe
+   * handleScan-Pipeline wie der normale Pfad.
+   */
+  function startInvertedLoop() {
+    if (invertedLoopRef.current !== null) return; // schon aktiv
+    // jsQR ist eine reine CPU-Library — wir laden sie dynamisch, damit das
+    // Bundle nur bei tatsächlichem Scanner-Aufruf wächst.
+    let jsQR: typeof import("jsqr").default | null = null;
+    void import("jsqr").then((mod) => {
+      jsQR = mod.default;
+    });
+
+    const offscreen = document.createElement("canvas");
+    const ctx = offscreen.getContext("2d", { willReadFrequently: true });
+
+    const tick = () => {
+      const video = document.querySelector<HTMLVideoElement>("#qr-reader video");
+      if (!video || !ctx || !jsQR || video.readyState < 2) {
+        return;
+      }
+      // Native Frame-Auflösung verwenden — kein Downsampling. Kleine
+      // ausgedruckte QR-Codes brauchen genug Pixel pro Modul; wenn wir auf
+      // 640×480 runterrechnen, fallen Codes < ~3 cm aus 30 cm Abstand
+      // unter die Decoder-Schwelle.
+      const w = video.videoWidth || 0;
+      const h = video.videoHeight || 0;
+      if (w === 0 || h === 0) return;
+      if (offscreen.width !== w) offscreen.width = w;
+      if (offscreen.height !== h) offscreen.height = h;
+      try {
+        ctx.drawImage(video, 0, 0, w, h);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const result = jsQR(imageData.data, w, h, { inversionAttempts: "onlyInvert" });
+        if (result?.data) {
+          void handleScan(result.data);
+        }
+      } catch {
+        // CORS-/Frame-Probleme ignorieren — der nächste Tick versucht's neu.
+      }
+    };
+
+    // 250 ms statt 150 ms — bei voller Auflösung ist ein jsQR-Pass deutlich
+    // teurer, alle 4 Frames reicht für die Inversion locker.
+    invertedLoopRef.current = window.setInterval(tick, 250);
+  }
+
+  function stopInvertedLoop() {
+    if (invertedLoopRef.current !== null) {
+      window.clearInterval(invertedLoopRef.current);
+      invertedLoopRef.current = null;
+    }
+  }
+
   async function stopCamera() {
+    stopInvertedLoop();
     try {
       await scannerRef.current?.stop();
       scannerRef.current?.clear();
@@ -194,6 +292,10 @@ export function ScanClient({
   useEffect(() => {
     return () => {
       void stopCamera();
+      if (scanSuccessTimerRef.current !== null) {
+        window.clearTimeout(scanSuccessTimerRef.current);
+        scanSuccessTimerRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -266,11 +368,13 @@ export function ScanClient({
           <CardTitle className="text-base">Code scannen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Kamera-Vorschau via html5-qrcode. Kompakt zentriert,
-              damit die Packlisten-Card darunter weiter sichtbar bleibt. */}
+          {/* Kamera-Vorschau via html5-qrcode.
+              Quadratisch: volle Breite der Card, Höhe = Breite (aspect-square).
+              Das Video wird via object-cover beschnitten, damit kein
+              Letterbox-Rahmen erscheint. Gescannt wird im gesamten Frame. */}
           <div
             className={cn(
-              "relative mx-auto w-full max-w-[260px] overflow-hidden rounded-md border bg-black",
+              "relative mx-auto w-full aspect-square overflow-hidden rounded-md border bg-black",
               cameraOn ? "block" : "hidden"
             )}
           >
@@ -281,13 +385,36 @@ export function ScanClient({
                 "[&>div]:!border-0 [&>div]:!p-0",
                 "[&_button]:!hidden",
                 "[&_select]:!hidden",
-                // Video ins Container einpassen:
-                "[&_video]:!block [&_video]:!w-full [&_video]:!h-auto [&_video]:!object-cover"
+                // Video full-fill und beschneidend einbetten:
+                "h-full w-full",
+                "[&_video]:!block [&_video]:!w-full [&_video]:!h-full [&_video]:!object-cover"
               )}
             />
-            {/* Ziel-Overlay */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-2/3 w-2/3 rounded-md border-2 border-primary/80" />
+            {/* Scan-Status-Overlay
+                Default („Wird gescannt"): dezente animierte Eckenmarkierung,
+                signalisiert dass die Kamera aktiv durchsucht.
+                Bei erfolgreichem Scan: großer grüner Haken, blendet nach ~1.5s
+                wieder aus, damit der nächste Code weiter erfasst werden kann. */}
+            <div className="pointer-events-none absolute inset-0">
+              {scanSuccess ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-emerald-500/30 backdrop-blur-[1px] transition-opacity">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50">
+                    <CheckCircle2 className="h-14 w-14 text-white" strokeWidth={3} />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Vier Ecken-Marken — zeigen den Scanbereich an, ohne die
+                      Mitte zu beschneiden (es wird ja eh überall gesucht). */}
+                  <div className="absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-white/70" />
+                  <div className="absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-white/70" />
+                  <div className="absolute bottom-3 left-3 h-6 w-6 border-b-2 border-l-2 border-white/70" />
+                  <div className="absolute bottom-3 right-3 h-6 w-6 border-b-2 border-r-2 border-white/70" />
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/50 px-2 py-0.5 text-[11px] font-medium text-white">
+                    Wird gescannt…
+                  </div>
+                </>
+              )}
             </div>
           </div>
           {cameraOn ? (
