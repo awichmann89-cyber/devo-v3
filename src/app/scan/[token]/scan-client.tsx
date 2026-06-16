@@ -95,12 +95,16 @@ export function ScanClient({
   const [scanSuccess, setScanSuccess] = useState(false);
   const scanSuccessTimerRef = useRef<number | null>(null);
 
-  // html5-qrcode Scanner-Instance. Lib übernimmt video-element + Decoding intern.
-  const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
+  // nimiq/qr-scanner Scanner-Instance — wraps Cosmo Wolfe's jsQR port mit
+  // diversen Verbesserungen: läuft im WebWorker (UI bleibt smooth), kann
+  // normale UND invertierte QR-Codes in einem Pass dekodieren, fällt auf den
+  // nativen BarcodeDetector zurück wenn der Browser ihn hat, und hat laut
+  // Benchmarks eine 2-3× höhere Detection-Rate als jsQR/ZXing alleine.
+  // Den konkreten Typ holen wir über typeof, damit der dynamische Import
+  // im Bundle nicht groß auftaucht.
+  const scannerRef = useRef<import("qr-scanner").default | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
-  // Zweiter Decoder-Loop für invertierte QR-Codes (weiß auf schwarz). html5-qrcode
-  // erkennt nur normale Codes, jsQR macht parallel den invertierten Pass.
-  const invertedLoopRef = useRef<number | null>(null);
 
   const totalRequired = items.reduce((s, it) => s + it.required, 0);
   const totalScanned = items.reduce((s, it) => s + it.scanned, 0);
@@ -159,74 +163,79 @@ export function ScanClient({
     if (manual.trim()) handleScan(manual);
   }
 
-  // Camera-Scanner via html5-qrcode (ZXing-basiert). Läuft auf iOS Safari,
-  // Chrome Android und Desktop. Lib wird dynamisch importiert, damit das
-  // ~25kb Bundle nicht ungenutzt mitgeladen wird.
+  // Camera-Scanner via nimiq/qr-scanner. Lib läuft im WebWorker (UI bleibt
+  // smooth), unterstützt Inversion (weiß-auf-schwarz) eingebaut, hat einen
+  // Auto-Fallback auf die native BarcodeDetector-API wo verfügbar, und wird
+  // dynamisch importiert damit das Bundle nicht unnötig wächst.
   async function startCamera() {
     setCameraError(null);
+    const video = videoRef.current;
+    if (!video) {
+      setCameraError("Video-Element nicht bereit");
+      return;
+    }
     try {
-      const lib = await import("html5-qrcode");
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = lib;
-      const scanner = new Html5Qrcode("qr-reader", {
-        verbose: false,
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-        ],
-      });
-      // html5-qrcode-Spezifikum: das erste Argument darf NUR EINEN Key
-      // haben (entweder facingMode ODER deviceId). Alle weiteren
-      // Constraints — insbesondere Auflösung — gehören in das zweite
-      // Argument unter `videoConstraints`. `ideal: 1920/1080` ist ein
-      // standardkonformer MediaTrackConstraint, fällt automatisch auf
-      // die nächstmögliche Auflösung zurück (meist 1280×720), und wird
-      // von iOS Safari sauber akzeptiert.
-      // Bewusst minimaler Config-Mix — html5-qrcode reagiert empfindlich auf
-      // mehrere gleichzeitig gesetzte Constraints (facingMode + videoConstraints
-      // + aspectRatio) und liefert dann keinen brauchbaren Stream mehr an den
-      // Decoder. Auflösung lässt der Browser auf seinem Default (meistens
-      // 1280×720), das reicht für die meisten Druck-QR-Codes locker; für
-      // sehr kleine Codes greift dann der parallele jsQR-Pfad mit nativer
-      // Frame-Auflösung.
-      await scanner.start(
-        { facingMode: "environment" },
+      // iOS Safari braucht diese Attribute, sonst öffnet das Video im
+      // Full-Screen-Modus statt inline im DOM. Vor dem Scanner-Start setzen.
+      video.setAttribute("playsinline", "true");
+      video.setAttribute("webkit-playsinline", "true");
+      video.setAttribute("muted", "true");
+      video.setAttribute("autoplay", "true");
+
+      const { default: QrScanner } = await import("qr-scanner");
+      const scanner = new QrScanner(
+        video,
+        (result) => {
+          // Neuer Result-Modus liefert { data, cornerPoints }; uns reicht
+          // der Daten-String.
+          void handleScan(result.data);
+        },
         {
-          fps: 10,
-          // qrbox als Funktion — wächst mit dem tatsächlichen Viewfinder
-          // statt fix bei 250×250 zu hängen. 85% der kleineren Kante = fast
-          // das ganze sichtbare Bild.
-          qrbox: (vw, vh) => {
+          preferredCamera: "environment",
+          // Eingebaute Inversion: nimiq scannt pro Frame beide Varianten
+          // (normaler Code auf hellem Grund UND invertierter Code auf
+          // dunklem Grund). Ersetzt unseren früheren parallelen jsQR-Loop.
+          // `setInversionMode` wird unten gesetzt, der Konstruktor selbst
+          // hat keine Option dafür.
+          maxScansPerSecond: 15,
+          // Scan-Region: deckt fast die ganze Vorschau ab, wird intern
+          // auf 600×600 runterskaliert für Decoder-Performance. Das ist
+          // mehr als der nimiq-Default (400×400) — wichtig für kleine
+          // QR-Codes, da bei 720p-Video → 600×600-Decoder-Pass ~6 Pixel
+          // pro Modul bei 1,5 cm Code aus 15 cm Distanz bleiben.
+          calculateScanRegion: (v) => {
+            const vw = v.videoWidth || 1280;
+            const vh = v.videoHeight || 720;
             const minEdge = Math.min(vw, vh);
-            const size = Math.max(200, Math.floor(minEdge * 0.85));
-            return { width: size, height: size };
+            const size = Math.floor(minEdge * 0.9);
+            const x = Math.floor((vw - size) / 2);
+            const y = Math.floor((vh - size) / 2);
+            return {
+              x,
+              y,
+              width: size,
+              height: size,
+              downScaledWidth: 600,
+              downScaledHeight: 600,
+            };
           },
-          aspectRatio: 1.0,
-        },
-        (decodedText: string) => {
-          void handleScan(decodedText);
-        },
-        () => {
-          // Frame ohne erkannten Code — ignorieren (passiert mehrfach pro Sekunde)
+          // Unser eigenes Overlay (grüner Haken etc.) zeichnen wir selbst,
+          // damit der gestylte Glas-Effekt erhalten bleibt.
+          highlightScanRegion: false,
+          highlightCodeOutline: false,
+          returnDetailedScanResult: true,
         },
       );
+
+      // Inversion-Mode auf "both" — Schlüssel-Feature der Library, scannt
+      // pro Frame normal UND invertiert. Damit fallen unsere weißen QR-Codes
+      // auf schwarzem Grund mit ab.
+      scanner.setInversionMode("both");
+
+      await scanner.start();
       scannerRef.current = scanner;
       setCameraOn(true);
-
-      // Zweiter Decoder-Pfad: invertierte QR-Codes (weiß auf schwarz).
-      // html5-qrcode (ZXing) probiert von Haus aus keine Color-Inversion,
-      // deshalb läuft hier jsQR mit `inversionAttempts: "onlyInvert"` parallel
-      // auf demselben Video-Element. Wer zuerst was findet, gewinnt — die
-      // Dedup-Logik in handleScan verhindert Doppelauslösungen.
-      startInvertedLoop();
     } catch (err: unknown) {
-      // Damit wir auf iOS sehen, was wirklich schiefging, loggen wir den
-      // rohen Fehler in die Browser-Konsole — der Toast bleibt freundlich.
       console.error("[scan] startCamera fehlgeschlagen", err);
       const msg =
         err instanceof Error
@@ -236,68 +245,10 @@ export function ScanClient({
     }
   }
 
-  /**
-   * Inverter-Loop: greift das von html5-qrcode angelegte <video>-Element ab,
-   * zeichnet alle ~150 ms einen Frame auf ein Offscreen-Canvas, und lässt
-   * jsQR mit `inversionAttempts: "onlyInvert"` darauf laufen. Trifft jsQR
-   * einen weißen-auf-schwarz QR-Code, geht das Ergebnis durch dieselbe
-   * handleScan-Pipeline wie der normale Pfad.
-   */
-  function startInvertedLoop() {
-    if (invertedLoopRef.current !== null) return; // schon aktiv
-    // jsQR ist eine reine CPU-Library — wir laden sie dynamisch, damit das
-    // Bundle nur bei tatsächlichem Scanner-Aufruf wächst.
-    let jsQR: typeof import("jsqr").default | null = null;
-    void import("jsqr").then((mod) => {
-      jsQR = mod.default;
-    });
-
-    const offscreen = document.createElement("canvas");
-    const ctx = offscreen.getContext("2d", { willReadFrequently: true });
-
-    const tick = () => {
-      const video = document.querySelector<HTMLVideoElement>("#qr-reader video");
-      if (!video || !ctx || !jsQR || video.readyState < 2) {
-        return;
-      }
-      // Native Frame-Auflösung verwenden — kein Downsampling. Kleine
-      // ausgedruckte QR-Codes brauchen genug Pixel pro Modul; wenn wir auf
-      // 640×480 runterrechnen, fallen Codes < ~3 cm aus 30 cm Abstand
-      // unter die Decoder-Schwelle.
-      const w = video.videoWidth || 0;
-      const h = video.videoHeight || 0;
-      if (w === 0 || h === 0) return;
-      if (offscreen.width !== w) offscreen.width = w;
-      if (offscreen.height !== h) offscreen.height = h;
-      try {
-        ctx.drawImage(video, 0, 0, w, h);
-        const imageData = ctx.getImageData(0, 0, w, h);
-        const result = jsQR(imageData.data, w, h, { inversionAttempts: "onlyInvert" });
-        if (result?.data) {
-          void handleScan(result.data);
-        }
-      } catch {
-        // CORS-/Frame-Probleme ignorieren — der nächste Tick versucht's neu.
-      }
-    };
-
-    // 250 ms statt 150 ms — bei voller Auflösung ist ein jsQR-Pass deutlich
-    // teurer, alle 4 Frames reicht für die Inversion locker.
-    invertedLoopRef.current = window.setInterval(tick, 250);
-  }
-
-  function stopInvertedLoop() {
-    if (invertedLoopRef.current !== null) {
-      window.clearInterval(invertedLoopRef.current);
-      invertedLoopRef.current = null;
-    }
-  }
-
   async function stopCamera() {
-    stopInvertedLoop();
     try {
-      await scannerRef.current?.stop();
-      scannerRef.current?.clear();
+      scannerRef.current?.stop();
+      scannerRef.current?.destroy();
     } catch {
       // ignore — Scanner war evtl. nicht gestartet
     }
@@ -384,27 +335,20 @@ export function ScanClient({
           <CardTitle className="text-base">Code scannen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Kamera-Vorschau via html5-qrcode.
-              Quadratisch: volle Breite der Card, Höhe = Breite (aspect-square).
-              Das Video wird via object-cover beschnitten, damit kein
-              Letterbox-Rahmen erscheint. Gescannt wird im gesamten Frame. */}
+          {/* Kamera-Vorschau via nimiq/qr-scanner — die Lib übernimmt
+              direkt das <video>-Element via videoRef. Quadratischer
+              Container, Video wird mit object-cover beschnitten. */}
           <div
             className={cn(
               "relative mx-auto w-full aspect-square overflow-hidden rounded-md border bg-black",
               cameraOn ? "block" : "hidden"
             )}
           >
-            <div
-              id="qr-reader"
-              className={cn(
-                // Lib-Internals beruhigen:
-                "[&>div]:!border-0 [&>div]:!p-0",
-                "[&_button]:!hidden",
-                "[&_select]:!hidden",
-                // Video full-fill und beschneidend einbetten:
-                "h-full w-full",
-                "[&_video]:!block [&_video]:!w-full [&_video]:!h-full [&_video]:!object-cover"
-              )}
+            <video
+              ref={videoRef}
+              className="block h-full w-full object-cover"
+              playsInline
+              muted
             />
             {/* Scan-Status-Overlay
                 Default („Wird gescannt"): dezente animierte Eckenmarkierung,
