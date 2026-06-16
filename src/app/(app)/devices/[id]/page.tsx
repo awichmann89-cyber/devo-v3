@@ -108,7 +108,7 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
         <Card>
           <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
-            <DeviceQr id={device.id} name={device.name} />
+            <DeviceQr shortId={device.shortId} name={device.name} />
             <p className="text-xs text-muted-foreground text-center">
               Scannt zur öffentlichen Geräteübersicht
             </p>

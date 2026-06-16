@@ -9,7 +9,16 @@ export function QrCodeDisplay({ text, label }: { text: string; label?: string })
   const [dataUrl, setDataUrl] = useState<string>("");
 
   useEffect(() => {
-    QRCode.toDataURL(text, { width: 220, margin: 1 }).then(setDataUrl);
+    // errorCorrectionLevel "L" (7% Recovery) → ~25% weniger Module als "M".
+    // Reicht für gedruckte Sticker, die nicht stark beschädigt werden, und
+    // gibt uns größere Einzelmodule bei gleicher Druckgröße. Margin 2 ist
+    // ein bisschen großzügiger als das absolute Minimum 1 — schont gegen
+    // Schneidefehler beim Aufkleben.
+    QRCode.toDataURL(text, {
+      width: 220,
+      margin: 2,
+      errorCorrectionLevel: "L",
+    }).then(setDataUrl);
   }, [text]);
 
   function download() {

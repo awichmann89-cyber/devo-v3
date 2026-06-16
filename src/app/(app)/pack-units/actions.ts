@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { packUnitSchema, packUnitItemSchema } from "@/lib/validators";
 import { generateNextPackUnitCode } from "@/lib/id-generator";
+import { generateShortId } from "@/lib/qr-code";
 
 function normalize(input: unknown) {
   const data = packUnitSchema.parse(input);
@@ -21,10 +23,27 @@ export async function createPackUnit(input: unknown) {
   await requireRole(CAN_WRITE);
   const data = normalize(input);
   const code = data.code ?? (await generateNextPackUnitCode());
-  const created = await prisma.packUnit.create({
-    data: { ...data, code },
-    select: { id: true },
-  });
+  // Retry-Loop für den (extrem unwahrscheinlichen) Fall einer shortId-Kollision
+  let created: { id: string } | null = null;
+  for (let i = 0; i < 3 && !created; i++) {
+    try {
+      created = await prisma.packUnit.create({
+        data: { ...data, code, shortId: generateShortId() },
+        select: { id: true },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002" &&
+        Array.isArray(err.meta?.target) &&
+        (err.meta.target as string[]).includes("shortId")
+      ) {
+        continue; // neue shortId im nächsten Durchlauf
+      }
+      throw err;
+    }
+  }
+  if (!created) throw new Error("shortId konnte nicht eindeutig vergeben werden");
   revalidatePath("/material");
   redirect(`/pack-units/${created.id}`);
 }

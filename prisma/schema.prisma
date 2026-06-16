@@ -66,6 +66,11 @@ model Category {
 // Pro Stück optional eine Seriennummer (siehe DeviceSerialNumber).
 model Device {
   id               String       @id @default(cuid())
+  // 8-Zeichen Uppercase-Token aus den letzten 8 Stellen der cuid (oder
+  // separat gesetzt). Wird im QR-Code statt der vollen cuid verwendet —
+  // bringt den QR-Code von Version 4 auf Version 2 (50% kleinere Module
+  // bei gleicher Druckgröße, deutlich besser scanbar auf 1,5 cm Stickern).
+  shortId          String       @unique
   name             String
   manufacturer     String?
   model            String?
@@ -211,6 +216,10 @@ model ProjectCableAssignment {
 // Packeinheit (Case, Rack, Tasche, Trolley) — Typ mit Bestand.
 model PackUnit {
   id            String   @id @default(cuid())
+  // 8-Zeichen Uppercase-Token aus dem cuid-Tail. Siehe Device.shortId für
+  // Hintergrund. Geteilter Namespace mit Device.shortId — Kollisionen sind
+  // bei einer 36^8 ≈ 2,8-Billionen-Permutationsbasis praktisch unmöglich.
+  shortId       String   @unique
   name          String
   code          String   @unique // z.B. PU-001
   description   String?

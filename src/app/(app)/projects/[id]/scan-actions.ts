@@ -101,13 +101,33 @@ export async function submitScanWithToken(
 
   const bookedDeviceIds = new Set(project.assignments.map((a) => a.deviceId));
 
-  // QR-Codes können in zwei Formaten kommen:
-  //   1) Kurzcode (neu, default):  PU<id>  oder  DV<id>
-  //   2) URL (alt, backward-compat): https://.../public/(pack-units|devices)/<id>
-  // Der parseQrPayload-Helper erkennt beide Formen.
-  const { kind: parsedKind, id: parsedId } = parseQrPayload(code);
-  const urlPackUnitId = parsedKind === "PU" ? parsedId : null;
-  const urlDeviceId = parsedKind === "DV" ? parsedId : null;
+  // QR-Codes können in drei Formaten kommen:
+  //   1) Neu: https://.../q/<SHORTID>             — 8-Zeichen-Token
+  //   2) Interim: https://.../q/(PU|DV)<cuid>     — vorheriges Kurzcode-Schema
+  //   3) Legacy: https://.../public/(...)/<cuid>  — ältestes Schema
+  // Plus den Plain-Token-Pfad falls jemand den QR-Inhalt direkt einklopft.
+  const parsed = parseQrPayload(code);
+  // Wenn shortId vorhanden — in beiden Tabellen lookupen, ID extrahieren.
+  let urlPackUnitId: string | null = null;
+  let urlDeviceId: string | null = null;
+  if (parsed.shortId) {
+    const [puByShort, devByShort] = await Promise.all([
+      prisma.packUnit.findUnique({
+        where: { shortId: parsed.shortId },
+        select: { id: true },
+      }),
+      prisma.device.findUnique({
+        where: { shortId: parsed.shortId },
+        select: { id: true },
+      }),
+    ]);
+    if (puByShort) urlPackUnitId = puByShort.id;
+    else if (devByShort) urlDeviceId = devByShort.id;
+  } else if (parsed.cuid) {
+    // Legacy-cuid-Pfad — direkt verwenden, weiß ja schon den Typ.
+    if (parsed.legacyKind === "PU") urlPackUnitId = parsed.cuid;
+    if (parsed.legacyKind === "DV") urlDeviceId = parsed.cuid;
+  }
 
   // 1) PackUnit über Code ODER URL-ID suchen
   const pu = await prisma.packUnit.findFirst({

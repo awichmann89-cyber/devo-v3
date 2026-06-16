@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { deviceSchema, serialNumberSchema } from "@/lib/validators";
+import { generateShortId } from "@/lib/qr-code";
 
 function normalize(input: unknown) {
   const data = deviceSchema.parse(input);
@@ -23,12 +24,48 @@ function normalize(input: unknown) {
 export async function createDevice(input: unknown) {
   await requireRole(CAN_WRITE);
   const data = normalize(input);
-  await prisma.device.create({
-    data,
-    select: { id: true },
-  });
+  // shortId für den QR-Code mitvergeben — Unique-Constraint auf DB-Ebene
+  // fängt Kollisionen ab. Bei einer 36^8-Permutationsbasis ist die
+  // Wahrscheinlichkeit extrem niedrig, aber falls doch: einmal retry.
+  await createWithUniqueShortId(() =>
+    prisma.device.create({
+      data: { ...data, shortId: generateShortId() },
+      select: { id: true },
+    }),
+  );
 
   revalidatePath("/material");
+}
+
+/**
+ * Helper für Create-Operationen mit einem auto-generierten shortId-Feld:
+ * wiederholt den Aufruf bei Unique-Constraint-Verletzung (P2002) ein paar Mal
+ * mit neuer ID. In der Praxis sollte das nie passieren.
+ */
+async function createWithUniqueShortId<T>(
+  attempt: () => Promise<T>,
+  maxRetries = 3,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await attempt();
+    } catch (err) {
+      lastErr = err;
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002" &&
+        Array.isArray(err.meta?.target) &&
+        (err.meta.target as string[]).includes("shortId")
+      ) {
+        // Kollision — der Caller generiert beim nächsten Versuch automatisch
+        // eine neue ID (generateShortId() läuft im Closure jeder Iteration).
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 export async function updateDevice(id: string, input: unknown) {

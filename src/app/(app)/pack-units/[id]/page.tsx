@@ -160,7 +160,7 @@ export default async function PackUnitDetailPage(props: {
         <Card>
           <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
-            <PackUnitQr id={packUnit.id} name={packUnit.name} />
+            <PackUnitQr shortId={packUnit.shortId} name={packUnit.name} />
             <p className="text-xs text-muted-foreground text-center">
               Scannt zur öffentlichen Inhaltsübersicht
             </p>
