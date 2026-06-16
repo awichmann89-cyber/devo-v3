@@ -11,28 +11,34 @@ export default async function PublicDevicePage(props: {
   const [device, settings] = await Promise.all([
     prisma.device.findUnique({
       where: { id },
-      include: { category: true },
+      include: {
+        category: true,
+        // Seriennummern für den Seriennummern-Block weiter unten.
+        serialNumbers: {
+          orderBy: { serialNumber: "asc" },
+          select: { serialNumber: true, barcode: true, notes: true },
+        },
+      },
     }),
     getSettings(),
   ]);
 
   if (!device) notFound();
 
+  // Stammdaten-Tabelle: nur die Werte, die NICHT schon prominent im Header
+  // stehen (Hersteller/Modell sind dort drüber, Beschreibung steht klein
+  // unter dem Hersteller). Gewicht und Leistung sind die Hauptinfos für
+  // Freelancer beim Sichten.
   const items: { label: string; value: string | null }[] = [
-    { label: "Hersteller", value: device.manufacturer },
-    { label: "Modell", value: device.model },
-    { label: "Kategorie", value: device.category?.name ?? null },
     {
       label: "Gewicht (pro Stück)",
-      value: device.weight ? `${device.weight} kg` : null,
+      value: device.weight
+        ? `${Number(device.weight).toString().replace(".", ",")} kg`
+        : null,
     },
     {
       label: "Leistung (pro Stück)",
       value: device.powerWatts ? `${device.powerWatts} W` : null,
-    },
-    {
-      label: "DGUV V3 Prüfung",
-      value: device.inspectionExempt ? "Nicht erforderlich" : "Erforderlich",
     },
   ].filter((it) => it.value);
 
@@ -61,6 +67,11 @@ export default async function PublicDevicePage(props: {
             {[device.manufacturer, device.model].filter(Boolean).join(" ")}
           </p>
         )}
+        {device.description?.trim() && (
+          <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line">
+            {device.description}
+          </p>
+        )}
       </section>
 
       <section>
@@ -82,12 +93,29 @@ export default async function PublicDevicePage(props: {
             ))}
           </ul>
         )}
-        {device.description && (
+
+        {device.serialNumbers.length > 0 && (
           <div className="mt-6">
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Beschreibung
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Seriennummern ({device.serialNumbers.length})
             </h2>
-            <p className="whitespace-pre-line text-sm">{device.description}</p>
+            <ul className="divide-y rounded-md border">
+              {device.serialNumbers.map((sn) => (
+                <li
+                  key={sn.serialNumber}
+                  className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                >
+                  <span className="text-sm font-mono font-medium">
+                    {sn.serialNumber}
+                  </span>
+                  {sn.barcode && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      Barcode: {sn.barcode}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </section>

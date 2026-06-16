@@ -49,12 +49,22 @@ export default async function PublicPackUnitPage(props: {
         {packUnit.description && (
           <p className="mt-2 text-muted-foreground">{packUnit.description}</p>
         )}
-        {packUnit.location?.name && (
-          <p className="mt-2 text-sm">
-            <span className="text-muted-foreground">Lagerort:</span>{" "}
-            {packUnit.location.name}
-          </p>
-        )}
+        <dl className="mt-3 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+          {packUnit.weight && (
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Gewicht:</dt>
+              <dd className="font-medium">
+                {Number(packUnit.weight).toString().replace(".", ",")} kg
+              </dd>
+            </div>
+          )}
+          {packUnit.location?.name && (
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Lagerort:</dt>
+              <dd className="font-medium">{packUnit.location.name}</dd>
+            </div>
+          )}
+        </dl>
       </section>
 
       <section>
@@ -65,26 +75,34 @@ export default async function PublicPackUnitPage(props: {
           <p className="text-sm text-muted-foreground">Keine Geräte hinterlegt.</p>
         ) : (
           <ul className="divide-y rounded-md border">
-            {packUnit.items.map((it) => (
-              <li
-                key={it.id}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
-                <div>
-                  <p className="font-medium">{it.device.name}</p>
-                  {(it.device.manufacturer || it.device.model) && (
-                    <p className="text-xs text-muted-foreground">
-                      {[it.device.manufacturer, it.device.model]
-                        .filter(Boolean)
-                        .join(" ")}
-                    </p>
-                  )}
-                </div>
-                <div className="text-sm tabular-nums">
-                  <span className="font-semibold">{it.quantity}</span>×
-                </div>
-              </li>
-            ))}
+            {packUnit.items.map((it) => {
+              const make = [it.device.manufacturer, it.device.model]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <li
+                  key={it.id}
+                  className="flex items-start gap-4 px-4 py-3"
+                >
+                  {/* Anzahl nach vorne — auf einen Blick erkennbar wie viele
+                      Stück von jedem Gerät in der Packeinheit liegen. */}
+                  <div className="shrink-0 text-sm tabular-nums">
+                    <span className="font-semibold">{it.quantity}</span>×
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{it.device.name}</p>
+                    {make && (
+                      <p className="text-xs text-muted-foreground">{make}</p>
+                    )}
+                    {it.device.description?.trim() && (
+                      <p className="mt-1 text-xs text-muted-foreground whitespace-pre-line">
+                        {it.device.description}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
