@@ -10,11 +10,13 @@ import {
   CameraOff,
   CheckCircle2,
   Circle,
+  Keyboard,
   Loader2,
   Package,
   Trash2,
   RotateCcw,
   AlertTriangle,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { groupItemsByCategory } from "@/lib/category-tree";
@@ -78,6 +80,11 @@ export function ScanClient({
   recentScans,
 }: Props) {
   const [manual, setManual] = useState("");
+  // Default: Manual-Input ist NICHT sichtbar. iOS Safari fokussiert sonst gerne
+  // ungewollt ins Textfeld und zoomt rein (Schriftgrößen-Trigger). Nur wenn
+  // User explizit auf "Code manuell eingeben" tippt, blenden wir das Feld ein.
+  const [showManualInput, setShowManualInput] = useState(false);
+  const manualInputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [confirmReset, setConfirmReset] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -178,15 +185,15 @@ export function ScanClient({
         // genug Pixel pro Modul (≥3) um zuverlässig dekodiert zu werden.
         // `ideal` heißt: der Browser nimmt diese Werte wenn möglich, fällt
         // sonst auf die nächstmögliche Auflösung zurück (z.B. 1280×720).
-        // `focusMode: continuous` hält den Bereich vor der Linse scharf,
-        // wichtig bei sich bewegenden Boxen.
+        //
+        // WICHTIG: focusMode darf auf iOS NICHT als Top-Level-Constraint
+        // gesetzt werden — Safari wirft sonst OverconstrainedError und der
+        // Kamera-Zugriff scheitert komplett. Wir lassen den Autofokus auf
+        // dem Browser-Default, der ist auf Smartphones eh schon kontinuierlich.
         {
           facingMode: "environment",
           width: { ideal: 1920 },
           height: { ideal: 1080 },
-          // @ts-expect-error — focusMode ist nicht in allen Browser-Typings,
-          // wird aber von iOS Safari und Android Chrome unterstützt.
-          focusMode: "continuous",
         },
         {
           fps: 15,
@@ -434,21 +441,55 @@ export function ScanClient({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              placeholder="Code manuell eingeben …"
-              value={manual}
-              onChange={(e) => setManual(e.target.value)}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              disabled={pending}
-            />
-            <Button type="submit" disabled={pending || !manual.trim()}>
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
+          {/* Manual-Input ist standardmäßig versteckt — sonst fokussiert
+              iOS Safari gerne ungewollt ins Textfeld und zoomt das ganze
+              Layout rein. Erst auf expliziten Klick blenden wir das Feld
+              ein, und setzen Font auf 16 px (iOS zoomt sonst beim Fokus). */}
+          {showManualInput ? (
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <Input
+                ref={manualInputRef}
+                placeholder="Code manuell eingeben …"
+                value={manual}
+                onChange={(e) => setManual(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                disabled={pending}
+                style={{ fontSize: 16 }}
+              />
+              <Button type="submit" disabled={pending || !manual.trim()}>
+                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setShowManualInput(false);
+                  setManual("");
+                }}
+                title="Manuell-Eingabe schließen"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </form>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setShowManualInput(true);
+                // Im nächsten Tick fokussieren, damit das Feld schon
+                // gemountet ist und der User direkt tippen kann.
+                requestAnimationFrame(() => manualInputRef.current?.focus());
+              }}
+            >
+              <Keyboard className="h-4 w-4" /> Code manuell eingeben
             </Button>
-          </form>
+          )}
         </CardContent>
       </Card>
 
