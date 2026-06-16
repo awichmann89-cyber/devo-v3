@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
+import { parseQrPayload } from "@/lib/qr-code";
 
 /**
  * Erzeugt oder liefert das bestehende Pack-Token eines Projekts.
@@ -100,22 +101,13 @@ export async function submitScanWithToken(
 
   const bookedDeviceIds = new Set(project.assignments.map((a) => a.deviceId));
 
-  // QR-Codes der Stammdaten-Seiten enthalten eine URL:
-  //   https://.../public/devices/<id>
-  //   https://.../public/pack-units/<id>
-  // Wir extrahieren die ID, damit der Scan auch funktioniert wenn ein
-  // solcher QR-Code (statt eines reinen Barcodes) gescannt wird.
-  let urlPackUnitId: string | null = null;
-  let urlDeviceId: string | null = null;
-  try {
-    const url = new URL(code);
-    const pathDevice = url.pathname.match(/\/public\/devices\/([^/?#]+)/);
-    const pathPack = url.pathname.match(/\/public\/pack-units\/([^/?#]+)/);
-    if (pathDevice) urlDeviceId = pathDevice[1];
-    if (pathPack) urlPackUnitId = pathPack[1];
-  } catch {
-    // kein URL — egal, dann reine Code-Suche weiter unten
-  }
+  // QR-Codes können in zwei Formaten kommen:
+  //   1) Kurzcode (neu, default):  PU<id>  oder  DV<id>
+  //   2) URL (alt, backward-compat): https://.../public/(pack-units|devices)/<id>
+  // Der parseQrPayload-Helper erkennt beide Formen.
+  const { kind: parsedKind, id: parsedId } = parseQrPayload(code);
+  const urlPackUnitId = parsedKind === "PU" ? parsedId : null;
+  const urlDeviceId = parsedKind === "DV" ? parsedId : null;
 
   // 1) PackUnit über Code ODER URL-ID suchen
   const pu = await prisma.packUnit.findFirst({

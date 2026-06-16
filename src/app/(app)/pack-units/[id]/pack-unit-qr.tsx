@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { QrCodeDisplay } from "@/app/(app)/devices/[id]/qr-display";
+import { buildShortQrPayload } from "@/lib/qr-code";
 
+/**
+ * Zeigt den QR-Code für eine Packeinheit an. Inhalt: kompakter Kurzcode
+ * `PU<id>` (~27 Zeichen) statt voller URL — siehe DeviceQr für Details.
+ */
 export function PackUnitQr({ id, name }: { id: string; name: string }) {
-  const [url, setUrl] = useState("");
-
-  useEffect(() => {
-    setUrl(`${window.location.origin}/public/pack-units/${id}`);
-  }, [id]);
-
-  if (!url) return <div className="h-[220px] w-[220px] animate-pulse bg-muted" />;
+  const payload = buildShortQrPayload("PU", id);
 
   return (
     <>
-      <QrCodeDisplay text={url} label={name} />
-      <p className="text-xs text-muted-foreground text-center break-all">{url}</p>
+      <QrCodeDisplay text={payload} label={name} />
+      <p className="text-xs text-muted-foreground text-center break-all font-mono">
+        {payload}
+      </p>
     </>
   );
 }
