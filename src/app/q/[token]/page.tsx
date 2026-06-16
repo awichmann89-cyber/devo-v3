@@ -33,16 +33,18 @@ export default async function QrShortLinkRedirect({
         select: { id: true },
       }),
     ]);
-    if (pu) redirect(`/pack-units/${pu.id}`);
-    if (dev) redirect(`/devices/${dev.id}`);
+    // WICHTIG: auf die /public-Seiten redirecten (ohne Login zugänglich),
+    // damit Freelancer/Fremdfirmen die QR-Codes scannen können.
+    if (pu) redirect(`/public/pack-units/${pu.id}`);
+    if (dev) redirect(`/public/devices/${dev.id}`);
   }
 
   // Legacy: alte Kurzcode-URLs mit (PU|DV)<cuid> oder vergleichbar.
   if (parsed.legacyKind === "PU" && parsed.cuid) {
-    redirect(`/pack-units/${parsed.cuid}`);
+    redirect(`/public/pack-units/${parsed.cuid}`);
   }
   if (parsed.legacyKind === "DV" && parsed.cuid) {
-    redirect(`/devices/${parsed.cuid}`);
+    redirect(`/public/devices/${parsed.cuid}`);
   }
 
   // Nichts erkannt — zurück zur Startseite mit Query-Hinweis.
