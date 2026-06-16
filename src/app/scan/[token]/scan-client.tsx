@@ -190,7 +190,17 @@ export function ScanClient({
       await scanner.start(
         { facingMode: "environment" },
         {
-          fps: 15,
+          fps: 10,
+          // qrbox als Funktion: deckt 85% der kleineren Viewfinder-Kante ab.
+          // Wichtig: NICHT komplett weglassen — sonst durchsucht der Decoder
+          // bei 1920×1080 jeden Frame in voller Auflösung und schafft keine
+          // saubere Erkennungs-Pass mehr. Mit 85%-Quadrat hat man immer noch
+          // praktisch das ganze sichtbare Bild als Scan-Zone.
+          qrbox: (vw, vh) => {
+            const minEdge = Math.min(vw, vh);
+            const size = Math.max(200, Math.floor(minEdge * 0.85));
+            return { width: size, height: size };
+          },
           aspectRatio: 1.0,
           // Auflösung als MediaTrackConstraints — high-detail für kleine
           // QR-Codes, mit `ideal` als nicht-bindender Wunsch.
