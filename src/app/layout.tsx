@@ -4,7 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Cratel — Materialverwaltung",
+  title: "cratel | Materialverwaltung",
   description: "Veranstaltungstechnik Materialverwaltung",
   icons: {
     icon: [
