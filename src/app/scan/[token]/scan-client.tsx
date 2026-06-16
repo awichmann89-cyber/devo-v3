@@ -180,50 +180,33 @@ export function ScanClient({
           Html5QrcodeSupportedFormats.DATA_MATRIX,
         ],
       });
-      // iOS Safari mag exotische Constraints überhaupt nicht: schon ein
-      // einzelnes nicht unterstütztes Feld bringt getUserMedia zum Werfen
-      // (OverconstrainedError). Deshalb zwei Versuche:
-      //  1) Mit Wunsch-Auflösung (1920×1080) für maximale QR-Detail-Schärfe.
-      //  2) Falls das scheitert, simpel mit facingMode — Browser nimmt
-      //     dann seine native Default-Resolution.
-      // So bleibt iOS-Kompatibilität erhalten, ohne dass moderne Geräte
-      // auf hohe Auflösung verzichten müssen.
-      const decoderConfig = {
-        fps: 15,
-        aspectRatio: 1.0,
-      };
-      const onDecoded = (decodedText: string) => {
-        void handleScan(decodedText);
-      };
-      const onError = () => {
-        // Frame ohne erkannten Code — ignorieren (passiert mehrfach pro Sekunde)
-      };
-
-      try {
-        await scanner.start(
-          {
+      // html5-qrcode-Spezifikum: das erste Argument darf NUR EINEN Key
+      // haben (entweder facingMode ODER deviceId). Alle weiteren
+      // Constraints — insbesondere Auflösung — gehören in das zweite
+      // Argument unter `videoConstraints`. `ideal: 1920/1080` ist ein
+      // standardkonformer MediaTrackConstraint, fällt automatisch auf
+      // die nächstmögliche Auflösung zurück (meist 1280×720), und wird
+      // von iOS Safari sauber akzeptiert.
+      await scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 15,
+          aspectRatio: 1.0,
+          // Auflösung als MediaTrackConstraints — high-detail für kleine
+          // QR-Codes, mit `ideal` als nicht-bindender Wunsch.
+          videoConstraints: {
             facingMode: "environment",
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           },
-          decoderConfig,
-          onDecoded,
-          onError,
-        );
-      } catch (highResErr) {
-        // Fallback: ohne explizite Auflösung. Die meisten iOS-Probleme
-        // verschwinden hier — Safari nimmt 720p oder 480p selbst.
-        console.warn(
-          "[scan] Hi-Res-Kamera fehlgeschlagen, fallback ohne Constraints",
-          highResErr,
-        );
-        await scanner.start(
-          { facingMode: "environment" },
-          decoderConfig,
-          onDecoded,
-          onError,
-        );
-      }
+        },
+        (decodedText: string) => {
+          void handleScan(decodedText);
+        },
+        () => {
+          // Frame ohne erkannten Code — ignorieren (passiert mehrfach pro Sekunde)
+        },
+      );
       scannerRef.current = scanner;
       setCameraOn(true);
 
