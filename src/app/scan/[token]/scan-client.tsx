@@ -187,28 +187,26 @@ export function ScanClient({
       // standardkonformer MediaTrackConstraint, fällt automatisch auf
       // die nächstmögliche Auflösung zurück (meist 1280×720), und wird
       // von iOS Safari sauber akzeptiert.
+      // Bewusst minimaler Config-Mix — html5-qrcode reagiert empfindlich auf
+      // mehrere gleichzeitig gesetzte Constraints (facingMode + videoConstraints
+      // + aspectRatio) und liefert dann keinen brauchbaren Stream mehr an den
+      // Decoder. Auflösung lässt der Browser auf seinem Default (meistens
+      // 1280×720), das reicht für die meisten Druck-QR-Codes locker; für
+      // sehr kleine Codes greift dann der parallele jsQR-Pfad mit nativer
+      // Frame-Auflösung.
       await scanner.start(
         { facingMode: "environment" },
         {
           fps: 10,
-          // qrbox als Funktion: deckt 85% der kleineren Viewfinder-Kante ab.
-          // Wichtig: NICHT komplett weglassen — sonst durchsucht der Decoder
-          // bei 1920×1080 jeden Frame in voller Auflösung und schafft keine
-          // saubere Erkennungs-Pass mehr. Mit 85%-Quadrat hat man immer noch
-          // praktisch das ganze sichtbare Bild als Scan-Zone.
+          // qrbox als Funktion — wächst mit dem tatsächlichen Viewfinder
+          // statt fix bei 250×250 zu hängen. 85% der kleineren Kante = fast
+          // das ganze sichtbare Bild.
           qrbox: (vw, vh) => {
             const minEdge = Math.min(vw, vh);
             const size = Math.max(200, Math.floor(minEdge * 0.85));
             return { width: size, height: size };
           },
           aspectRatio: 1.0,
-          // Auflösung als MediaTrackConstraints — high-detail für kleine
-          // QR-Codes, mit `ideal` als nicht-bindender Wunsch.
-          videoConstraints: {
-            facingMode: "environment",
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
         },
         (decodedText: string) => {
           void handleScan(decodedText);
