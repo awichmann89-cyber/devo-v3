@@ -25,11 +25,15 @@ export default async function PublicDevicePage(props: {
 
   if (!device) notFound();
 
-  // Stammdaten-Tabelle: nur die Werte, die NICHT schon prominent im Header
-  // stehen (Hersteller/Modell sind dort drüber, Beschreibung steht klein
-  // unter dem Hersteller). Gewicht und Leistung sind die Hauptinfos für
-  // Freelancer beim Sichten.
+  // Stammdaten-Tabelle für die Public-Ansicht. Kategorie und DGUV-Status
+  // sind für Freelancer/Fremdfirmen relevante Eckdaten beim Sichten; Gewicht
+  // und Leistung beim Tragen und Stromplanen.
   const items: { label: string; value: string | null }[] = [
+    { label: "Kategorie", value: device.category?.name ?? null },
+    {
+      label: "DGUV V3 Prüfung",
+      value: device.inspectionExempt ? "Nicht erforderlich" : "Erforderlich",
+    },
     {
       label: "Gewicht (pro Stück)",
       value: device.weight
@@ -61,14 +65,15 @@ export default async function PublicDevicePage(props: {
       </header>
 
       <section className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">{device.name}</h1>
-        {(device.manufacturer || device.model) && (
-          <p className="mt-2 text-muted-foreground">
-            {[device.manufacturer, device.model].filter(Boolean).join(" ")}
-          </p>
-        )}
+        {/* Titel: Hersteller + Modell wenn vorhanden, sonst fällt auf den
+            internen Geräte-Namen zurück. Für Freelancer/Fremdfirmen ist
+            "Coda Audio G308 Pro" griffiger als ein interner Inventarname. */}
+        <h1 className="text-3xl font-bold tracking-tight">
+          {[device.manufacturer, device.model].filter(Boolean).join(" ") ||
+            device.name}
+        </h1>
         {device.description?.trim() && (
-          <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line">
+          <p className="mt-2 text-muted-foreground whitespace-pre-line">
             {device.description}
           </p>
         )}

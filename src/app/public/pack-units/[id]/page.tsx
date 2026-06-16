@@ -76,24 +76,24 @@ export default async function PublicPackUnitPage(props: {
         ) : (
           <ul className="divide-y rounded-md border">
             {packUnit.items.map((it) => {
+              // Primärzeile: Hersteller + Modell wenn vorhanden, sonst der
+              // interne Geräte-Name als Fallback.
               const make = [it.device.manufacturer, it.device.model]
                 .filter(Boolean)
                 .join(" ");
+              const primary = make || it.device.name;
               return (
                 <li
                   key={it.id}
                   className="flex items-start gap-4 px-4 py-3"
                 >
-                  {/* Anzahl nach vorne — auf einen Blick erkennbar wie viele
-                      Stück von jedem Gerät in der Packeinheit liegen. */}
+                  {/* Anzahl nach vorne — auf einen Blick erkennbar, wie
+                      viele Stück von jedem Gerät in der Packeinheit liegen. */}
                   <div className="shrink-0 text-sm tabular-nums">
                     <span className="font-semibold">{it.quantity}</span>×
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{it.device.name}</p>
-                    {make && (
-                      <p className="text-xs text-muted-foreground">{make}</p>
-                    )}
+                    <p className="font-medium">{primary}</p>
                     {it.device.description?.trim() && (
                       <p className="mt-1 text-xs text-muted-foreground whitespace-pre-line">
                         {it.device.description}
