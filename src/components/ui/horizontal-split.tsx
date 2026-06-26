@@ -11,6 +11,13 @@ interface Props {
   minRightPx?: number;
   storageKey?: string;
   className?: string;
+  /**
+   * Zusätzliche Klassen für den Wrapper der linken Spalte. Damit kann die
+   * linke Spalte z.B. sticky-positioniert werden, sodass der Katalog beim
+   * Scrollen sichtbar bleibt, während die rechte Spalte die Seitenhöhe
+   * bestimmt.
+   */
+  leftClassName?: string;
 }
 
 export function HorizontalSplit({
@@ -21,6 +28,7 @@ export function HorizontalSplit({
   minRightPx = 320,
   storageKey,
   className,
+  leftClassName,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [leftPx, setLeftPx] = useState<number>(defaultLeftPx);
@@ -72,7 +80,7 @@ export function HorizontalSplit({
       className={cn("flex flex-col gap-4 lg:flex-row lg:gap-0", className)}
       style={style}
     >
-      <div className="w-full lg:w-[var(--left-w)] lg:shrink-0">{left}</div>
+      <div className={cn("w-full lg:w-[var(--left-w)] lg:shrink-0", leftClassName)}>{left}</div>
       <div
         role="separator"
         aria-orientation="vertical"

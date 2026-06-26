@@ -1119,9 +1119,10 @@ export function AssignmentsSection({
         defaultLeftPx={360}
         minLeftPx={280}
         minRightPx={520}
-        className="lg:min-h-[calc(100vh-380px)] lg:items-stretch"
+        className="lg:items-start"
+        leftClassName="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]"
         left={
-          <Card className="border-0 shadow-none lg:h-full flex flex-col">
+          <Card className="border-0 shadow-none flex flex-col lg:h-[calc(100vh-2rem)]">
             <CardHeader className="px-0 pt-0 pb-3 space-y-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Package className="h-4 w-4" /> Geräte-Katalog
@@ -1545,9 +1546,10 @@ export function AssignmentsSection({
         defaultLeftPx={360}
         minLeftPx={280}
         minRightPx={520}
-        className="lg:min-h-[calc(100vh-380px)] lg:items-stretch"
+        className="lg:items-start"
+        leftClassName="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]"
         left={
-          <Card className="border-0 shadow-none lg:h-full flex flex-col">
+          <Card className="border-0 shadow-none flex flex-col lg:h-[calc(100vh-2rem)]">
             <CardHeader className="px-0 pt-0 pb-3 space-y-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <CableIcon className="h-4 w-4" /> Kabel-Katalog
