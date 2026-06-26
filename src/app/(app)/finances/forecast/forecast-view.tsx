@@ -133,10 +133,6 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Filter</CardTitle>
-          <CardDescription>
-            Zeitraum, Projekt-Status und Rechnungs-Zustand — Kennzahlen unten
-            aktualisieren sich live.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Zeitraum-Filter */}
