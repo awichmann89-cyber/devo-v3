@@ -546,11 +546,36 @@ model Quote {
   // siehe Invoice.snapshot. Stellt sicher, dass der Kunde immer die gleiche
   // Version des Angebots sieht wie ursprünglich rausgegeben.
   snapshot   Json?
+
+  // ===== Acceptance — digitale Annahme durch den Kunden =====
+  // Random-Token für die Public-URL /angebot/<token>. Unique, damit der Token
+  // direkt als Schlüssel zum Quote dient. Wird beim Anlegen erzeugt, kann
+  // bei Alt-Bestand lazy beim ersten PDF-Aufruf nachgeneriert werden.
+  acceptToken           String?   @unique
+  acceptedAt            DateTime?
+  acceptedByName        String?
+  // Base64-encoded PNG der Canvas-Unterschrift. Text-Spalte, typisch
+  // 30-100 KB. Limit serverseitig per Validierung (200 KB max).
+  acceptedSignaturePng  String?
+  acceptedIp            String?
+  acceptedUserAgent     String?
+
+  // ===== Supersession — wenn ein Angebot überschrieben wird =====
+  // Beim "Überschreiben" im Finanzen-Dialog wird das alte Angebot nicht
+  // mehr gelöscht, sondern bekommt einen Verweis auf den Nachfolger.
+  // So bleibt die alte URL (Token) gültig und kann den Kunden via
+  // Server-Redirect auf das aktuelle Angebot leiten — mit einem Banner,
+  // dass es sich um eine neue Version handelt.
+  supersededByQuoteId String?
+  supersededByQuote   Quote?   @relation("QuoteSupersession", fields: [supersededByQuoteId], references: [id], onDelete: SetNull)
+  supersededQuotes    Quote[]  @relation("QuoteSupersession")
+
   createdAt  DateTime @default(now())
 
   @@index([projectId])
   @@index([date])
   @@index([expiresAt])
+  @@index([supersededByQuoteId])
 }
 
 // Art einer Service-/Personalposition (rein zur Gruppierung)

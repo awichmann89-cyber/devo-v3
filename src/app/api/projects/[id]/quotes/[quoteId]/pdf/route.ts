@@ -24,11 +24,19 @@ export async function GET(
   props: { params: Promise<{ id: string; quoteId: string }> }
 ) {
   const session = await auth();
-  if (!session) return new NextResponse("Unauthorized", { status: 401 });
+  const url = new URL(req.url);
+  // ?download=1 forciert den Download statt der Inline-Anzeige.
+  const download = url.searchParams.get("download") === "1";
+  // ?token=XXX erlaubt den Public-Zugriff auf das Quote-PDF (für die
+  // /angebot/<token>/pdf-Route). Der Token wird unten gegen den
+  // gespeicherten quote.acceptToken validiert; passt er nicht, geben wir
+  // 403 zurück. Ohne Token UND ohne Session → 401.
+  const publicToken = url.searchParams.get("token");
+  if (!session && !publicToken) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
 
   const { id, quoteId } = await props.params;
-  // ?download=1 forciert den Download statt der Inline-Anzeige.
-  const download = new URL(req.url).searchParams.get("download") === "1";
   const quote = await prisma.quote.findUnique({
     where: { id: quoteId },
     include: {
@@ -51,8 +59,25 @@ export async function GET(
   if (!quote || quote.projectId !== id) {
     return new NextResponse("Not found", { status: 404 });
   }
+  // Token-Validierung für den Public-Zugriff: wenn KEINE Session und ein
+  // Token vorhanden ist, muss der Token zum Quote passen. Sonst 403.
+  if (!session && publicToken && quote.acceptToken !== publicToken) {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
   const project = quote.project;
   const liveSettings = await getSettings();
+
+  // Lazy-Backfill: Quotes die VOR dem Acceptance-Feature angelegt wurden,
+  // haben noch keinen acceptToken. Wir generieren ihn beim ersten PDF-Aufruf,
+  // damit der "Online annehmen"-Button im PDF auch für Alt-Bestand funktioniert.
+  if (!quote.acceptToken) {
+    const token = globalThis.crypto.randomUUID().replace(/-/g, "");
+    await prisma.quote.update({
+      where: { id: quote.id },
+      data: { acceptToken: token },
+    });
+    quote.acceptToken = token;
+  }
 
   // ===== Snapshot laden oder bei Alt-Angeboten aus Live-Daten bauen =====
   // Sobald ein Snapshot existiert, ist das Angebot unveränderlich — der
@@ -716,6 +741,53 @@ export async function GET(
   if (companyName) {
     doc.text(companyName, SIGNATURE_INDENT, outroY);
     outroY += 5;
+  }
+
+  // ===== Online-Annehmen-Button =====
+  // Erscheint NUR wenn das Angebot noch nicht angenommen wurde und der
+  // acceptToken vorhanden ist. Position: nach der Signatur, in Akzentfarbe.
+  // Bei bereits angenommenen Quotes zeigen wir stattdessen einen dezenten
+  // Hinweis mit Annahmedatum + Name.
+  outroY += 8;
+  if (quote.acceptedAt) {
+    // Bestätigungs-Block: schon angenommen
+    doc.setDrawColor(...ACCENT_RGB);
+    doc.setLineWidth(0.4);
+    doc.line(ADDR_X, outroY - 2, 196, outroY - 2);
+    doc.setFontSize(9);
+    doc.setTextColor(...ACCENT_RGB);
+    const acceptedDate = quote.acceptedAt.toLocaleDateString("de-DE");
+    const acceptedBy = quote.acceptedByName ?? "";
+    doc.text(
+      `Angenommen am ${acceptedDate}${acceptedBy ? ` von ${acceptedBy}` : ""}`,
+      ADDR_X,
+      outroY + 3,
+    );
+    doc.setTextColor(0);
+    outroY += 8;
+  } else if (quote.acceptToken) {
+    // Klickbarer Button zum Online-Annehmen.
+    const acceptUrl = `${new URL(req.url).origin}/angebot/${quote.acceptToken}`;
+    const BTN_X = ADDR_X;
+    const BTN_Y = outroY;
+    const BTN_W = 90;
+    const BTN_H = 11;
+    doc.setFillColor(...ACCENT_RGB);
+    doc.rect(BTN_X, BTN_Y, BTN_W, BTN_H, "F");
+    doc.setTextColor(255);
+    doc.setFontSize(10);
+    doc.setFont(undefined as unknown as string, "bold");
+    doc.text("Angebot online annehmen →", BTN_X + 5, BTN_Y + 7);
+    doc.setFont(undefined as unknown as string, "normal");
+    // Klickbar machen via Annotation
+    doc.link(BTN_X, BTN_Y, BTN_W, BTN_H, { url: acceptUrl });
+    // URL als kleinen Text drunter — falls jemand das ausgedruckte PDF
+    // in der Hand hat und den Link manuell abtippen muss.
+    doc.setFontSize(7);
+    doc.setTextColor(110);
+    doc.text(acceptUrl, BTN_X, BTN_Y + BTN_H + 4);
+    doc.setTextColor(0);
+    outroY += BTN_H + 8;
   }
 
   endY = outroY;

@@ -25,6 +25,9 @@ export default async function FinancesQuotesPage() {
     projectId: q.project.id,
     projectName: q.project.name,
     customerName: q.project.customer?.name ?? null,
+    acceptedAt: q.acceptedAt ? q.acceptedAt.toISOString() : null,
+    acceptedByName: q.acceptedByName,
+    supersededByQuoteId: q.supersededByQuoteId,
   }));
 
   return (

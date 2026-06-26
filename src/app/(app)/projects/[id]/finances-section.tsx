@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
 import {
   FileText,
   Receipt,
@@ -44,6 +45,7 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -54,6 +56,7 @@ import {
   createInvoice,
   deleteInvoice,
   createQuote,
+  createReplacementQuote,
   deleteQuote,
 } from "./finances-actions";
 
@@ -106,6 +109,11 @@ export interface FinancesQuoteVM {
   expiresAt: string;
   totalNet: number;
   totalGross: number | null;
+  /** Annahme-Zustand: ISO-String wenn angenommen, sonst null. */
+  acceptedAt: string | null;
+  acceptedByName: string | null;
+  /** Wenn gesetzt, ist dieses Angebot durch ein neueres ersetzt. */
+  supersededByQuoteId: string | null;
 }
 
 interface Props {
@@ -499,63 +507,11 @@ export function FinancesSection({
       )}
 
       {quotes.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Erstellte Angebote</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nummer</TableHead>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Gültig bis</TableHead>
-                  <TableHead className="text-right">Netto</TableHead>
-                  <TableHead className="text-right">Brutto</TableHead>
-                  <TableHead className="w-[120px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {quotes.map((q) => (
-                  <TableRow key={q.id}>
-                    <TableCell className="font-mono">{q.number}</TableCell>
-                    <TableCell>{formatDate(q.date)}</TableCell>
-                    <TableCell>{formatDate(q.expiresAt)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
-                      {formatCurrency(q.totalNet)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                      {formatCurrency(q.totalGross ?? q.totalNet)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-                          <a
-                            href={`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`}
-                            download
-                            rel="noopener"
-                            title="PDF herunterladen"
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteQ(q)}
-                          title="Angebot löschen"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <QuotesCard
+          quotes={quotes}
+          projectId={projectId}
+          onDelete={(q) => setDeleteQ(q)}
+        />
       )}
 
       {invoices.length > 0 && (
@@ -635,7 +591,10 @@ export function FinancesSection({
         projectName={projectName}
         defaultTotal={grandTotal}
         validityDays={quoteValidityDays}
-        existingQuotes={quotes}
+        // Nur die aktiven (nicht ersetzten) Quotes als "existingQuotes" durchreichen —
+        // beim Überschreiben sollen nur diese als ersetzt markiert werden, nicht
+        // alte schon-überschriebene erneut anfassen.
+        existingQuotes={quotes.filter((q) => !q.supersededByQuoteId)}
       />
 
       <ConfirmDialog
@@ -926,20 +885,30 @@ function QuoteDialog({
     e.preventDefault();
     startTransition(async () => {
       try {
+        let q: { id: string; number: string };
         if (hasExisting) {
-          for (const q of existingQuotes) {
-            await deleteQuote(q.id);
-          }
+          // Statt das alte Angebot zu löschen und ein neues anzulegen,
+          // markieren wir die alten Angebote nun als „ersetzt durch X" via
+          // createReplacementQuote. So bleiben die alten Public-URLs
+          // (acceptToken) gültig und leiten den Kunden auf die neue Version.
+          q = await createReplacementQuote(
+            projectId,
+            computedExpiresAt,
+            defaultTotal,
+            notes,
+            existingQuotes.map((eq) => eq.id),
+          );
+        } else {
+          q = await createQuote(
+            projectId,
+            computedExpiresAt,
+            defaultTotal,
+            notes,
+          );
         }
-        const q = await createQuote(
-          projectId,
-          computedExpiresAt,
-          defaultTotal,
-          notes
-        );
         toast.success(
           hasExisting
-            ? `Angebot ${q.number} angelegt (alte überschrieben)`
+            ? `Angebot ${q.number} angelegt (alte ersetzt)`
             : `Angebot ${q.number} angelegt`
         );
         triggerDownload(`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`);
@@ -1026,5 +995,129 @@ function QuoteDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Eigene Card-Komponente für die Quotes-Liste — implementiert den
+ * Supersession-Filter (ersetzte Angebote ausblenden) und das Acceptance-Badge.
+ * Beim Klick auf "Ersetzte zeigen" werden auch die durch neuere Versionen
+ * abgelösten Quotes mit reduzierter Opazität dargestellt.
+ */
+function QuotesCard({
+  quotes,
+  projectId,
+  onDelete,
+}: {
+  quotes: FinancesQuoteVM[];
+  projectId: string;
+  onDelete: (q: FinancesQuoteVM) => void;
+}) {
+  const [showSuperseded, setShowSuperseded] = useState(false);
+  const supersededCount = quotes.filter((q) => q.supersededByQuoteId).length;
+  const visible = showSuperseded
+    ? quotes
+    : quotes.filter((q) => !q.supersededByQuoteId);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">Erstellte Angebote</CardTitle>
+        {supersededCount > 0 && (
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showSuperseded}
+              onChange={(e) => setShowSuperseded(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Ersetzte zeigen ({supersededCount})
+          </label>
+        )}
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nummer</TableHead>
+              <TableHead>Datum</TableHead>
+              <TableHead>Gültig bis</TableHead>
+              <TableHead className="text-right">Netto</TableHead>
+              <TableHead className="text-right">Brutto</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-[120px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.map((q) => {
+              const isSuperseded = !!q.supersededByQuoteId;
+              return (
+                <TableRow
+                  key={q.id}
+                  className={cn(isSuperseded && "opacity-60")}
+                >
+                  <TableCell className="font-mono">{q.number}</TableCell>
+                  <TableCell>{formatDate(q.date)}</TableCell>
+                  <TableCell>{formatDate(q.expiresAt)}</TableCell>
+                  <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
+                    {formatCurrency(q.totalNet)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                    {formatCurrency(q.totalGross ?? q.totalNet)}
+                  </TableCell>
+                  <TableCell>
+                    {isSuperseded ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Ersetzt
+                      </Badge>
+                    ) : q.acceptedAt ? (
+                      <Badge
+                        variant="default"
+                        className="gap-1 bg-emerald-600 text-[10px] hover:bg-emerald-600"
+                        title={
+                          q.acceptedByName
+                            ? `Angenommen am ${formatDate(q.acceptedAt)} von ${q.acceptedByName}`
+                            : `Angenommen am ${formatDate(q.acceptedAt)}`
+                        }
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Angenommen
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px]">
+                        Offen
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                        <a
+                          href={`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`}
+                          download
+                          rel="noopener"
+                          title="PDF herunterladen"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => onDelete(q)}
+                        title="Angebot löschen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }

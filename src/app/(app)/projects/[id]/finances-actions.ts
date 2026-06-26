@@ -304,6 +304,13 @@ export async function createQuote(
   const totalNetDec = new Prisma.Decimal(snap.totals.totalNet);
   const totalGrossDec = totalNetDec.mul(new Prisma.Decimal(1 + vatPercent / 100));
 
+  // acceptToken — Random-Token (URL-safe), wird im PDF und auf der Public-Route
+  // /angebot/<token> verwendet. Wir generieren via crypto.randomUUID()
+  // (verfügbar in Node 19+ und auch im Edge-Runtime), strippen die Bindestriche
+  // damit der Token rein alphanumerisch ist und damit auch in QR-Codes
+  // effizient ist (falls wir mal welche fürs Angebot bauen).
+  const acceptToken = globalThis.crypto.randomUUID().replace(/-/g, "");
+
   const q = await prisma.quote.create({
     data: {
       projectId,
@@ -315,6 +322,7 @@ export async function createQuote(
       vatPercent: new Prisma.Decimal(vatPercent),
       notes: notes?.trim() || null,
       snapshot: snapshotJson,
+      acceptToken,
     },
     select: { id: true, number: true },
   });
@@ -335,4 +343,39 @@ export async function deleteQuote(quoteId: string) {
   revalidatePath(`/projects/${q.projectId}`);
   revalidatePath("/finances/quotes");
   revalidatePath("/settings");
+}
+
+/**
+ * Legt ein neues Angebot an UND markiert die übergebenen alten Angebote
+ * als „durch das neue ersetzt" (supersededByQuoteId-Pointer).
+ *
+ * Im Gegensatz zum früheren delete+create-Pattern bleiben die alten
+ * Angebote in der DB erhalten — ihre acceptToken-URLs leiten den Kunden
+ * dadurch weiterhin auf das aktuelle Angebot (mit Banner „neue Version").
+ * Wird vom Finanzen-Dialog beim „Überschreiben" aufgerufen.
+ */
+export async function createReplacementQuote(
+  projectId: string,
+  expiresAt: Date,
+  totalNet: number,
+  notes: string | null | undefined,
+  existingQuoteIds: string[],
+): Promise<{ id: string; number: string }> {
+  await requireRole(CAN_WRITE);
+
+  // Neues Angebot via bestehendem createQuote anlegen — das setzt auch den
+  // acceptToken, baut Snapshot etc.
+  const created = await createQuote(projectId, expiresAt, totalNet, notes);
+
+  // Alte Angebote als ersetzt markieren. updateMany ist atomar und schnell.
+  if (existingQuoteIds.length > 0) {
+    await prisma.quote.updateMany({
+      where: { id: { in: existingQuoteIds }, supersededByQuoteId: null },
+      data: { supersededByQuoteId: created.id },
+    });
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/finances/quotes");
+  return created;
 }

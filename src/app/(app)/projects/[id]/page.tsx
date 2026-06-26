@@ -641,6 +641,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               expiresAt: q.expiresAt.toISOString(),
               totalNet: Number(q.totalNet),
               totalGross: q.totalGross !== null ? Number(q.totalGross) : null,
+              acceptedAt: q.acceptedAt ? q.acceptedAt.toISOString() : null,
+              acceptedByName: q.acceptedByName,
+              supersededByQuoteId: q.supersededByQuoteId,
             }))}
             invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
             quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}

@@ -36,15 +36,28 @@ export interface QuoteVM {
   projectId: string;
   projectName: string;
   customerName: string | null;
+  /** Wann das Angebot vom Kunden angenommen wurde (ISO). Null = nicht angenommen. */
+  acceptedAt: string | null;
+  acceptedByName: string | null;
+  /** Wenn gesetzt, wurde dieses Angebot durch ein neueres ersetzt. */
+  supersededByQuoteId: string | null;
 }
 
 function gross(q: QuoteVM): number {
   return q.totalGross ?? q.totalNet;
 }
 
-type StatusFilter = "all" | "valid" | "expired";
+/**
+ * Status-Filter für die Tabelle. "valid" = noch gültig, nicht angenommen,
+ * nicht ersetzt. "accepted" = vom Kunden bestätigt. "expired" = abgelaufen.
+ * "superseded" = durch eine neuere Version abgelöst.
+ */
+type StatusFilter = "all" | "valid" | "accepted" | "expired";
 
-function quoteStatus(q: QuoteVM): "valid" | "expired" {
+type QuoteVisibleStatus = "valid" | "accepted" | "expired";
+
+function quoteStatus(q: QuoteVM): QuoteVisibleStatus {
+  if (q.acceptedAt) return "accepted";
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const exp = new Date(q.expiresAt);
@@ -55,13 +68,18 @@ function quoteStatus(q: QuoteVM): "valid" | "expired" {
 export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [showSuperseded, setShowSuperseded] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<QuoteVM | null>(null);
   const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
     return quotes.filter((q) => {
+      // Standardmäßig ersetzte Angebote ausblenden — können per Toggle
+      // wieder eingeblendet werden.
+      if (!showSuperseded && q.supersededByQuoteId) return false;
       const status = quoteStatus(q);
       if (filter === "valid" && status !== "valid") return false;
+      if (filter === "accepted" && status !== "accepted") return false;
       if (filter === "expired" && status !== "expired") return false;
       if (!search) return true;
       const s = search.toLowerCase();
@@ -71,7 +89,7 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
         (q.customerName ?? "").toLowerCase().includes(s)
       );
     });
-  }, [quotes, search, filter]);
+  }, [quotes, search, filter, showSuperseded]);
 
   function handleDelete() {
     if (!deleteDialog) return;
@@ -89,12 +107,28 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
 
   const counts = useMemo(() => {
     let valid = 0;
+    let accepted = 0;
     let expired = 0;
+    let supersededCount = 0;
+    // Für Counts: nur die sichtbaren (nicht-superseded) zählen, sonst stimmt
+    // die Filter-Anzeige nicht mehr zur tatsächlichen Tabelle.
     for (const q of quotes) {
-      if (quoteStatus(q) === "valid") valid++;
+      if (q.supersededByQuoteId) {
+        supersededCount++;
+        continue;
+      }
+      const status = quoteStatus(q);
+      if (status === "valid") valid++;
+      else if (status === "accepted") accepted++;
       else expired++;
     }
-    return { all: quotes.length, valid, expired };
+    return {
+      all: quotes.length - supersededCount,
+      valid,
+      accepted,
+      expired,
+      supersededCount,
+    };
   }, [quotes]);
 
   return (
@@ -131,6 +165,13 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                 Gültig
               </FilterButton>
               <FilterButton
+                active={filter === "accepted"}
+                onClick={() => setFilter("accepted")}
+                count={counts.accepted}
+              >
+                Angenommen
+              </FilterButton>
+              <FilterButton
                 active={filter === "expired"}
                 onClick={() => setFilter("expired")}
                 count={counts.expired}
@@ -138,6 +179,17 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                 Abgelaufen
               </FilterButton>
             </div>
+            {counts.supersededCount > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={showSuperseded}
+                  onChange={(e) => setShowSuperseded(e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                Ersetzte zeigen ({counts.supersededCount})
+              </label>
+            )}
             {(search || filter !== "all") && (
               <Button
                 variant="ghost"
@@ -151,7 +203,7 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
               </Button>
             )}
             <span className="ml-auto text-xs text-muted-foreground">
-              {filtered.length} von {quotes.length}
+              {filtered.length} von {counts.all}
             </span>
           </div>
         </CardHeader>
@@ -182,8 +234,12 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
               )}
               {filtered.map((q) => {
                 const status = quoteStatus(q);
+                const isSuperseded = !!q.supersededByQuoteId;
                 return (
-                  <TableRow key={q.id}>
+                  <TableRow
+                    key={q.id}
+                    className={cn(isSuperseded && "opacity-60")}
+                  >
                     <TableCell className="font-mono text-sm">
                       {q.number}
                     </TableCell>
@@ -213,12 +269,30 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                       {formatCurrency(gross(q))}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={status === "valid" ? "success" : "secondary"}
-                        className={cn("text-[10px]")}
-                      >
-                        {status === "valid" ? "Gültig" : "Abgelaufen"}
-                      </Badge>
+                      {isSuperseded ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Ersetzt
+                        </Badge>
+                      ) : status === "accepted" ? (
+                        <Badge
+                          variant="default"
+                          className="text-[10px] bg-emerald-600 hover:bg-emerald-600"
+                          title={
+                            q.acceptedByName
+                              ? `Angenommen von ${q.acceptedByName}`
+                              : "Angenommen"
+                          }
+                        >
+                          Angenommen
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant={status === "valid" ? "success" : "secondary"}
+                          className={cn("text-[10px]")}
+                        >
+                          {status === "valid" ? "Gültig" : "Abgelaufen"}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
