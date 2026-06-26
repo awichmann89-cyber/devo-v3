@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { cableAssignmentSchema } from "@/lib/validators";
+import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 
 /**
  * Bucht ein Kabel in ein Projekt — analog zu addAssignment für Geräte.
@@ -16,6 +17,9 @@ export async function addCableAssignment(projectId: string, input: unknown) {
   // Immer eine neue Buchung anlegen — dasselbe Kabel darf bewusst mehrfach
   // im Projekt vorkommen (z.B. einmal pro Gruppe). Anzahl-Änderungen laufen
   // über updateCableAssignmentQuantity.
+  // sortOrder = max(gruppe) + 1 sorgt dafür, dass neue Kabel am Ende der
+  // Gruppe einsortiert werden statt oben (Default 0).
+  const sortOrder = await nextSortOrderForGroup(projectId, data.groupId);
   await prisma.projectCableAssignment.create({
     data: {
       projectId,
@@ -23,6 +27,7 @@ export async function addCableAssignment(projectId: string, input: unknown) {
       groupId: data.groupId,
       quantity: data.quantity,
       notes: data.notes || null,
+      sortOrder,
     },
     select: { id: true },
   });

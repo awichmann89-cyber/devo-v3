@@ -10,6 +10,7 @@ import {
 } from "@/lib/validators";
 import { findConflicts } from "@/lib/availability";
 import { redirect } from "next/navigation";
+import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 
 export async function createProject(input: unknown) {
   const session = await requireRole(CAN_WRITE);
@@ -124,6 +125,11 @@ export async function addAssignment(
   // Immer eine neue Buchung anlegen — dasselbe Gerät darf bewusst mehrfach
   // im Projekt vorkommen (z.B. einmal pro Gruppe). Anzahl-Änderungen laufen
   // über updateAssignmentQuantity / Drag&Drop in der UI.
+  //
+  // sortOrder wird auf max(gruppe) + 1 gesetzt, damit ein neu gebuchtes
+  // Gerät zuverlässig am Ende der Gruppe erscheint (und nicht oben wie
+  // mit dem Default 0).
+  const sortOrder = await nextSortOrderForGroup(projectId, data.groupId);
   await prisma.projectAssignment.create({
     data: {
       projectId,
@@ -131,6 +137,7 @@ export async function addAssignment(
       groupId: data.groupId,
       quantity: data.quantity,
       notes: data.notes || null,
+      sortOrder,
     },
   });
 

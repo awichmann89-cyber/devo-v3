@@ -5,10 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { projectServiceSchema } from "@/lib/validators";
 import { Prisma } from "@prisma/client";
+import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 
 export async function addProjectService(projectId: string, input: unknown) {
   await requireRole(CAN_WRITE);
   const data = projectServiceSchema.parse(input);
+
+  // sortOrder = max(gruppe) + 1, damit neue Service-Positionen am Ende der
+  // Gruppe einsortiert werden statt mit Default 0 oben aufzutauchen.
+  const sortOrder = await nextSortOrderForGroup(projectId, data.groupId);
 
   await prisma.projectService.create({
     data: {
@@ -21,6 +26,7 @@ export async function addProjectService(projectId: string, input: unknown) {
           ? null
           : new Prisma.Decimal(data.unitPriceOverride),
       notes: data.notes || null,
+      sortOrder,
     },
     select: { id: true },
   });

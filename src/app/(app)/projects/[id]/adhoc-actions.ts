@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
+import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 
 type AdHocInput = {
   name: string;
@@ -29,13 +30,9 @@ export async function addAdHocItem(projectId: string, input: AdHocInput) {
   await requireRole(CAN_WRITE);
   const { name, description } = validate(input);
 
-  // Sortierung am Ende der Gruppe
-  const last = await prisma.projectAdHocItem.findFirst({
-    where: { groupId: input.groupId },
-    orderBy: { sortOrder: "desc" },
-    select: { sortOrder: true },
-  });
-  const sortOrder = (last?.sortOrder ?? -1) + 1;
+  // Sortierung am Ende der Gruppe — über ALLE Item-Typen, damit ein neues
+  // Vorübergehendes Gerät nicht zwischen den existierenden Geräten landet.
+  const sortOrder = await nextSortOrderForGroup(projectId, input.groupId);
 
   await prisma.projectAdHocItem.create({
     data: {

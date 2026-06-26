@@ -440,19 +440,20 @@ export function ServicesSection({
     const hasOverride = ps.unitPriceOverride !== null;
     const KindIcon = kindIcon(ps.serviceItem.kind);
     return (
-      <SortableRow id={sortId} key={sortId}>
+      <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1.5">
         <DragHandleCell />
         <TableCell>
-          <div className="flex items-center gap-2 font-medium">
+          {/* Name nur einzeilig — Einheit/Art wandern in eigene Spalte */}
+          <div className="flex items-center gap-2 font-medium truncate">
             <KindIcon
-              className="h-4 w-4 text-muted-foreground"
+              className="h-4 w-4 text-muted-foreground shrink-0"
               aria-label={serviceItemKindLabel(ps.serviceItem.kind)}
             />
-            {ps.serviceItem.name}
+            <span className="truncate">{ps.serviceItem.name}</span>
           </div>
-          <div className="ml-6 text-[11px] text-muted-foreground">
-            {billingUnitLabel(ps.serviceItem.unit)}
-          </div>
+        </TableCell>
+        <TableCell className="text-xs text-muted-foreground">
+          {billingUnitLabel(ps.serviceItem.unit)}
         </TableCell>
         <TableCell className="text-right">
           <Input
@@ -671,21 +672,22 @@ export function ServicesSection({
                                     {items.map((s) => (
                                       <li
                                         key={s.id}
-                                        className="group flex items-center gap-2 pl-8 pr-3 py-2 hover:bg-accent/40"
+                                        className="group flex items-center gap-2 pl-6 pr-2 py-1 hover:bg-accent/40"
                                       >
+                                        {/* Kompakte Katalog-Zeile — nur Name,
+                                            keine Preis-/Einheit-Sub-Zeile mehr. */}
                                         <div className="flex-1 min-w-0">
                                           <div className="truncate text-sm font-medium">
                                             {s.name}
                                           </div>
-                                          <div className="mt-0.5 text-[11px] text-muted-foreground">
-                                            {formatCurrency(s.unitPrice)} /{" "}
-                                            {billingUnitShort(s.unit)}
-                                          </div>
                                         </div>
+                                        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                                          {billingUnitShort(s.unit)}
+                                        </span>
                                         <Button
                                           variant="ghost"
                                           size="icon"
-                                          className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
+                                          className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
                                           disabled={pending}
                                           onClick={() => handleAdd(s.id)}
                                           title={
@@ -861,11 +863,12 @@ export function ServicesSection({
                           <TableHeader>
                             <TableRow>
                               <TableHead className="w-6"></TableHead>
-                              <TableHead>Position</TableHead>
-                              <TableHead className="w-[90px] text-right">Menge</TableHead>
-                              <TableHead className="w-[120px] text-right">€ / Einheit</TableHead>
-                              <TableHead className="w-[100px] text-right">Summe</TableHead>
-                              <TableHead className="w-[80px]"></TableHead>
+                              <TableHead className="px-2">Position</TableHead>
+                              <TableHead className="px-2 w-[120px]">Einheit</TableHead>
+                              <TableHead className="w-[90px] text-right px-2">Menge</TableHead>
+                              <TableHead className="w-[120px] text-right px-2">€ / Einheit</TableHead>
+                              <TableHead className="w-[100px] text-right px-2">Summe</TableHead>
+                              <TableHead className="w-[80px] px-2"></TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -886,7 +889,7 @@ export function ServicesSection({
                                   className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 border-t-2 border-blue-200 dark:border-blue-900/50"
                                 >
                                   <DragHandleCell />
-                                  <TableCell colSpan={4} className="py-3 text-base font-semibold text-foreground">
+                                  <TableCell colSpan={5} className="py-3 text-base font-semibold text-foreground">
                                     {c.text}
                                   </TableCell>
                                   <TableCell>
@@ -928,7 +931,7 @@ export function ServicesSection({
                           })}
                           </SortableContext>
                           <TableRow>
-                            <TableCell colSpan={4} className="text-right font-medium">
+                            <TableCell colSpan={5} className="text-right font-medium">
                               Gruppen-Zwischensumme
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-mono text-sm font-medium">

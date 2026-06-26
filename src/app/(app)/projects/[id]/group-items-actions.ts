@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
+import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 
 export type GroupItemKind =
   | "DEVICE"
@@ -72,13 +73,9 @@ export async function addGroupComment(
   const t = text.trim();
   if (!t) throw new Error("Text darf nicht leer sein");
 
-  // Am Ende der Gruppe einsortieren
-  const last = await prisma.projectGroupComment.findFirst({
-    where: { groupId },
-    orderBy: { sortOrder: "desc" },
-    select: { sortOrder: true },
-  });
-  const sortOrder = (last?.sortOrder ?? -1) + 1;
+  // Am Ende der Gruppe einsortieren — über ALLE Item-Typen, damit der
+  // Kommentar nicht zwischen Geräten oder Services landet.
+  const sortOrder = await nextSortOrderForGroup(projectId, groupId);
 
   const created = await prisma.projectGroupComment.create({
     data: { projectId, groupId, text: t, sortOrder },

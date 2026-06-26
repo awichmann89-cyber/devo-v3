@@ -677,14 +677,18 @@ export function AssignmentsSection({
       <SortableRow
         id={sortId}
         key={sortId}
-        className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40"
+        className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40 [&_td]:px-2 [&_td]:py-1.5"
       >
         <DragHandleCell />
         <TableCell>
-          <div className="font-medium">{it.name}</div>
-          {it.description?.trim() && (
-            <div className="text-[11px] text-muted-foreground">{it.description}</div>
-          )}
+          {/* AdHoc-Name einzeilig — Beschreibung wandert in eigene Spalte
+              parallel zur Geräte-Tabellenstruktur. */}
+          <div className="font-medium truncate">{it.name}</div>
+        </TableCell>
+        <TableCell className="max-w-[200px]">
+          <div className="text-xs text-muted-foreground truncate">
+            {it.description?.trim() ?? ""}
+          </div>
         </TableCell>
         <TableCell className="text-right">
           <QuantityInput
@@ -768,20 +772,27 @@ export function AssignmentsSection({
         <SortableRow
           id={sortId}
           className={cn(
+            "[&_td]:px-2 [&_td]:py-1.5",
             isOver &&
               "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
           )}
         >
           <DragHandleCell />
           <TableCell>
-            <div className={cn("font-medium", isOver && "text-destructive")}>
+            {/* Name jetzt einzeilig — Beschreibung wandert in eigene Spalte */}
+            <div className={cn("font-medium truncate", isOver && "text-destructive")}>
               {a.device.name}
             </div>
-            {a.device.description?.trim() && (
+            {(a.device.manufacturer || a.device.model) && (
               <div className="text-[11px] text-muted-foreground truncate">
-                {a.device.description}
+                {[a.device.manufacturer, a.device.model].filter(Boolean).join(" ")}
               </div>
             )}
+          </TableCell>
+          <TableCell className="max-w-[200px]">
+            <div className="text-xs text-muted-foreground truncate">
+              {a.device.description?.trim() ?? ""}
+            </div>
           </TableCell>
           <TableCell className="text-right">
             <QuantityInput
@@ -854,7 +865,7 @@ export function AssignmentsSection({
             .join(", ");
           return (
             <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-              <TableCell colSpan={isSale ? 6 : 7} className="py-1.5 text-xs text-destructive">
+              <TableCell colSpan={isSale ? 7 : 8} className="py-1.5 text-xs text-destructive">
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <span>
@@ -1153,7 +1164,6 @@ export function AssignmentsSection({
                         {!isCollapsed && (
                           <ul className="divide-y">
                             {catGroup.items.map((d) => {
-                              const dailyRate = Number(d.dailyRate);
                               const bookedQty = bookedQtyByDevice.get(d.id) ?? 0;
                               // Bestand wird um die im Projekt bereits gebuchten
                               // Stücke reduziert, kann nicht unter 0 fallen.
@@ -1164,31 +1174,25 @@ export function AssignmentsSection({
                               return (
                                 <li
                                   key={d.id}
-                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
-                                  style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
+                                  className="group flex items-center gap-2 pr-2 py-1 hover:bg-accent/40"
+                                  style={{ paddingLeft: `${1.25 + catGroup.depth * 1.25}rem` }}
                                 >
+                                  {/* Kompakte Katalog-Zeile — Name truncated,
+                                      Bestand als kleine Sub-Info rechts.
+                                      Description-Preview und €/Tag bewusst
+                                      weggelassen für mehr Lesbarkeit. */}
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-sm font-medium">
                                       {d.name}
                                     </div>
-                                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                      {d.description?.trim() && (
-                                        <>
-                                          <span className="truncate">
-                                            {d.description}
-                                          </span>
-                                          <span>·</span>
-                                        </>
-                                      )}
-                                      <span>Bestand {remainingStock}</span>
-                                      <span>·</span>
-                                      <span>{formatCurrency(dailyRate)}/T</span>
-                                    </div>
                                   </div>
+                                  <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                                    {remainingStock}
+                                  </span>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
+                                    className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
                                     disabled={pending}
                                     onClick={() => handleAdd(d.id)}
                                     title={
@@ -1387,14 +1391,15 @@ export function AssignmentsSection({
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-6"></TableHead>
-                            <TableHead>Gerät</TableHead>
-                            <TableHead className="text-right w-[80px]">Anzahl</TableHead>
-                            <TableHead className="text-right w-[100px]">
+                            <TableHead className="px-2">Gerät</TableHead>
+                            <TableHead className="px-2">Beschreibung</TableHead>
+                            <TableHead className="text-right w-[80px] px-2">Anzahl</TableHead>
+                            <TableHead className="text-right w-[100px] px-2">
                               {isSale ? "€ / Stück" : "€ / Tag"}
                             </TableHead>
-                            <TableHead className="text-right w-[120px]">Summe</TableHead>
-                            {!isSale && <TableHead className="w-[100px]">Status</TableHead>}
-                            <TableHead className="w-[120px]"></TableHead>
+                            <TableHead className="text-right w-[120px] px-2">Summe</TableHead>
+                            {!isSale && <TableHead className="w-[100px] px-2">Status</TableHead>}
+                            <TableHead className="w-[120px] px-2"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1416,7 +1421,7 @@ export function AssignmentsSection({
                               >
                                 <DragHandleCell />
                                 <TableCell
-                                  colSpan={isSale ? 4 : 5}
+                                  colSpan={isSale ? 5 : 6}
                                   className="py-3 text-base font-semibold text-foreground"
                                 >
                                   {c.text}
@@ -1589,27 +1594,24 @@ export function AssignmentsSection({
                               return (
                                 <li
                                   key={c.id}
-                                  className="group flex items-center gap-2 pr-3 py-2 hover:bg-accent/40"
-                                  style={{ paddingLeft: `${2 + catGroup.depth * 1.5}rem` }}
+                                  className="group flex items-center gap-2 pr-2 py-1 hover:bg-accent/40"
+                                  style={{ paddingLeft: `${1.25 + catGroup.depth * 1.25}rem` }}
                                 >
+                                  {/* Kompakt: nur Name + freier Bestand,
+                                      Cable-Type-Sublabel weggelassen. */}
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-sm font-medium">{c.name}</div>
-                                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                      {c.cableType && (
-                                        <>
-                                          <span>{c.cableType}</span>
-                                          <span>·</span>
-                                        </>
-                                      )}
-                                      <span className={cn(free <= 0 && "text-destructive font-semibold")}>
-                                        {free} frei / {c.stockQuantity}
-                                      </span>
-                                    </div>
                                   </div>
+                                  <span className={cn(
+                                    "shrink-0 text-[11px] tabular-nums",
+                                    free <= 0 ? "text-destructive font-semibold" : "text-muted-foreground",
+                                  )}>
+                                    {free} frei
+                                  </span>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
+                                    className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
                                     disabled={pending}
                                     onClick={() => handleAddCable(c.id)}
                                     title={
@@ -1773,7 +1775,7 @@ export function AssignmentsSection({
                             collisionDetection={closestCenter}
                             onDragEnd={(e) => handleDragEnd(cableRows, e)}
                           >
-                            <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
+                            <Table className="[&_td]:py-1.5 [&_td]:px-2 [&_th]:h-9 [&_th]:px-2">
                               <TableHeader>
                                 <TableRow>
                                   <TableHead className="w-6"></TableHead>
