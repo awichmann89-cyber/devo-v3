@@ -767,27 +767,44 @@ export async function GET(
     outroY += 8;
   } else if (quote.acceptToken) {
     // Klickbarer Button zum Online-Annehmen.
+    //
+    // Wichtig: KEIN bold setzen — Inter ist nur in Regular geladen, bold würde
+    // synthetisch gefakt und die Char-Widths verschieben (Resultat: stark
+    // verbreiterte Buchstabenabstände). Stattdessen normaler Stil, etwas
+    // größer.
+    //
+    // Klickbarkeit via textWithLink statt rect + link — die Text-Annotation
+    // ist robuster und immer mit dem sichtbaren Text deckungsgleich. Den
+    // farbigen Hintergrund zeichnen wir trotzdem als visuelle Hervorhebung.
     const acceptUrl = `${new URL(req.url).origin}/angebot/${quote.acceptToken}`;
     const BTN_X = ADDR_X;
     const BTN_Y = outroY;
     const BTN_W = 90;
-    const BTN_H = 11;
+    const BTN_H = 12;
+
+    // Hintergrund (rein dekorativ)
     doc.setFillColor(...ACCENT_RGB);
     doc.rect(BTN_X, BTN_Y, BTN_W, BTN_H, "F");
+
+    // Klickbarer Text — ohne Pfeil-Zeichen (das fehlt im Inter-Subset),
+    // dafür mit deutlichen Wort.
     doc.setTextColor(255);
-    doc.setFontSize(10);
-    doc.setFont(undefined as unknown as string, "bold");
-    doc.text("Angebot online annehmen →", BTN_X + 5, BTN_Y + 7);
-    doc.setFont(undefined as unknown as string, "normal");
-    // Klickbar machen via Annotation
+    doc.setFontSize(11);
+    doc.textWithLink("Angebot online annehmen", BTN_X + 5, BTN_Y + 8, {
+      url: acceptUrl,
+    });
+
+    // Zusätzlich noch das gesamte Rechteck klickbar machen, damit auch ein
+    // Klick neben dem Text funktioniert.
     doc.link(BTN_X, BTN_Y, BTN_W, BTN_H, { url: acceptUrl });
+
     // URL als kleinen Text drunter — falls jemand das ausgedruckte PDF
     // in der Hand hat und den Link manuell abtippen muss.
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setTextColor(110);
-    doc.text(acceptUrl, BTN_X, BTN_Y + BTN_H + 4);
+    doc.textWithLink(acceptUrl, BTN_X, BTN_Y + BTN_H + 5, { url: acceptUrl });
     doc.setTextColor(0);
-    outroY += BTN_H + 8;
+    outroY += BTN_H + 10;
   }
 
   endY = outroY;
