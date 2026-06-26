@@ -677,7 +677,7 @@ export function AssignmentsSection({
       <SortableRow
         id={sortId}
         key={sortId}
-        className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40 [&_td]:px-2 [&_td]:py-1.5"
+        className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40 [&_td]:px-2 [&_td]:py-1"
       >
         <DragHandleCell />
         <TableCell>
@@ -710,7 +710,7 @@ export function AssignmentsSection({
               })
             }
             disabled={pending}
-            className="h-8 w-16 text-right tabular-nums ml-auto"
+            className="h-7 w-16 text-right tabular-nums ml-auto"
           />
         </TableCell>
         <TableCell className="text-right tabular-nums font-mono text-sm">
@@ -772,22 +772,37 @@ export function AssignmentsSection({
         <SortableRow
           id={sortId}
           className={cn(
-            "[&_td]:px-2 [&_td]:py-1.5",
+            "[&_td]:px-2 [&_td]:py-1",
             isOver &&
               "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
           )}
         >
           <DragHandleCell />
           <TableCell>
-            {/* Name jetzt einzeilig — Beschreibung wandert in eigene Spalte */}
-            <div className={cn("font-medium truncate", isOver && "text-destructive")}>
-              {a.device.name}
-            </div>
-            {(a.device.manufacturer || a.device.model) && (
-              <div className="text-[11px] text-muted-foreground truncate">
-                {[a.device.manufacturer, a.device.model].filter(Boolean).join(" ")}
-              </div>
-            )}
+            {/* Name + (optional) Hersteller/Modell als Sub-Zeile — nur dann
+                anzeigen, wenn der zusammengesetzte make-Text NICHT identisch
+                mit device.name ist (häufiger Fall: name = "Coda Audio G15-Sub"
+                und manufacturer/model = "Coda Audio" + "G15-Sub" → würde
+                "Coda Audio G15-Sub" als Sub-Zeile doppeln). */}
+            {(() => {
+              const make = [a.device.manufacturer, a.device.model]
+                .filter(Boolean)
+                .join(" ");
+              const showMake =
+                make && make.toLowerCase() !== a.device.name.toLowerCase();
+              return (
+                <>
+                  <div className={cn("font-medium truncate", isOver && "text-destructive")}>
+                    {a.device.name}
+                  </div>
+                  {showMake && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {make}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </TableCell>
           <TableCell className="max-w-[200px]">
             <div className="text-xs text-muted-foreground truncate">
@@ -801,7 +816,7 @@ export function AssignmentsSection({
               onChange={(v) => handleQtyChange(a.id, v)}
               disabled={pending}
               className={cn(
-                "h-8 w-16 text-right tabular-nums ml-auto",
+                "h-7 w-16 text-right tabular-nums ml-auto",
                 isOver && "border-destructive focus-visible:ring-destructive"
               )}
             />
@@ -1122,6 +1137,13 @@ export function AssignmentsSection({
               </div>
             </CardHeader>
             <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
+              {/* Mini-Tabellen-Header — erklärt was die kleine Zahl rechts
+                  neben dem Namen bedeutet (verfügbarer Bestand). */}
+              <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="flex-1">Bezeichnung</span>
+                <span className="w-10 text-right">Bestand</span>
+                <span className="w-7" />
+              </div>
               {availableDevices.length === 0 ? (
                 <p className="px-3 py-8 text-center text-xs text-muted-foreground">
                   {allDevices.length === 0
@@ -1541,6 +1563,13 @@ export function AssignmentsSection({
               </div>
             </CardHeader>
             <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
+              {/* Mini-Tabellen-Header — die kleine Zahl zeigt verfügbare
+                  Kabel (Bestand minus Pack-Allokation minus eigene Buchung). */}
+              <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="flex-1">Bezeichnung</span>
+                <span className="w-12 text-right">frei</span>
+                <span className="w-7" />
+              </div>
               {availableCables.length === 0 ? (
                 <p className="px-3 py-8 text-center text-xs text-muted-foreground">
                   {allCables.length === 0
@@ -1775,7 +1804,7 @@ export function AssignmentsSection({
                             collisionDetection={closestCenter}
                             onDragEnd={(e) => handleDragEnd(cableRows, e)}
                           >
-                            <Table className="[&_td]:py-1.5 [&_td]:px-2 [&_th]:h-9 [&_th]:px-2">
+                            <Table className="[&_td]:py-1 [&_td]:px-2 [&_th]:h-8 [&_th]:px-2">
                               <TableHeader>
                                 <TableRow>
                                   <TableHead className="w-6"></TableHead>

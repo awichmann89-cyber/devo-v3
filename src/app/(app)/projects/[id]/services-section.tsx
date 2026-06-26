@@ -440,7 +440,7 @@ export function ServicesSection({
     const hasOverride = ps.unitPriceOverride !== null;
     const KindIcon = kindIcon(ps.serviceItem.kind);
     return (
-      <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1.5">
+      <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1">
         <DragHandleCell />
         <TableCell>
           {/* Name nur einzeilig — Einheit/Art wandern in eigene Spalte */}
@@ -465,7 +465,7 @@ export function ServicesSection({
               const v = Number(e.target.value);
               if (v !== ps.quantity) handleQty(ps, e.target.value);
             }}
-            className="h-8 text-right"
+            className="h-7 text-right"
           />
         </TableCell>
         <TableCell className="text-right">
@@ -484,7 +484,7 @@ export function ServicesSection({
                 handleOverride(ps, raw);
               }
             }}
-            className={"h-8 text-right " + (hasOverride ? "border-amber-500" : "")}
+            className={"h-7 text-right " + (hasOverride ? "border-amber-500" : "")}
             title={
               hasOverride
                 ? `Katalogpreis: ${formatCurrency(ps.serviceItem.unitPrice)}`
@@ -614,6 +614,13 @@ export function ServicesSection({
             </CardHeader>
             <CardContent className="p-0 flex-1 min-h-0">
               <div className="h-full overflow-y-auto">
+                {/* Mini-Tabellen-Header — Position links, Einheit (h/Std/Tag)
+                    rechts neben dem Namen. */}
+                <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <span className="flex-1">Position</span>
+                  <span className="w-12 text-right">Einheit</span>
+                  <span className="w-7" />
+                </div>
                 {availableFromFullCatalog.length === 0 ? (
                   <p className="px-4 py-8 text-center text-xs text-muted-foreground">
                     {search || kindFilter !== "all"
@@ -859,7 +866,7 @@ export function ServicesSection({
                           collisionDetection={closestCenter}
                           onDragEnd={(e) => handleDragEnd(serviceRows, e)}
                         >
-                        <Table className="[&_td]:py-2 [&_td]:px-2 [&_th]:h-9 [&_th]:px-2">
+                        <Table className="[&_td]:py-1 [&_td]:px-2 [&_th]:h-8 [&_th]:px-2">
                           <TableHeader>
                             <TableRow>
                               <TableHead className="w-6"></TableHead>
