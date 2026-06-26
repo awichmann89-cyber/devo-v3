@@ -135,30 +135,66 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   };
   const conflictMap: Record<string, StockInfo> = {};
   const reservedDeviceIds = new Set<string>();
+  // Aggregieren pro (projectId, deviceId): `effectiveQuantity` ist bereits
+  // der Projekt-Total für dieses Gerät (siehe getOverlappingAssignments).
+  // Wenn ein Projekt dasselbe Gerät mehrfach gebucht hat (z.B. einmal pro
+  // Gruppe), gibt es mehrere Assignment-Einträge mit derselben
+  // effectiveQuantity — die dürfen wir aber NUR EINMAL in totalDemand
+  // anrechnen, sonst wird Demand künstlich verdoppelt und schlägt false-
+  // positive Konflikte. `quantity` dagegen ist per-Assignment und wird
+  // korrekt aufsummiert.
+  type AggOverlap = {
+    projectId: string;
+    deviceId: string;
+    project: (typeof overlap)[number]["project"];
+    quantitySum: number;
+    effectiveQuantity: number;
+    blockingPackUnits: BlockingPack[];
+    anyReserved: boolean;
+  };
+  const aggMap = new Map<string, AggOverlap>();
   for (const o of overlap) {
-    const entry = (conflictMap[o.deviceId] ??= {
+    const key = `${o.projectId}:${o.deviceId}`;
+    const existing = aggMap.get(key);
+    if (existing) {
+      existing.quantitySum += o.quantity;
+      existing.anyReserved = existing.anyReserved || o.isReserved;
+    } else {
+      aggMap.set(key, {
+        projectId: o.projectId,
+        deviceId: o.deviceId,
+        project: o.project,
+        quantitySum: o.quantity,
+        effectiveQuantity: o.effectiveQuantity,
+        blockingPackUnits: o.blockingPackUnits,
+        anyReserved: o.isReserved,
+      });
+    }
+  }
+
+  for (const agg of aggMap.values()) {
+    const entry = (conflictMap[agg.deviceId] ??= {
       totalDemand: 0,
       otherProjects: [],
       ownBookedQuantity: 0,
       ownEffectiveQuantity: 0,
       ownBlockingPackUnits: [],
     });
-    // effektive Stückzahl (inkl. FIXED-Packeinheiten-Aufrundung) statt nur gebuchter Menge
-    entry.totalDemand += o.effectiveQuantity;
-    if (o.projectId === project.id) {
-      if (o.isReserved) reservedDeviceIds.add(o.deviceId);
-      entry.ownBookedQuantity = o.quantity;
-      entry.ownEffectiveQuantity = o.effectiveQuantity;
-      entry.ownBlockingPackUnits = o.blockingPackUnits;
+    entry.totalDemand += agg.effectiveQuantity;
+    if (agg.projectId === project.id) {
+      if (agg.anyReserved) reservedDeviceIds.add(agg.deviceId);
+      entry.ownBookedQuantity = agg.quantitySum;
+      entry.ownEffectiveQuantity = agg.effectiveQuantity;
+      entry.ownBlockingPackUnits = agg.blockingPackUnits;
     } else {
       entry.otherProjects.push({
-        projectId: o.project.id,
-        projectName: o.project.name,
-        planningStart: o.project.planningStart,
-        planningEnd: o.project.planningEnd,
-        bookedQuantity: o.quantity,
-        effectiveQuantity: o.effectiveQuantity,
-        blockingPackUnits: o.blockingPackUnits,
+        projectId: agg.project.id,
+        projectName: agg.project.name,
+        planningStart: agg.project.planningStart,
+        planningEnd: agg.project.planningEnd,
+        bookedQuantity: agg.quantitySum,
+        effectiveQuantity: agg.effectiveQuantity,
+        blockingPackUnits: agg.blockingPackUnits,
       });
     }
   }
