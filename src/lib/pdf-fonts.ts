@@ -6,31 +6,34 @@ import type { jsPDF } from "jspdf";
  * Registriert die Geist-Sans-Schriftart (Regular + Bold) in einem jsPDF-Doc
  * und setzt sie als aktive Schrift. Aufrufen direkt nach `new jsPDF(...)`.
  *
- * Die TTF-Dateien kommen aus dem `@fontsource/geist-sans` Paket — beim
- * Vercel-Build müssen die Dateien über `outputFileTracingIncludes` in
- * `next.config.ts` mit ins Server-Bundle aufgenommen werden.
+ * Wichtig: jsPDF benötigt TTF-Dateien — die üblichen `@fontsource/*`-Pakete
+ * liefern nur WOFF/WOFF2 und funktionieren daher NICHT. Deshalb nutzen wir
+ * das offizielle `geist`-npm-Paket von Vercel, das unter
+ * `dist/fonts/geist-sans/*.ttf` echte TTF-Dateien mitbringt.
  *
- * Wir laden Regular (400) und Bold (700), damit `setFont(undefined, "bold")`
- * einen echten Bold-Schnitt bekommt statt eines synthetisch verbreiterten
- * Regular-Schnitts (der auf Inter zuvor zu abgeschnittenen Buchstaben und
- * fehlerhaftem Kerning geführt hat).
+ * Beim Vercel-Build müssen die TTFs über `outputFileTracingIncludes` in
+ * `next.config.ts` mit ins Server-Bundle aufgenommen werden — sonst kann
+ * fs.readFileSync sie zur Laufzeit nicht finden.
+ *
+ * Regular (400) + Bold (700) werden geladen, damit `setFont(undefined,
+ * "bold")` einen echten Bold-Schnitt bekommt statt eines synthetisch
+ * verbreiterten Regulars.
  */
 export function setupGeistFont(doc: jsPDF): void {
   const fontsDir = path.join(
     process.cwd(),
     "node_modules",
-    "@fontsource",
-    "geist-sans",
-    "files"
+    "geist",
+    "dist",
+    "fonts",
+    "geist-sans"
   );
 
   try {
     const regular = fs.readFileSync(
-      path.join(fontsDir, "geist-sans-latin-400-normal.ttf")
+      path.join(fontsDir, "Geist-Regular.ttf")
     );
-    const bold = fs.readFileSync(
-      path.join(fontsDir, "geist-sans-latin-700-normal.ttf")
-    );
+    const bold = fs.readFileSync(path.join(fontsDir, "Geist-Bold.ttf"));
     // jsPDF braucht base64-Strings im VFS
     doc.addFileToVFS("Geist-Regular.ttf", regular.toString("base64"));
     doc.addFileToVFS("Geist-Bold.ttf", bold.toString("base64"));

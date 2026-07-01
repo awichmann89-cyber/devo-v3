@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "next-auth/react";
 import "./globals.css";
 
 // Geist Sans (Vercel) — moderne Grotesque, sehr klare Formen und gute
-// Lesbarkeit auch bei kleinen Schriftgraden. Wird als CSS-Variable
-// eingebunden, sodass Tailwind sie via `font-sans` und PDF-Bausteine
-// via CSS-Variablen konsistent verwenden können.
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
-});
-
+// Lesbarkeit auch bei kleinen Schriftgraden. Wir binden über das offizielle
+// `geist`-Paket ein (statt `next/font/google`), weil wir dasselbe Paket
+// serverseitig für die PDF-Ausgabe brauchen — so ist garantiert, dass Web
+// und PDF exakt dieselbe Schriftversion verwenden.
 export const metadata: Metadata = {
   title: "cratel | Materialverwaltung",
   description: "Veranstaltungstechnik Materialverwaltung",
@@ -28,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" className={geist.variable}>
+    <html lang="de" className={GeistSans.variable}>
       <body className="font-sans antialiased">
         <SessionProvider>{children}</SessionProvider>
         <Toaster richColors closeButton />

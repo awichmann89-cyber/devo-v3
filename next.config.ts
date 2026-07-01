@@ -6,13 +6,15 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
-  // Stellt sicher, dass die Geist-TTF-Dateien aus node_modules in den
+  // Stellt sicher, dass die Geist-TTF-Dateien aus dem `geist`-Paket in den
   // Vercel-Server-Bundle aufgenommen werden — sonst kann fs.readFileSync
-  // sie zur Laufzeit nicht finden.
+  // sie zur Laufzeit nicht finden. Wir nutzen das offizielle `geist`-Paket
+  // (nicht `@fontsource/geist-sans`), weil letzteres nur WOFF/WOFF2 liefert
+  // und jsPDF zwingend TTFs benötigt.
   outputFileTracingIncludes: {
     "/api/projects/**/pdf/**/*": [
-      "./node_modules/@fontsource/geist-sans/files/geist-sans-latin-400-normal.ttf",
-      "./node_modules/@fontsource/geist-sans/files/geist-sans-latin-700-normal.ttf",
+      "./node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf",
+      "./node_modules/geist/dist/fonts/geist-sans/Geist-Bold.ttf",
     ],
   },
 };
