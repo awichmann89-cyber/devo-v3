@@ -11,7 +11,12 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
+        // Geist Sans wird via `next/font/google` in src/app/layout.tsx als
+        // CSS-Variable `--font-geist` injiziert. Der System-Font-Stack bleibt
+        // als Fallback, falls die Variable im aktuellen Kontext (z.B. beim
+        // ersten Paint oder in Storybook) nicht gesetzt ist.
         sans: [
+          "var(--font-geist)",
           "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",

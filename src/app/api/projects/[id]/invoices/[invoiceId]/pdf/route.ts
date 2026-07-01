@@ -7,7 +7,7 @@ import { projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseHexColor } from "@/lib/settings";
-import { setupInterFont } from "@/lib/pdf-fonts";
+import { setupGeistFont } from "@/lib/pdf-fonts";
 import {
   buildSnapshotFromProject,
   isValidSnapshot,
@@ -162,7 +162,7 @@ export async function GET(
 
   // ===== PDF erstellen =====
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  setupInterFont(doc);
+  setupGeistFont(doc);
 
   const ADDR_X = 20;
   const SENDER_Y = 45;
@@ -248,8 +248,8 @@ export async function GET(
         ? `${snapBillingPeriods[0].start.toLocaleDateString("de-DE")} – ${snapBillingPeriods[0].end.toLocaleDateString("de-DE")}`
         : snapBillingPeriods
             .map(
-              (p, i) =>
-                `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
+              (p) =>
+                `${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
             )
             .join(" | ");
     // splitTextToSize bricht den Text automatisch um, wenn er die
