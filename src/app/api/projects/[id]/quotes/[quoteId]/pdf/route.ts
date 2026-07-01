@@ -240,15 +240,19 @@ export async function GET(
   const TEXT_RIGHT_MARGIN = 14;
   const textWidth = PAGE_WIDTH - ADDR_X - TEXT_RIGHT_MARGIN;
   if (!isSale) {
+    // Ein Zeitraum, der komplett auf einem Tag liegt, wird als einzelnes
+    // Datum gerendert statt „24.07.2026 – 24.07.2026" — das wirkt sauberer,
+    // besonders bei vielen einzelnen Kalendertagen (z.B. Vermietungen über
+    // mehrere Wochenenden).
+    const formatPeriod = (p: (typeof snapBillingPeriods)[number]): string => {
+      const s = p.start.toLocaleDateString("de-DE");
+      const e = p.end.toLocaleDateString("de-DE");
+      return s === e ? s : `${s} – ${e}`;
+    };
     const periodsText =
       snapBillingPeriods.length === 1
-        ? `${snapBillingPeriods[0].start.toLocaleDateString("de-DE")} – ${snapBillingPeriods[0].end.toLocaleDateString("de-DE")}`
-        : snapBillingPeriods
-            .map(
-              (p) =>
-                `${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
-            )
-            .join(" | ");
+        ? formatPeriod(snapBillingPeriods[0])
+        : snapBillingPeriods.map(formatPeriod).join(" | ");
     // Bei vielen Zeiträumen kann der Text über den Rand hinauslaufen —
     // splitTextToSize bricht ihn dann auf mehrere Zeilen um. Folgezeilen
     // werden leicht eingerückt, damit das Label „Mietzeitraum:" optisch

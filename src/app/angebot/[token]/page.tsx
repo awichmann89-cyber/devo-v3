@@ -309,14 +309,18 @@ function QuoteSnapshotView({
           {!isSale && billingPeriods.length > 0 && (
             <div>
               <span className="text-muted-foreground">Mietzeitraum:</span>{" "}
-              {billingPeriods.length === 1
-                ? `${formatDate(billingPeriods[0].start)} – ${formatDate(billingPeriods[0].end)}`
-                : billingPeriods
-                    .map(
-                      (p) =>
-                        `${formatDate(p.start)} – ${formatDate(p.end)}`,
-                    )
-                    .join(" | ")}{" "}
+              {(() => {
+                // Eintägige Zeiträume kompakt als einzelnes Datum ausgeben —
+                // analog zum PDF-Rendering.
+                const fmt = (p: { start: Date; end: Date }) => {
+                  const s = formatDate(p.start);
+                  const e = formatDate(p.end);
+                  return s === e ? s : `${s} – ${e}`;
+                };
+                return billingPeriods.length === 1
+                  ? fmt(billingPeriods[0])
+                  : billingPeriods.map(fmt).join(" | ");
+              })()}{" "}
               ({snapshot.days} Tage)
             </div>
           )}

@@ -243,15 +243,18 @@ export async function GET(
   const INV_TEXT_RIGHT_MARGIN = 14;
   const invTextWidth = INV_PAGE_WIDTH - ADDR_X - INV_TEXT_RIGHT_MARGIN;
   if (!isSale) {
+    // Eintägige Zeiträume nur mit einem Datum ausgeben statt „24.07.2026 –
+    // 24.07.2026". Das passt insbesondere bei Vermietungen, die aus vielen
+    // einzelnen Kalendertagen bestehen (z.B. Serien-Events an Wochenenden).
+    const formatPeriod = (p: (typeof snapBillingPeriods)[number]): string => {
+      const s = p.start.toLocaleDateString("de-DE");
+      const e = p.end.toLocaleDateString("de-DE");
+      return s === e ? s : `${s} – ${e}`;
+    };
     const periodsText =
       snapBillingPeriods.length === 1
-        ? `${snapBillingPeriods[0].start.toLocaleDateString("de-DE")} – ${snapBillingPeriods[0].end.toLocaleDateString("de-DE")}`
-        : snapBillingPeriods
-            .map(
-              (p) =>
-                `${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
-            )
-            .join(" | ");
+        ? formatPeriod(snapBillingPeriods[0])
+        : snapBillingPeriods.map(formatPeriod).join(" | ");
     // splitTextToSize bricht den Text automatisch um, wenn er die
     // Seitenbreite überschreitet — z.B. bei 3+ Berechnungszeiträumen.
     const fullLine = `Mietzeitraum: ${periodsText} (${days} Tage)`;
