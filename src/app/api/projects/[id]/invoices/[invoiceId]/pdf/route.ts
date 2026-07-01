@@ -237,6 +237,11 @@ export async function GET(
     metaY
   );
   metaY += 5;
+  // Seitenbreite und rechter Rand — für automatischen Umbruch der
+  // Mietzeitraum-Zeile bei mehreren Zeiträumen.
+  const INV_PAGE_WIDTH = doc.internal.pageSize.getWidth();
+  const INV_TEXT_RIGHT_MARGIN = 14;
+  const invTextWidth = INV_PAGE_WIDTH - ADDR_X - INV_TEXT_RIGHT_MARGIN;
   if (!isSale) {
     const periodsText =
       snapBillingPeriods.length === 1
@@ -247,7 +252,14 @@ export async function GET(
                 `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
             )
             .join(" | ");
-    doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
+    // splitTextToSize bricht den Text automatisch um, wenn er die
+    // Seitenbreite überschreitet — z.B. bei 3+ Berechnungszeiträumen.
+    const fullLine = `Mietzeitraum: ${periodsText} (${days} Tage)`;
+    const periodLines = doc.splitTextToSize(fullLine, invTextWidth) as string[];
+    for (let i = 0; i < periodLines.length; i++) {
+      doc.text(periodLines[i], ADDR_X, metaY);
+      if (i < periodLines.length - 1) metaY += 5;
+    }
   }
 
   const tableStartY = metaY + (isSale ? 5 : 10);

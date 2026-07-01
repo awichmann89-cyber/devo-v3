@@ -233,6 +233,12 @@ export async function GET(
     metaY
   );
   metaY += 5;
+  // Seitenbreite und rechter Rand — auch für Auto-Umbruch der
+  // Mietzeitraum-Zeile benötigt, falls mehrere Zeiträume in einer Zeile
+  // nicht mehr passen.
+  const PAGE_WIDTH = doc.internal.pageSize.getWidth();
+  const TEXT_RIGHT_MARGIN = 14;
+  const textWidth = PAGE_WIDTH - ADDR_X - TEXT_RIGHT_MARGIN;
   if (!isSale) {
     const periodsText =
       snapBillingPeriods.length === 1
@@ -243,7 +249,16 @@ export async function GET(
                 `${i + 1}. ${p.start.toLocaleDateString("de-DE")} – ${p.end.toLocaleDateString("de-DE")}`
             )
             .join(" | ");
-    doc.text(`Mietzeitraum: ${periodsText} (${days} Tage)`, ADDR_X, metaY);
+    // Bei vielen Zeiträumen kann der Text über den Rand hinauslaufen —
+    // splitTextToSize bricht ihn dann auf mehrere Zeilen um. Folgezeilen
+    // werden leicht eingerückt, damit das Label „Mietzeitraum:" optisch
+    // klar von den Fortsetzungen getrennt ist.
+    const fullLine = `Mietzeitraum: ${periodsText} (${days} Tage)`;
+    const periodLines = doc.splitTextToSize(fullLine, textWidth) as string[];
+    for (let i = 0; i < periodLines.length; i++) {
+      doc.text(periodLines[i], ADDR_X, metaY);
+      if (i < periodLines.length - 1) metaY += 5;
+    }
   }
 
   // ===== Einleitungstext vor der Tabelle =====
@@ -253,10 +268,6 @@ export async function GET(
   let introY = metaY + 12;
   doc.setFontSize(10);
   doc.setFont(undefined as unknown as string, "normal");
-  // Auf maximal Seitenbreite umbrechen
-  const PAGE_WIDTH = doc.internal.pageSize.getWidth();
-  const TEXT_RIGHT_MARGIN = 14;
-  const textWidth = PAGE_WIDTH - ADDR_X - TEXT_RIGHT_MARGIN;
   const introLines = INTRO_TEXT
     ? (doc.splitTextToSize(INTRO_TEXT, textWidth) as string[])
     : [];
