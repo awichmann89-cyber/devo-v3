@@ -21,7 +21,7 @@ export async function nextSortOrderForGroup(
   projectId: string,
   groupId: string,
 ): Promise<number> {
-  const [assign, adHoc, comment, cable, service] = await Promise.all([
+  const [assign, adHoc, comment, cable, service, subhire] = await Promise.all([
     prisma.projectAssignment.findFirst({
       where: { projectId, groupId },
       orderBy: { sortOrder: "desc" },
@@ -47,6 +47,13 @@ export async function nextSortOrderForGroup(
       orderBy: { sortOrder: "desc" },
       select: { sortOrder: true },
     }),
+    // Freie (nicht mit einem Gerät verknüpfte) Zumietungen teilen sich denselben
+    // sortOrder-Raum, weil sie als eigene Zeile in der Gruppe erscheinen.
+    prisma.projectSubhire.findFirst({
+      where: { projectId, groupId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    }),
   ]);
   const max = Math.max(
     assign?.sortOrder ?? -1,
@@ -54,6 +61,7 @@ export async function nextSortOrderForGroup(
     comment?.sortOrder ?? -1,
     cable?.sortOrder ?? -1,
     service?.sortOrder ?? -1,
+    subhire?.sortOrder ?? -1,
   );
   return max + 1;
 }

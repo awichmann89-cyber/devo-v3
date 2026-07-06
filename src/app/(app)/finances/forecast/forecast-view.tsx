@@ -38,6 +38,10 @@ export interface ForecastRowVM {
   invoiced: number;
   outstanding: number;
   hasInvoice: boolean;
+  /** Interne Zusatzkosten (Zumietung + Extrakosten). */
+  costs: number;
+  /** Erwarteter Gewinn = Projektwert − Zusatzkosten. */
+  profit: number;
 }
 
 type InvoiceFilter = "all" | "without" | "with";
@@ -112,8 +116,10 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
         total: acc.total + r.total,
         invoiced: acc.invoiced + r.invoiced,
         outstanding: acc.outstanding + r.outstanding,
+        costs: acc.costs + r.costs,
+        profit: acc.profit + r.profit,
       }),
-      { total: 0, invoiced: 0, outstanding: 0 }
+      { total: 0, invoiced: 0, outstanding: 0, costs: 0, profit: 0 }
     );
   }, [filtered]);
 
@@ -237,16 +243,21 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
       </Card>
 
       {/* Kennzahlen */}
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Projektvolumen (Netto)"
           amount={totals.total}
           variant="default"
         />
         <StatCard
-          label="Bereits in Rechnung (Netto)"
-          amount={totals.invoiced}
+          label="Zusatzkosten (Netto)"
+          amount={totals.costs}
           variant="muted"
+        />
+        <StatCard
+          label="Erwarteter Gewinn (Netto)"
+          amount={totals.profit}
+          variant="profit"
         />
         <StatCard
           label="Noch offen (Netto)"
@@ -283,6 +294,8 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
                   <TableHead>Berechnungs-Zeitraum</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Projektwert (Netto)</TableHead>
+                  <TableHead className="text-right">Zusatzkosten</TableHead>
+                  <TableHead className="text-right">Gewinn (Netto)</TableHead>
                   <TableHead className="text-right">In Rechnung (Netto)</TableHead>
                   <TableHead className="text-right">Offen (Netto)</TableHead>
                 </TableRow>
@@ -318,6 +331,19 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
                       {formatCurrency(r.total)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
+                      {r.costs > 0 ? "−" + formatCurrency(r.costs) : "—"}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums font-mono text-sm font-medium",
+                        r.profit < 0
+                          ? "text-destructive"
+                          : "text-emerald-700 dark:text-emerald-400"
+                      )}
+                    >
+                      {formatCurrency(r.profit)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
                       {r.invoiced > 0 ? formatCurrency(r.invoiced) : "—"}
                     </TableCell>
                     <TableCell
@@ -337,6 +363,19 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono font-bold">
                     {formatCurrency(totals.total)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-mono font-bold text-muted-foreground">
+                    {totals.costs > 0 ? "−" + formatCurrency(totals.costs) : "—"}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right tabular-nums font-mono font-bold",
+                      totals.profit < 0
+                        ? "text-destructive"
+                        : "text-emerald-700 dark:text-emerald-400"
+                    )}
+                  >
+                    {formatCurrency(totals.profit)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono font-bold">
                     {formatCurrency(totals.invoiced)}
@@ -361,21 +400,37 @@ function StatCard({
 }: {
   label: string;
   amount: number;
-  variant: "default" | "muted" | "success";
+  variant: "default" | "muted" | "success" | "profit";
 }) {
+  // Beim Gewinn signalisiert die Farbe des Betrags Profit (grün) vs. Verlust (rot).
+  const profitNegative = variant === "profit" && amount < 0;
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div
+      className={cn(
+        "rounded-lg border bg-card p-4",
+        variant === "profit" && "border-emerald-600/40",
+        profitNegative && "border-destructive/50"
+      )}
+    >
       <div
         className={cn(
           "text-xs uppercase tracking-wide",
           variant === "muted" && "text-muted-foreground",
           variant === "success" && "text-emerald-600",
-          variant === "default" && "text-foreground"
+          variant === "default" && "text-foreground",
+          variant === "profit" &&
+            (profitNegative ? "text-destructive" : "text-emerald-600")
         )}
       >
         {label}
       </div>
-      <div className="mt-1 text-xl font-bold tabular-nums font-mono">
+      <div
+        className={cn(
+          "mt-1 text-xl font-bold tabular-nums font-mono",
+          variant === "profit" &&
+            (profitNegative ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")
+        )}
+      >
         {formatCurrency(amount)}
       </div>
     </div>

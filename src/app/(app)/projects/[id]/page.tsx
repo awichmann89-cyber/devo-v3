@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip } from "lucide-react";
+import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip, HandCoins } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import {
   projectKindLabel,
@@ -21,6 +21,7 @@ import { FilesSection } from "./files-section";
 import { PeriodsSection } from "./periods-section";
 import { ServicesSection } from "./services-section";
 import { FinancesSection } from "./finances-section";
+import { CostsSection } from "./costs-section";
 import { DeleteProjectButton } from "./delete-button";
 import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
@@ -72,6 +73,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           },
           orderBy: { uploadedAt: "desc" },
         },
+        // Zumietungen + Extrakosten (rein interne Kostenschicht)
+        subhires: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+        extraCosts: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
         createdBy: { select: { name: true, email: true } },
       },
     }),
@@ -347,6 +351,20 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const total = subAfterBereichDiscounts - projectDiscountAmount;
   const discount = subtotal - total;
 
+  // Interne Zusatzkosten (Zumietung + Extrakosten) — fließen NICHT in die
+  // obigen Erlössummen oder in Angebote/Rechnungen ein, dienen nur der
+  // internen Gewinnkontrolle im Finanzen-Tab.
+  const subhireTotal = project.subhires.reduce(
+    (s, x) => s + Number(x.unitCost) * x.quantity,
+    0
+  );
+  const extraPersonal = project.extraCosts
+    .filter((c) => c.kind === "PERSONAL")
+    .reduce((s, c) => s + Number(c.amount), 0);
+  const extraOther = project.extraCosts
+    .filter((c) => c.kind === "SONSTIGES")
+    .reduce((s, c) => s + Number(c.amount), 0);
+
   const deviceCount = project.assignments.reduce(
     (s, a) => s + a.quantity,
     0
@@ -541,6 +559,10 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             <Truck className="h-4 w-4" />
             <span className="hidden sm:inline">Personal & Transport</span>
           </TabsTrigger>
+          <TabsTrigger value="costs">
+            <HandCoins className="h-4 w-4" />
+            <span className="hidden sm:inline">Zumietung & Kosten</span>
+          </TabsTrigger>
           <TabsTrigger value="finances">
             <Wallet className="h-4 w-4" />
             <span className="hidden sm:inline">Finanzen</span>
@@ -626,6 +648,15 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             categories={serialize(allCategories)}
             scanProgress={{ packed: scanTotalDone, total: scanTotalRequired }}
             isSale={isSale}
+            subhires={project.subhires.map((s) => ({
+              id: s.id,
+              deviceId: s.deviceId,
+              groupId: s.groupId,
+              name: s.name,
+              supplier: s.supplier,
+              quantity: s.quantity,
+              unitCost: Number(s.unitCost),
+            }))}
           />
         </TabsContent>
 
@@ -636,6 +667,37 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             catalog={serialize(serviceCatalog) as never}
             groups={serialize(project.groups.filter((g) => g.kind === "SERVICE"))}
             groupComments={serialize(project.groupComments)}
+          />
+        </TabsContent>
+
+        <TabsContent value="costs">
+          <CostsSection
+            projectId={project.id}
+            subhires={project.subhires.map((s) => ({
+              id: s.id,
+              deviceId: s.deviceId,
+              groupId: s.groupId,
+              name: s.name,
+              supplier: s.supplier,
+              quantity: s.quantity,
+              unitCost: Number(s.unitCost),
+            }))}
+            extraCosts={project.extraCosts.map((c) => ({
+              id: c.id,
+              label: c.label,
+              kind: c.kind,
+              amount: Number(c.amount),
+              notes: c.notes,
+            }))}
+            devices={allDevices.map((d) => ({
+              id: d.id,
+              name: d.name,
+              manufacturer: d.manufacturer,
+              model: d.model,
+            }))}
+            groups={project.groups
+              .filter((g) => g.kind === "MATERIAL")
+              .map((g) => ({ id: g.id, name: g.name }))}
           />
         </TabsContent>
 
@@ -683,6 +745,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             }))}
             invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
             quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}
+            subhireTotal={subhireTotal}
+            extraPersonal={extraPersonal}
+            extraOther={extraOther}
           />
         </TabsContent>
       </Tabs>

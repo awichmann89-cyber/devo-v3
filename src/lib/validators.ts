@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BillingUnit,
+  ExtraCostKind,
   InspectionResult,
   ProjectGroupKind,
   ProjectKind,
@@ -193,6 +194,26 @@ export const assignmentSchema = z.object({
   deviceId: z.string().min(1),
   quantity: z.coerce.number().int().min(1).default(1),
   groupId: z.string().min(1),
+  notes: z.string().max(500).optional().nullable(),
+});
+
+// Zumietung: zugemietetes Material (rein interne Kostenposition).
+export const subhireSchema = z.object({
+  name: z.string().min(1, "Bezeichnung erforderlich").max(200),
+  // Optionale Verknüpfung zu einem Katalog-Gerät bzw. einer Material-Gruppe.
+  deviceId: z.string().optional().nullable(),
+  groupId: z.string().optional().nullable(),
+  supplier: z.string().max(200).optional().nullable(),
+  quantity: z.coerce.number().int().min(1).default(1),
+  unitCost: z.coerce.number().min(0).default(0),
+  notes: z.string().max(500).optional().nullable(),
+});
+
+// Sonstige / personaltechnische Extrakosten.
+export const extraCostSchema = z.object({
+  label: z.string().min(1, "Bezeichnung erforderlich").max(200),
+  kind: z.nativeEnum(ExtraCostKind).default("SONSTIGES"),
+  amount: z.coerce.number().min(0).default(0),
   notes: z.string().max(500).optional().nullable(),
 });
 

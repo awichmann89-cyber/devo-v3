@@ -127,6 +127,10 @@ interface Props {
   quotes: FinancesQuoteVM[];
   invoiceDueDays: number;
   quoteValidityDays: number;
+  /** Interne Zusatzkosten (Zumietung + Extrakosten) für die Ergebnis-Ansicht. */
+  subhireTotal: number;
+  extraPersonal: number;
+  extraOther: number;
 }
 
 export function FinancesSection({
@@ -140,6 +144,9 @@ export function FinancesSection({
   quotes,
   invoiceDueDays,
   quoteValidityDays,
+  subhireTotal,
+  extraPersonal,
+  extraOther,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [invoiceDialog, setInvoiceDialog] = useState(false);
@@ -207,6 +214,13 @@ export function FinancesSection({
   const projectDiscountAmount =
     (subAfterBereichDiscounts * projectDiscountPercent) / 100;
   const grandTotal = subAfterBereichDiscounts - projectDiscountAmount;
+
+  // ----- Interne Ergebnis-Rechnung (Umsatz abzgl. Zusatzkosten) -----
+  const extraCostTotal = extraPersonal + extraOther;
+  const additionalCosts = subhireTotal + extraCostTotal;
+  const result = grandTotal - additionalCosts;
+  const marginPct = grandTotal > 0 ? (result / grandTotal) * 100 : null;
+  const showResult = additionalCosts > 0 || grandTotal > 0;
 
   function handleGroupDiscount(groupId: string, value: string, current: number) {
     const v = Number(value);
@@ -502,6 +516,95 @@ export function FinancesSection({
                 </TableRow>
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {showResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Ergebnis nach Zusatzkosten
+            </CardTitle>
+            <CardDescription>
+              Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen und
+              Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder
+              Rechnungen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="font-medium">Umsatz (Netto)</TableCell>
+                  <TableCell className="text-right tabular-nums font-mono font-medium">
+                    {formatCurrency(grandTotal)}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-muted-foreground">
+                    Zumietkosten
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                    {subhireTotal > 0 ? "−" + formatCurrency(subhireTotal) : "—"}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-muted-foreground">
+                    Extrakosten Personal
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                    {extraPersonal > 0 ? "−" + formatCurrency(extraPersonal) : "—"}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-muted-foreground">
+                    Extrakosten Sonstiges
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                    {extraOther > 0 ? "−" + formatCurrency(extraOther) : "—"}
+                  </TableCell>
+                </TableRow>
+                <TableRow
+                  className={cn(
+                    "border-t-2",
+                    result >= 0
+                      ? "bg-green-50/60 dark:bg-green-950/20"
+                      : "bg-red-50/70 dark:bg-red-950/25"
+                  )}
+                >
+                  <TableCell className="font-bold text-base">
+                    Ergebnis
+                    {marginPct !== null && (
+                      <span
+                        className={cn(
+                          "ml-2 text-xs font-medium",
+                          result >= 0 ? "text-green-700 dark:text-green-400" : "text-destructive"
+                        )}
+                      >
+                        Marge {marginPct.toFixed(1)} %
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right tabular-nums font-mono font-bold text-base",
+                      result >= 0
+                        ? "text-green-700 dark:text-green-400"
+                        : "text-destructive"
+                    )}
+                  >
+                    {formatCurrency(result)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            {result < 0 && (
+              <p className="mt-3 text-xs font-medium text-destructive">
+                Achtung: Die Zusatzkosten übersteigen den Umsatz — dieses Projekt
+                ist aktuell nicht profitabel.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

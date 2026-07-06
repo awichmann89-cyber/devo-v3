@@ -53,6 +53,9 @@ export default async function ForecastPage(props: {
       services: { include: { serviceItem: true } },
       adHocItems: true,
       invoices: { select: { totalNet: true } },
+      // Interne Zusatzkosten für die Gewinn-Berechnung (nicht kundenrelevant).
+      subhires: { select: { quantity: true, unitCost: true } },
+      extraCosts: { select: { amount: true } },
     },
     orderBy: { planningStart: "asc" },
   });
@@ -73,6 +76,10 @@ export default async function ForecastPage(props: {
         (s, inv) => s + Number(inv.totalNet),
         0
       );
+      // Interne Zusatzkosten (Zumietung + Extrakosten) → für den Gewinn.
+      const costs =
+        p.subhires.reduce((s, x) => s + Number(x.unitCost) * x.quantity, 0) +
+        p.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
       return {
         id: p.id,
         name: p.name,
@@ -84,6 +91,8 @@ export default async function ForecastPage(props: {
         invoiced,
         outstanding: total - invoiced,
         hasInvoice: p.invoices.length > 0,
+        costs,
+        profit: total - costs,
       };
     });
 
@@ -92,8 +101,9 @@ export default async function ForecastPage(props: {
       <div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Forecast</h1>
         <p className="text-muted-foreground">
-          Erwarteter Umsatz aus geplanten Projekten im gewählten Zeitraum —
-          Differenz zwischen Projektwert und bereits erstellten Rechnungen.{" "}
+          Erwarteter Umsatz und Gewinn aus geplanten Projekten im gewählten
+          Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung + Extrakosten)
+          vom Projektwert ab — diese erscheinen nie auf Angeboten/Rechnungen.{" "}
           <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).
         </p>
       </div>

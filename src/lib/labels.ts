@@ -1,4 +1,4 @@
-import { BillingUnit, ProjectKind, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
+import { BillingUnit, ExtraCostKind, ProjectKind, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
 
 export function projectKindLabel(kind: ProjectKind): string {
   return {
@@ -67,6 +67,13 @@ export function serviceItemKindLabel(kind: ServiceItemKind): string {
   return {
     PERSONAL: "Personal",
     TRANSPORT: "Transport",
+    SONSTIGES: "Sonstiges",
+  }[kind];
+}
+
+export function extraCostKindLabel(kind: ExtraCostKind): string {
+  return {
+    PERSONAL: "Personal",
     SONSTIGES: "Sonstiges",
   }[kind];
 }

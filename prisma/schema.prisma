@@ -98,6 +98,8 @@ model Device {
   assignments  ProjectAssignment[]
   // Verpackungs-Scans (Public-Scan-Seite)
   packingScans PackingScan[]
+  // Zumietungen, die auf dieses Gerät verweisen (interne Kostenannotation)
+  subhires     ProjectSubhire[]
 
   @@index([categoryId])
 }
@@ -375,6 +377,10 @@ model Project {
   packingScans    PackingScan[]
   // Frei hochgeladene Dateien (PDFs, Bilder, Office-Dokumente) zur Doku.
   files           ProjectFile[]
+  // Zugemietetes Material (rein interne Kostenpositionen, nie auf Dokumenten)
+  subhires        ProjectSubhire[]
+  // Sonstige / personaltechnische Extrakosten (rein intern)
+  extraCosts      ProjectExtraCost[]
 
   @@index([status])
   @@index([customerId])
@@ -411,6 +417,9 @@ model ProjectGroup {
   cableAssignments ProjectCableAssignment[]
   adHocItems       ProjectAdHocItem[]
   comments         ProjectGroupComment[]
+  // Freie (nicht mit einem Gerät verknüpfte) Zumietungen, die als eigene
+  // blaue Zeile in dieser Gruppe erscheinen.
+  subhires         ProjectSubhire[]
 
   @@index([projectId, kind, sortOrder])
 }
@@ -456,6 +465,59 @@ model ProjectAdHocItem {
 
   @@index([projectId])
   @@index([groupId])
+}
+
+// Kategorie einer Extrakostenposition.
+enum ExtraCostKind {
+  PERSONAL
+  SONSTIGES
+}
+
+// Zugemietetes Material: rein interne Kostenposition. Erscheint NIE auf
+// Angeboten/Rechnungen/Packlisten und fließt nicht in calculateProjectTotal /
+// buildSnapshotFromProject ein. Dient dazu, fehlendes Material extern zuzumieten
+// und die Kosten im Blick zu behalten.
+model ProjectSubhire {
+  id          String        @id @default(cuid())
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Optionale Verknüpfung zu einem Katalog-Gerät. Ist gesetzt und das Gerät im
+  // Projekt gebucht, wird dessen Material-Zeile blau markiert.
+  deviceId    String?
+  device      Device?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  // Optionale Material-Gruppe, in der eine NICHT verknüpfte Zumietung als eigene
+  // blaue Zeile erscheint. Bei verknüpften Zumietungen i.d.R. leer.
+  groupId     String?
+  group       ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  name        String        // Bezeichnung (bei Verknüpfung Default = Gerätename)
+  supplier    String?       // Von wem (Vermieter/Lieferant)
+  quantity    Int           @default(1)
+  unitCost    Decimal       @db.Decimal(10, 2) // Kosten pro Stück (netto), pauschal
+  notes       String?
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([deviceId])
+  @@index([groupId])
+}
+
+// Sonstige / personaltechnische Extrakosten. Rein interne Kostenposition,
+// erscheint nicht auf Kundendokumenten.
+model ProjectExtraCost {
+  id          String        @id @default(cuid())
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label       String
+  kind        ExtraCostKind @default(SONSTIGES)
+  amount      Decimal       @db.Decimal(10, 2) // Gesamtbetrag (netto)
+  notes       String?
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectId])
 }
 
 // Generisches Key-Value-Setting-Store (z.B. Rechnungsnummer-Prefix)

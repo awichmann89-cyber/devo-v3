@@ -94,7 +94,13 @@ import {
   type GroupItemKind,
 } from "./group-items-actions";
 import type { ProjectAdHocItem, ProjectGroupComment } from "@prisma/client";
-import { Plus, MessageSquarePlus } from "lucide-react";
+import { Plus, MessageSquarePlus, HandCoins } from "lucide-react";
+import {
+  SubhireDialog,
+  emptySubhire,
+  type SubhireFormValue,
+} from "./subhire-dialog";
+import { removeSubhire } from "./costs-actions";
 import {
   DndContext,
   closestCenter,
@@ -169,6 +175,22 @@ interface Props {
   scanProgress: { packed: number; total: number };
   /** Verkauf-Modus: Tagesfaktor ist 1, „€/Tag" wird zu „€/Stück", Faktor-Spalte entfällt. */
   isSale: boolean;
+  /**
+   * Zumietungen (rein interne Kostenpositionen). Verknüpfte (deviceId gesetzt)
+   * markieren die Geräte-Zeile blau; freie (nur groupId) erscheinen als eigene
+   * blaue Zeile in ihrer Gruppe. Beeinflussen Planung/Preise NICHT.
+   */
+  subhires: SubhireVM[];
+}
+
+export interface SubhireVM {
+  id: string;
+  deviceId: string | null;
+  groupId: string | null;
+  name: string;
+  supplier: string | null;
+  quantity: number;
+  unitCost: number;
 }
 
 type ConflictPrompt = {
@@ -197,9 +219,52 @@ export function AssignmentsSection({
   categories,
   scanProgress,
   isSale,
+  subhires,
 }: Props) {
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
+
+  // ----- Zumietungen -----
+  // Verknüpfte Zumietungen: Menge je Gerät (markiert die Geräte-Zeile blau).
+  const subhireQtyByDevice = new Map<string, number>();
+  // Freie Zumietungen (nur Gruppe, kein Gerät): eigene blaue Zeile in der Gruppe.
+  const freeSubhiresByGroup = new Map<string, SubhireVM[]>();
+  for (const s of subhires) {
+    if (s.deviceId) {
+      subhireQtyByDevice.set(
+        s.deviceId,
+        (subhireQtyByDevice.get(s.deviceId) ?? 0) + s.quantity
+      );
+    } else if (s.groupId) {
+      const arr = freeSubhiresByGroup.get(s.groupId) ?? [];
+      arr.push(s);
+      freeSubhiresByGroup.set(s.groupId, arr);
+    }
+  }
+  // Dialog-State für „Zumieten" direkt aus dem Material-Tab.
+  const [subhireDialog, setSubhireDialog] = useState<SubhireFormValue | null>(null);
+  const [subhireDelete, setSubhireDelete] = useState<SubhireVM | null>(null);
+  const materialGroupOptions = groups.map((g) => ({ id: g.id, name: g.name }));
+  const deviceOptions = allDevices.map((d) => ({
+    id: d.id,
+    name: d.name,
+    manufacturer: d.manufacturer,
+    model: d.model,
+  }));
+
+  function handleDeleteSubhire() {
+    if (!subhireDelete) return;
+    const id = subhireDelete.id;
+    startTransition(async () => {
+      try {
+        await removeSubhire(id);
+        toast.success("Zumietung entfernt");
+        setSubhireDelete(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [conflictPrompt, setConflictPrompt] = useState<ConflictPrompt | null>(null);
@@ -761,10 +826,16 @@ export function AssignmentsSection({
   function renderDeviceRow(a: AssignmentWithDevice, sortId: string) {
     const conflict = conflictMap[a.deviceId];
     const isReserved = reservedSet.has(a.deviceId);
-    const isOver =
-      !isReserved &&
-      conflict &&
-      conflict.totalDemand > a.device.stockQuantity;
+    // Zumiet-Menge für dieses Gerät (deckt einen Bestandsengpass ab).
+    const subhiredQty = subhireQtyByDevice.get(a.deviceId) ?? 0;
+    const hasSubhire = subhiredQty > 0;
+    const shortfall = conflict
+      ? Math.max(0, conflict.totalDemand - a.device.stockQuantity)
+      : 0;
+    const isOver = !isReserved && shortfall > 0;
+    // Durch Zumietung nicht gedeckter Rest-Engpass — nur dieser bleibt rot.
+    const uncoveredOver = Math.max(0, shortfall - subhiredQty);
+    const showOverWarning = isOver && uncoveredOver > 0;
     const rate = Number(a.device.dailyRate);
     const lineTotal = rate * a.quantity * billingFactor;
     return (
@@ -773,7 +844,11 @@ export function AssignmentsSection({
           id={sortId}
           className={cn(
             "[&_td]:px-2 [&_td]:py-1",
-            isOver &&
+            // Zugemietet → blau (dominiert die Warnung optisch).
+            hasSubhire &&
+              "bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/30 dark:hover:bg-blue-950/40",
+            !hasSubhire &&
+              showOverWarning &&
               "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
           )}
         >
@@ -792,12 +867,18 @@ export function AssignmentsSection({
                 make && make.toLowerCase() !== a.device.name.toLowerCase();
               return (
                 <>
-                  <div className={cn("font-medium truncate", isOver && "text-destructive")}>
+                  <div className={cn("font-medium truncate", showOverWarning && "text-destructive")}>
                     {a.device.name}
                   </div>
                   {showMake && (
                     <div className="text-[11px] text-muted-foreground truncate">
                       {make}
+                    </div>
+                  )}
+                  {hasSubhire && (
+                    <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                      <HandCoins className="h-3 w-3" />
+                      zugemietet: {subhiredQty} Stk.
                     </div>
                   )}
                 </>
@@ -817,7 +898,7 @@ export function AssignmentsSection({
               disabled={pending}
               className={cn(
                 "h-7 w-16 text-right tabular-nums ml-auto",
-                isOver && "border-destructive focus-visible:ring-destructive"
+                showOverWarning && "border-destructive focus-visible:ring-destructive"
               )}
             />
           </TableCell>
@@ -858,6 +939,27 @@ export function AssignmentsSection({
               <Button
                 variant="ghost"
                 size="icon"
+                className={cn(
+                  "h-7 w-7",
+                  hasSubhire && "text-blue-600 dark:text-blue-400"
+                )}
+                onClick={() =>
+                  setSubhireDialog(
+                    emptySubhire({
+                      deviceId: a.deviceId,
+                      name: a.device.name,
+                      quantity: Math.max(1, uncoveredOver),
+                    })
+                  )
+                }
+                disabled={pending}
+                title="Material zumieten"
+              >
+                <HandCoins className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-7 w-7"
                 onClick={() => handleRemove(a.id)}
                 disabled={pending}
@@ -868,13 +970,14 @@ export function AssignmentsSection({
             </div>
           </TableCell>
         </SortableRow>
-        {isOver && (() => {
+        {showOverWarning && (() => {
           const stock = a.device.stockQuantity;
           const booked = conflict.ownBookedQuantity || a.quantity;
           const ownEff = conflict.ownEffectiveQuantity || booked;
           const ownExtra = ownEff - booked;
           const ownPacks = conflict.ownBlockingPackUnits;
-          const overBy = conflict.totalDemand - stock;
+          // Rest-Engpass nach Abzug der Zumietung.
+          const overBy = uncoveredOver;
           const foreignNames = conflict.otherProjects
             .map((op) => op.projectName)
             .join(", ");
@@ -907,6 +1010,76 @@ export function AssignmentsSection({
           );
         })()}
       </Fragment>
+    );
+  }
+
+  /**
+   * Rendert eine freie (nicht mit einem Gerät verknüpfte) Zumietung als eigene
+   * blaue Zeile in der Material-Tabelle. Preis-Spalten bleiben leer — die Kosten
+   * sind rein intern und gehören nicht in die Kunden-Preisspalten.
+   */
+  function renderFreeSubhireRow(s: SubhireVM) {
+    return (
+      <TableRow
+        key={`SUBHIRE:${s.id}`}
+        className="bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/30 dark:hover:bg-blue-950/40 [&_td]:px-2 [&_td]:py-1"
+      >
+        <TableCell />
+        <TableCell>
+          <div className="font-medium truncate">{s.name}</div>
+          <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+            <HandCoins className="h-3 w-3" />
+            zugemietet{s.supplier ? ` · ${s.supplier}` : ""}
+          </div>
+        </TableCell>
+        <TableCell className="max-w-[200px]" />
+        <TableCell className="text-right tabular-nums font-mono text-sm">
+          {s.quantity}
+        </TableCell>
+        <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+        <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+        {!isSale && (
+          <TableCell>
+            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+              zugemietet
+            </span>
+          </TableCell>
+        )}
+        <TableCell>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Bearbeiten"
+              onClick={() =>
+                setSubhireDialog({
+                  id: s.id,
+                  deviceId: s.deviceId,
+                  groupId: s.groupId,
+                  name: s.name,
+                  supplier: s.supplier ?? "",
+                  quantity: s.quantity,
+                  unitCost: s.unitCost,
+                  notes: "",
+                })
+              }
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              title="Entfernen"
+              onClick={() => setSubhireDelete(s)}
+              disabled={pending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
     );
   }
 
@@ -1297,6 +1470,18 @@ export function AssignmentsSection({
                 >
                   <Plus className="h-4 w-4" /> Vorübergehendes Gerät hinzufügen
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Fehlendes Material zumieten (interne Kostenposition)"
+                  onClick={() =>
+                    setSubhireDialog(
+                      emptySubhire({ groupId: activeGroupId ?? groups[0]?.id ?? null })
+                    )
+                  }
+                >
+                  <HandCoins className="h-4 w-4" /> Zumieten
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
@@ -1395,7 +1580,8 @@ export function AssignmentsSection({
                       // gerendert (mit gelbem Hintergrund) und mit dem
                       // Tagesfaktor multipliziert.
                       const mainRows = buildDeviceGroupRows(g.id);
-                      if (mainRows.length === 0) {
+                      const freeSubs = freeSubhiresByGroup.get(g.id) ?? [];
+                      if (mainRows.length === 0 && freeSubs.length === 0) {
                       return (
                       <p className="py-4 text-center text-xs text-muted-foreground">
                         Noch nichts in dieser Gruppe. Klicke ein Gerät aus dem
@@ -1495,6 +1681,9 @@ export function AssignmentsSection({
                           return renderDeviceRow(a, r.sortId);
                         })}
                         </SortableContext>
+                        {/* Freie Zumietungen (kein Gerät verknüpft) — nicht
+                            sortierbar, ans Gruppenende gehängt, blau markiert. */}
+                        {freeSubs.map((s) => renderFreeSubhireRow(s))}
                         </TableBody>
                       </Table>
                       </DndContext>
@@ -2280,6 +2469,31 @@ export function AssignmentsSection({
             setConflictPrompt(null);
           }
         }}
+      />
+
+      {/* Zumietung anlegen/bearbeiten direkt aus dem Material-Tab. */}
+      <SubhireDialog
+        projectId={project.id}
+        value={subhireDialog}
+        onClose={() => setSubhireDialog(null)}
+        devices={deviceOptions}
+        groups={materialGroupOptions}
+      />
+      <ConfirmDialog
+        open={subhireDelete !== null}
+        onOpenChange={(o) => !o && setSubhireDelete(null)}
+        title="Zumietung entfernen?"
+        description={
+          subhireDelete && (
+            <span>
+              Die Zumietung <strong>{subhireDelete.name}</strong> wird dauerhaft
+              entfernt.
+            </span>
+          )
+        }
+        confirmLabel="Entfernen"
+        pending={pending}
+        onConfirm={handleDeleteSubhire}
       />
     </>
   );
