@@ -100,6 +100,10 @@ export interface FinancesInvoiceVM {
   totalGross: number | null;
   paidAt: string | null;
   isPrepayment: boolean;
+  /** Bei Vorkasse-Rechnungen: Anteil des Gesamtauftrags in %. */
+  prepaymentPercent: number | null;
+  /** Schlussrechnung (mit Abzug bestehender Vorkasse-Rechnungen). */
+  isFinal: boolean;
 }
 
 export interface FinancesQuoteVM {
@@ -637,7 +641,21 @@ export function FinancesSection({
               <TableBody>
                 {invoices.map((inv) => (
                   <TableRow key={inv.id}>
-                    <TableCell className="font-mono">{inv.number}</TableCell>
+                    <TableCell className="font-mono">
+                      <span className="flex items-center gap-2">
+                        {inv.number}
+                        {inv.prepaymentPercent !== null && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Vorkasse {inv.prepaymentPercent}%
+                          </Badge>
+                        )}
+                        {inv.isFinal && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Schlussrechnung
+                          </Badge>
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell>{formatDate(inv.date)}</TableCell>
                     <TableCell>{formatDate(inv.dueDate)}</TableCell>
                     <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
@@ -761,16 +779,32 @@ function InvoiceDialog({
   // Typ — Default ist immer "Rechnung". Mahnung nur wählbar wenn es eine
   // reguläre Rechnung zum Bemahnen gibt (kind=INVOICE).
   const [kind, setKind] = useState<"INVOICE" | "REMINDER">("INVOICE");
-  // Vorkasse-Flag: tauscht im PDF nur das Datums-Label „Rechnungsdatum" →
-  // „Vorkasse zum". Beträge bleiben unverändert.
-  const [isPrepayment, setIsPrepayment] = useState(false);
+  // Rechnungsart innerhalb kind=INVOICE.
+  const [invoiceMode, setInvoiceMode] = useState<"FULL" | "PREPAYMENT" | "FINAL">(
+    "FULL"
+  );
+  const [prepaymentPercent, setPrepaymentPercent] = useState<number>(50);
   const baseInvoices = existingInvoices.filter((i) => i.kind === "INVOICE");
   const canBeReminder = baseInvoices.length > 0;
   const [reminderTarget, setReminderTarget] = useState<string>(
     baseInvoices[0]?.id ?? ""
   );
 
-  const hasExisting = kind === "INVOICE" && existingInvoices.length > 0;
+  // Vorhandene Vorkasse-Rechnungen (für die Schlussrechnung) und einfache
+  // Vollrechnungen (die beim Neu-Anlegen einer Vollrechnung überschrieben werden).
+  const prepayments = existingInvoices.filter(
+    (i) => i.kind === "INVOICE" && i.prepaymentPercent !== null
+  );
+  const hasPrepayments = prepayments.length > 0;
+  const prepaidNet = prepayments.reduce((s, p) => s + p.totalNet, 0);
+  const plainInvoices = existingInvoices.filter(
+    (i) => i.kind === "INVOICE" && i.prepaymentPercent === null && !i.isFinal
+  );
+  // Überschreiben nur bei einer normalen Vollrechnung, und nur die anderen
+  // Vollrechnungen (Vorkasse-/Schlussrechnungen bleiben unangetastet).
+  const willOverwrite =
+    kind === "INVOICE" && invoiceMode === "FULL" && plainInvoices.length > 0;
+
   const computedDueDate = new Date();
   computedDueDate.setDate(computedDueDate.getDate() + dueDays);
 
@@ -778,6 +812,15 @@ function InvoiceDialog({
   const reminderAmount = selectedOriginal
     ? (selectedOriginal.totalGross ?? selectedOriginal.totalNet)
     : 0;
+
+  // Netto-Vorschaubetrag je Rechnungsart.
+  const pct = Math.max(0, Math.min(100, Number(prepaymentPercent) || 0));
+  const previewNet =
+    invoiceMode === "PREPAYMENT"
+      ? Math.round(((defaultTotal * pct) / 100) * 100) / 100
+      : invoiceMode === "FINAL"
+        ? Math.round((defaultTotal - prepaidNet) * 100) / 100
+        : defaultTotal;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -798,20 +841,36 @@ function InvoiceDialog({
           triggerDownload(
             `/api/projects/${projectId}/invoices/${created.id}/pdf?download=1`
           );
+        } else if (invoiceMode === "PREPAYMENT") {
+          if (pct <= 0) {
+            toast.error("Bitte einen Prozentsatz größer als 0 angeben");
+            return;
+          }
+          const inv = await createInvoice(projectId, computedDueDate, defaultTotal, {
+            prepaymentPercent: pct,
+          });
+          toast.success(`Vorkasse-Rechnung ${inv.number} (${pct}%) angelegt`);
+          triggerDownload(
+            `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`
+          );
+        } else if (invoiceMode === "FINAL") {
+          const inv = await createInvoice(projectId, computedDueDate, defaultTotal, {
+            isFinal: true,
+          });
+          toast.success(`Schlussrechnung ${inv.number} angelegt`);
+          triggerDownload(
+            `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`
+          );
         } else {
-          if (hasExisting) {
-            for (const inv of existingInvoices) {
+          // Vollrechnung — vorhandene einfache Vollrechnungen überschreiben.
+          if (willOverwrite) {
+            for (const inv of plainInvoices) {
               await deleteInvoice(inv.id);
             }
           }
-          const inv = await createInvoice(
-            projectId,
-            computedDueDate,
-            defaultTotal,
-            { isPrepayment }
-          );
+          const inv = await createInvoice(projectId, computedDueDate, defaultTotal, {});
           toast.success(
-            hasExisting
+            willOverwrite
               ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
               : `Rechnung ${inv.number} angelegt`
           );
@@ -833,9 +892,13 @@ function InvoiceDialog({
           <DialogTitle>
             {kind === "REMINDER"
               ? "Mahnung erstellen"
-              : hasExisting
-                ? "Rechnung überschreiben?"
-                : "Rechnung erstellen"}
+              : invoiceMode === "PREPAYMENT"
+                ? "Vorkasse-Rechnung erstellen"
+                : invoiceMode === "FINAL"
+                  ? "Schlussrechnung erstellen"
+                  : willOverwrite
+                    ? "Rechnung überschreiben?"
+                    : "Rechnung erstellen"}
           </DialogTitle>
           <DialogDescription>
             Für Projekt <strong>{projectName}</strong>. Nummer wird automatisch
@@ -862,17 +925,67 @@ function InvoiceDialog({
           </div>
 
           {kind === "INVOICE" && (
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={isPrepayment}
-                onChange={(e) => setIsPrepayment(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-input"
+            <div className="space-y-2">
+              <Label>Rechnungsart</Label>
+              <Select
+                value={invoiceMode}
+                onValueChange={(v) =>
+                  setInvoiceMode(v as "FULL" | "PREPAYMENT" | "FINAL")
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FULL">Vollständige Rechnung</SelectItem>
+                  <SelectItem value="PREPAYMENT">Vorkasse / Anzahlung (%)</SelectItem>
+                  <SelectItem value="FINAL" disabled={!hasPrepayments}>
+                    Schlussrechnung{!hasPrepayments && " (keine Vorkasse vorhanden)"}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {kind === "INVOICE" && invoiceMode === "PREPAYMENT" && (
+            <div className="space-y-2">
+              <Label htmlFor="prepay-pct">Anteil des Gesamtauftrags (%)</Label>
+              <Input
+                id="prepay-pct"
+                type="number"
+                min={1}
+                max={100}
+                step="1"
+                value={prepaymentPercent}
+                onChange={(e) =>
+                  setPrepaymentPercent(
+                    Math.max(0, Math.min(100, Number(e.target.value) || 0))
+                  )
+                }
+                className="tabular-nums"
               />
-              <span>
-                <span className="font-medium">Vorkasse</span>
-              </span>
-            </label>
+              <p className="text-[11px] text-muted-foreground">
+                Bei unter 100% kannst du später eine Schlussrechnung erstellen,
+                die diese Vorkasse abzieht.
+              </p>
+            </div>
+          )}
+
+          {kind === "INVOICE" && invoiceMode === "FINAL" && (
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="font-medium">Abzüge (bereits berechnete Vorkasse):</div>
+              {prepayments.map((p) => (
+                <div key={p.id} className="flex justify-between text-muted-foreground">
+                  <span>
+                    {p.number}
+                    {p.prepaymentPercent !== null && ` (${p.prepaymentPercent}%)`}
+                  </span>
+                  <span className="font-mono tabular-nums">
+                    −{formatCurrency(p.totalNet)} netto
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
 
           {kind === "REMINDER" && canBeReminder && (
@@ -897,38 +1010,43 @@ function InvoiceDialog({
             </div>
           )}
 
-          {kind === "INVOICE" && hasExisting && (
+          {willOverwrite && (
             <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
-              Es {existingInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
+              Es {plainInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
               <strong>
-                {existingInvoices.length}{" "}
-                {existingInvoices.length === 1 ? "Rechnung" : "Rechnungen"}
+                {plainInvoices.length}{" "}
+                {plainInvoices.length === 1 ? "Vollrechnung" : "Vollrechnungen"}
               </strong>{" "}
-              ({existingInvoices.map((i) => i.number).join(", ")}). Beim
-              Fortfahren {existingInvoices.length === 1 ? "wird sie" : "werden sie"}{" "}
-              gelöscht und eine neue angelegt. Die alten Nummern werden nicht
-              wiederverwendet.
+              ({plainInvoices.map((i) => i.number).join(", ")}). Beim Fortfahren{" "}
+              {plainInvoices.length === 1 ? "wird sie" : "werden sie"} gelöscht und
+              eine neue angelegt. Vorkasse-/Schlussrechnungen bleiben erhalten.
             </div>
           )}
 
           <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">
-                {kind === "REMINDER" ? "Offener Betrag" : "Rechnungsbetrag"}
+                {kind === "REMINDER"
+                  ? "Offener Betrag"
+                  : invoiceMode === "PREPAYMENT"
+                    ? `Anzahlungsbetrag (${pct}% netto)`
+                    : invoiceMode === "FINAL"
+                      ? "Restbetrag (netto)"
+                      : "Rechnungsbetrag (netto)"}
               </span>
               <span className="font-mono font-medium tabular-nums">
-                {new Intl.NumberFormat("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                }).format(kind === "REMINDER" ? reminderAmount : defaultTotal)}
+                {formatCurrency(kind === "REMINDER" ? reminderAmount : previewNet)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">
-                Zahlbar bis{kind === "INVOICE" && isPrepayment ? "" : ` (${dueDays} Tage)`}
+                Zahlbar bis
+                {kind === "INVOICE" && invoiceMode === "PREPAYMENT"
+                  ? ""
+                  : ` (${dueDays} Tage)`}
               </span>
               <span className="font-medium">
-                {kind === "INVOICE" && isPrepayment
+                {kind === "INVOICE" && invoiceMode === "PREPAYMENT"
                   ? "Vorkasse"
                   : computedDueDate.toLocaleDateString("de-DE")}
               </span>
@@ -950,9 +1068,13 @@ function InvoiceDialog({
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               {kind === "REMINDER"
                 ? "Mahnung erstellen"
-                : hasExisting
-                  ? "Überschreiben"
-                  : "Rechnung erstellen"}
+                : invoiceMode === "PREPAYMENT"
+                  ? "Vorkasse-Rechnung erstellen"
+                  : invoiceMode === "FINAL"
+                    ? "Schlussrechnung erstellen"
+                    : willOverwrite
+                      ? "Überschreiben"
+                      : "Rechnung erstellen"}
             </Button>
           </DialogFooter>
         </form>

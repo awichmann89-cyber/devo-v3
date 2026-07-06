@@ -87,7 +87,13 @@ export async function createInvoice(
   projectId: string,
   dueDate: Date,
   totalNet: number,
-  options?: { relatedInvoiceId?: string; isPrepayment?: boolean }
+  options?: {
+    relatedInvoiceId?: string;
+    /** Vorkasse-/Anzahlungsrechnung über diesen Anteil des Gesamtauftrags. */
+    prepaymentPercent?: number;
+    /** Schlussrechnung: zieht bestehende Vorkasse-Rechnungen ab. */
+    isFinal?: boolean;
+  }
 ): Promise<{ id: string; number: string }> {
   await requireRole(CAN_WRITE);
 
@@ -148,10 +154,16 @@ export async function createInvoice(
   // Snapshot bauen — entweder aus dem Original (bei Mahnung) oder aus dem
   // aktuellen Projekt-Stand (bei normaler Rechnung). Der Snapshot ist die
   // Quelle der Wahrheit für totalNet/totalGross und das spätere PDF-Rendering.
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   let snapshotJson: Prisma.InputJsonValue | undefined;
   let useTotalNet: number;
+  let useTotalGross: number | null = null;
   let useVatPercent = vatPercent;
   let reminderLevel = 0;
+  // Vorkasse-/Schlussrechnungs-Felder (nur bei regulärer Rechnung gesetzt).
+  let prepaymentPercentValue: number | null = null;
+  let deductionsJson: Prisma.InputJsonValue | undefined;
+  let isPrepaymentInvoice = false;
 
   if (options?.relatedInvoiceId) {
     // Mahnung: Snapshot, Beträge und Steuersatz aus der Original-Rechnung
@@ -161,6 +173,7 @@ export async function createInvoice(
       where: { id: options.relatedInvoiceId },
       select: {
         totalNet: true,
+        totalGross: true,
         vatPercent: true,
         kind: true,
         reminderLevel: true,
@@ -178,6 +191,7 @@ export async function createInvoice(
     });
     reminderLevel = existing + 1;
     useTotalNet = Number(orig.totalNet);
+    useTotalGross = orig.totalGross !== null ? Number(orig.totalGross) : null;
     useVatPercent = Number(orig.vatPercent);
     options.relatedInvoiceId = rootInvoiceId;
     // Snapshot der Original-Rechnung 1:1 übernehmen (falls vorhanden)
@@ -201,11 +215,53 @@ export async function createInvoice(
       pdfAccentColor: settings.pdfAccentColor,
     });
     snapshotJson = snap as unknown as Prisma.InputJsonValue;
-    useTotalNet = snap.totals.totalNet;
+    // Der Snapshot enthält immer den VOLLEN Auftrag. Vorkasse/Schlussrechnung
+    // leiten daraus nur den anteiligen bzw. Restbetrag ab.
+    const fullNet = snap.totals.totalNet;
+    const fullGross = round2(fullNet * (1 + useVatPercent / 100));
+
+    if (options?.prepaymentPercent != null) {
+      // Vorkasse-/Anzahlungsrechnung über einen Anteil des Gesamtauftrags.
+      const pct = Math.max(0, Math.min(100, Number(options.prepaymentPercent) || 0));
+      if (pct <= 0) throw new Error("Vorkasse-Prozentsatz muss größer als 0 sein");
+      isPrepaymentInvoice = true;
+      prepaymentPercentValue = pct;
+      useTotalNet = round2((fullNet * pct) / 100);
+      useTotalGross = round2(useTotalNet * (1 + useVatPercent / 100));
+    } else if (options?.isFinal) {
+      // Schlussrechnung: bereits berechnete Vorkasse-Rechnungen abziehen.
+      const prepays = await prisma.invoice.findMany({
+        where: { projectId, kind: "INVOICE", prepaymentPercent: { not: null } },
+        select: { number: true, totalNet: true, totalGross: true },
+        orderBy: { date: "asc" },
+      });
+      if (prepays.length === 0) {
+        throw new Error("Keine Vorkasse-Rechnung vorhanden, die abgezogen werden könnte");
+      }
+      const prepaidNet = prepays.reduce((s, p) => s + Number(p.totalNet), 0);
+      const prepaidGross = prepays.reduce(
+        (s, p) => s + (p.totalGross !== null ? Number(p.totalGross) : 0),
+        0
+      );
+      useTotalNet = round2(fullNet - prepaidNet);
+      useTotalGross = round2(fullGross - prepaidGross);
+      deductionsJson = prepays.map((p) => ({
+        number: p.number,
+        netAmount: round2(Number(p.totalNet)),
+        grossAmount: round2(p.totalGross !== null ? Number(p.totalGross) : 0),
+      })) as unknown as Prisma.InputJsonValue;
+    } else {
+      // Normale Vollrechnung.
+      useTotalNet = fullNet;
+      useTotalGross = fullGross;
+    }
   }
 
   const totalNetDec = new Prisma.Decimal(useTotalNet);
-  const totalGrossDec = totalNetDec.mul(new Prisma.Decimal(1 + useVatPercent / 100));
+  const totalGrossDec =
+    useTotalGross !== null
+      ? new Prisma.Decimal(useTotalGross)
+      : totalNetDec.mul(new Prisma.Decimal(1 + useVatPercent / 100));
 
   const inv = await prisma.invoice.create({
     data: {
@@ -214,8 +270,12 @@ export async function createInvoice(
       kind: options?.relatedInvoiceId ? "REMINDER" : "INVOICE",
       reminderLevel,
       relatedInvoiceId: options?.relatedInvoiceId ?? null,
-      // Vorkasse nur bei regulärer Rechnung sinnvoll, nicht bei Mahnungen
-      isPrepayment: !options?.relatedInvoiceId && !!options?.isPrepayment,
+      isPrepayment: isPrepaymentInvoice,
+      prepaymentPercent:
+        prepaymentPercentValue !== null
+          ? new Prisma.Decimal(prepaymentPercentValue)
+          : null,
+      deductions: deductionsJson,
       date: new Date(),
       dueDate,
       totalNet: totalNetDec,

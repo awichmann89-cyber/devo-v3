@@ -195,12 +195,28 @@ export async function GET(
     doc.text(line, ADDR_X, RECIPIENT_Y + i * 5);
   });
 
+  // Vorkasse-/Schlussrechnungs-Felder aus der Rechnung.
+  const prepaymentPercent =
+    invoice.prepaymentPercent !== null ? Number(invoice.prepaymentPercent) : null;
+  const deductions: Array<{ number: string; netAmount: number; grossAmount: number }> =
+    Array.isArray(invoice.deductions)
+      ? (invoice.deductions as unknown as Array<{
+          number: string;
+          netAmount: number;
+          grossAmount: number;
+        }>)
+      : [];
+
   const docTitle =
     invoice.kind === "REMINDER"
       ? invoice.reminderLevel > 1
         ? `${invoice.reminderLevel}. Mahnung ${invoice.number}`
         : `Mahnung ${invoice.number}`
-      : `Rechnung ${invoice.number}`;
+      : prepaymentPercent !== null
+        ? `Vorkasse-Rechnung ${invoice.number}`
+        : deductions.length > 0
+          ? `Schlussrechnung ${invoice.number}`
+          : `Rechnung ${invoice.number}`;
   doc.setFontSize(14);
   doc.setFont(undefined as unknown as string, "bold");
   doc.text(docTitle, ADDR_X, 95);
@@ -637,6 +653,8 @@ export async function GET(
   // @ts-expect-error: lastAutoTable
   let totalsY = doc.lastAutoTable.finalY + 6;
 
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
   // ===== Totals (Projekt-Rabatt, Netto, MwSt, Brutto) =====
   const totalsBody: RowInput[] = [];
   if (projectDiscount > 0) {
@@ -648,31 +666,108 @@ export async function GET(
       { content: "-" + fmt(projectDiscount), styles: { halign: "right" } },
     ]);
   }
-  totalsBody.push([
-    {
-      content: "Gesamt netto",
-      styles: { halign: "right", fontStyle: "bold" },
-    },
-    { content: fmt(totalNet), styles: { halign: "right", fontStyle: "bold" } },
-  ]);
-  if (vatPercent > 0) {
+
+  if (prepaymentPercent !== null) {
+    // ----- Vorkasse-/Anzahlungsrechnung: Anteil des Gesamtauftrags -----
+    const partNet = round2((totalNet * prepaymentPercent) / 100);
+    const partVat = round2((partNet * vatPercent) / 100);
+    const partGross = round2(partNet + partVat);
     totalsBody.push([
-      {
-        content: `zzgl. MwSt. ${vatPercent}%`,
-        styles: { halign: "right" },
-      },
-      { content: fmt(vatAmount), styles: { halign: "right" } },
+      { content: "Gesamt netto (Auftrag)", styles: { halign: "right" } },
+      { content: fmt(totalNet), styles: { halign: "right" } },
     ]);
     totalsBody.push([
       {
-        content: "Gesamt brutto",
+        content: `Anzahlung ${prepaymentPercent}% netto`,
+        styles: { halign: "right", fontStyle: "bold" },
+      },
+      { content: fmt(partNet), styles: { halign: "right", fontStyle: "bold" } },
+    ]);
+    if (vatPercent > 0) {
+      totalsBody.push([
+        { content: `zzgl. MwSt. ${vatPercent}%`, styles: { halign: "right" } },
+        { content: fmt(partVat), styles: { halign: "right" } },
+      ]);
+      totalsBody.push([
+        {
+          content: "Anzahlungsbetrag brutto",
+          styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
+        },
+        {
+          content: fmt(partGross),
+          styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
+        },
+      ]);
+    }
+  } else if (deductions.length > 0) {
+    // ----- Schlussrechnung: voller Auftrag abzgl. Vorkasse-Rechnungen -----
+    totalsBody.push([
+      {
+        content: "Gesamt netto",
+        styles: { halign: "right", fontStyle: "bold" },
+      },
+      { content: fmt(totalNet), styles: { halign: "right", fontStyle: "bold" } },
+    ]);
+    if (vatPercent > 0) {
+      totalsBody.push([
+        { content: `zzgl. MwSt. ${vatPercent}%`, styles: { halign: "right" } },
+        { content: fmt(vatAmount), styles: { halign: "right" } },
+      ]);
+      totalsBody.push([
+        { content: "Gesamt brutto", styles: { halign: "right", fontStyle: "bold" } },
+        { content: fmt(totalGross), styles: { halign: "right", fontStyle: "bold" } },
+      ]);
+    }
+    let deductedGross = 0;
+    for (const d of deductions) {
+      deductedGross += Number(d.grossAmount) || 0;
+      totalsBody.push([
+        { content: `abzgl. Vorkasse ${d.number}`, styles: { halign: "right" } },
+        {
+          content: "-" + fmt(Number(d.grossAmount) || 0),
+          styles: { halign: "right" },
+        },
+      ]);
+    }
+    const remainingGross = round2(totalGross - deductedGross);
+    totalsBody.push([
+      {
+        content: "Noch zu zahlen",
         styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
       },
       {
-        content: fmt(totalGross),
+        content: fmt(remainingGross),
         styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
       },
     ]);
+  } else {
+    // ----- Normale Vollrechnung -----
+    totalsBody.push([
+      {
+        content: "Gesamt netto",
+        styles: { halign: "right", fontStyle: "bold" },
+      },
+      { content: fmt(totalNet), styles: { halign: "right", fontStyle: "bold" } },
+    ]);
+    if (vatPercent > 0) {
+      totalsBody.push([
+        {
+          content: `zzgl. MwSt. ${vatPercent}%`,
+          styles: { halign: "right" },
+        },
+        { content: fmt(vatAmount), styles: { halign: "right" } },
+      ]);
+      totalsBody.push([
+        {
+          content: "Gesamt brutto",
+          styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
+        },
+        {
+          content: fmt(totalGross),
+          styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
+        },
+      ]);
+    }
   }
 
   // A4 ist 297 mm hoch. Briefpapier-Footer braucht ca. 55 mm unten.

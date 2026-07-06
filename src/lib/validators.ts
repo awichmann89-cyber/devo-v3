@@ -200,8 +200,10 @@ export const assignmentSchema = z.object({
 // Zumietung: zugemietetes Material (rein interne Kostenposition).
 export const subhireSchema = z.object({
   name: z.string().min(1, "Bezeichnung erforderlich").max(200),
-  // Optionale Verknüpfung zu einem Katalog-Gerät bzw. einer Material-Gruppe.
+  // Optionale Verknüpfung zu einem Katalog-Gerät, einer Ad-hoc-Position
+  // („Vorübergehendes Gerät") bzw. einer Material-Gruppe.
   deviceId: z.string().optional().nullable(),
+  adHocItemId: z.string().optional().nullable(),
   groupId: z.string().optional().nullable(),
   supplier: z.string().max(200).optional().nullable(),
   quantity: z.coerce.number().int().min(1).default(1),

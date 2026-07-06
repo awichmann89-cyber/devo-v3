@@ -651,6 +651,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             subhires={project.subhires.map((s) => ({
               id: s.id,
               deviceId: s.deviceId,
+              adHocItemId: s.adHocItemId,
               groupId: s.groupId,
               name: s.name,
               supplier: s.supplier,
@@ -676,6 +677,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             subhires={project.subhires.map((s) => ({
               id: s.id,
               deviceId: s.deviceId,
+              adHocItemId: s.adHocItemId,
               groupId: s.groupId,
               name: s.name,
               supplier: s.supplier,
@@ -694,6 +696,10 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               name: d.name,
               manufacturer: d.manufacturer,
               model: d.model,
+            }))}
+            adHocItems={project.adHocItems.map((it) => ({
+              id: it.id,
+              name: it.name,
             }))}
             groups={project.groups
               .filter((g) => g.kind === "MATERIAL")
@@ -731,6 +737,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               totalNet: Number(inv.totalNet),
               totalGross: inv.totalGross !== null ? Number(inv.totalGross) : null,
               paidAt: inv.paidAt ? inv.paidAt.toISOString() : null,
+              prepaymentPercent:
+                inv.prepaymentPercent !== null ? Number(inv.prepaymentPercent) : null,
+              isFinal: inv.deductions !== null && inv.deductions !== undefined,
             }))}
             quotes={project.quotes.map((q) => ({
               id: q.id,

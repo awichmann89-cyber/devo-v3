@@ -30,6 +30,7 @@ import { addSubhire, updateSubhire } from "./costs-actions";
 export interface SubhireFormValue {
   id?: string;
   deviceId: string | null;
+  adHocItemId: string | null;
   groupId: string | null;
   name: string;
   supplier: string;
@@ -43,6 +44,7 @@ export function emptySubhire(
 ): SubhireFormValue {
   return {
     deviceId: null,
+    adHocItemId: null,
     groupId: null,
     name: "",
     supplier: "",
@@ -60,6 +62,8 @@ interface Props {
   onClose: () => void;
   /** Katalog-Geräte für die optionale Verknüpfung. */
   devices: { id: string; name: string; manufacturer?: string | null; model?: string | null }[];
+  /** Ad-hoc-Positionen („Vorübergehende Geräte") des Projekts für die Verknüpfung. */
+  adHocItems: { id: string; name: string }[];
   /** Material-Gruppen für die optionale Platzierung freier Zumietungen. */
   groups: { id: string; name: string }[];
 }
@@ -70,7 +74,7 @@ const NO_GROUP = "__none__";
  * Gemeinsamer Dialog zum Anlegen/Bearbeiten einer Zumietung. Wird vom Material-
  * Tab (vorbelegt mit Gerät + Fehlmenge) und vom Kosten-Tab genutzt.
  */
-export function SubhireDialog({ projectId, value, onClose, devices, groups }: Props) {
+export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, groups }: Props) {
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState<SubhireFormValue>(emptySubhire());
 
@@ -80,23 +84,46 @@ export function SubhireDialog({ projectId, value, onClose, devices, groups }: Pr
 
   const open = value !== null;
 
-  const deviceOptions: ComboboxOption[] = devices.map((d) => ({
-    value: d.id,
-    label: d.name,
-    hint: [d.manufacturer, d.model].filter(Boolean).join(" ") || undefined,
-  }));
+  // Verknüpfungsziele: Katalog-Geräte (Präfix „d:") + Ad-hoc-Positionen („a:").
+  const linkOptions: ComboboxOption[] = [
+    ...devices.map((d) => ({
+      value: `d:${d.id}`,
+      label: d.name,
+      hint: [d.manufacturer, d.model].filter(Boolean).join(" ") || undefined,
+    })),
+    ...adHocItems.map((a) => ({
+      value: `a:${a.id}`,
+      label: a.name,
+      hint: "Vorübergehendes Gerät",
+    })),
+  ];
+  const currentLinkValue = form.deviceId
+    ? `d:${form.deviceId}`
+    : form.adHocItemId
+      ? `a:${form.adHocItemId}`
+      : "";
 
   function set<K extends keyof SubhireFormValue>(key: K, v: SubhireFormValue[K]) {
     setForm((f) => ({ ...f, [key]: v }));
   }
 
-  function handleDeviceChange(deviceId: string) {
-    const dev = devices.find((d) => d.id === deviceId);
+  function handleLinkChange(value: string) {
+    if (!value) {
+      setForm((f) => ({ ...f, deviceId: null, adHocItemId: null }));
+      return;
+    }
+    const kind = value.slice(0, 1);
+    const id = value.slice(2);
+    const label =
+      kind === "d"
+        ? devices.find((d) => d.id === id)?.name
+        : adHocItems.find((a) => a.id === id)?.name;
     setForm((f) => ({
       ...f,
-      deviceId: deviceId || null,
+      deviceId: kind === "d" ? id : null,
+      adHocItemId: kind === "a" ? id : null,
       // Namen automatisch übernehmen, wenn noch leer.
-      name: f.name.trim() ? f.name : dev?.name ?? f.name,
+      name: f.name.trim() ? f.name : label ?? f.name,
     }));
   }
 
@@ -111,6 +138,7 @@ export function SubhireDialog({ projectId, value, onClose, devices, groups }: Pr
         const payload = {
           name,
           deviceId: form.deviceId,
+          adHocItemId: form.adHocItemId,
           groupId: form.groupId,
           supplier: form.supplier.trim() || null,
           quantity: form.quantity,
@@ -148,23 +176,23 @@ export function SubhireDialog({ projectId, value, onClose, devices, groups }: Pr
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Verknüpftes Gerät (optional)</Label>
+            <Label>Verknüpfung (optional)</Label>
             <Combobox
-              value={form.deviceId ?? ""}
-              onValueChange={handleDeviceChange}
-              options={deviceOptions}
-              placeholder="Gerät suchen…"
-              emptyLabel="— kein Gerät (freie Position) —"
+              value={currentLinkValue}
+              onValueChange={handleLinkChange}
+              options={linkOptions}
+              placeholder="Gerät oder Vorübergehendes Gerät suchen…"
+              emptyLabel="— keine Verknüpfung (freie Position) —"
               clearable
             />
             <p className="text-[11px] text-muted-foreground">
-              Verknüpft: die Zeile des Geräts wird auf der Materialseite blau
-              markiert. Ohne Verknüpfung erscheint die Zumietung als eigene Zeile
-              in der gewählten Gruppe.
+              Verknüpft mit einem Gerät oder einem Vorübergehenden Gerät: dessen
+              Zeile wird auf der Materialseite magenta markiert. Ohne Verknüpfung
+              erscheint die Zumietung als eigene Zeile in der gewählten Gruppe.
             </p>
           </div>
 
-          {!form.deviceId && groups.length > 0 && (
+          {!form.deviceId && !form.adHocItemId && groups.length > 0 && (
             <div className="space-y-1.5">
               <Label>Material-Gruppe (optional)</Label>
               <Select

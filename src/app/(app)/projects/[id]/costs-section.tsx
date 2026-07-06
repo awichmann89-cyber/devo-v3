@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -37,11 +36,46 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { HandCoins, Plus, Pencil, Trash2, Loader2, Link2, Users, Package } from "lucide-react";
+import { HandCoins, Plus, Pencil, Trash2, Loader2, Link2, Users, Package, Info } from "lucide-react";
 import { toast } from "sonner";
 import type { ExtraCostKind } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
 import { extraCostKindLabel } from "@/lib/labels";
+
+/** Icon je Extrakosten-Kategorie — gleiche Icons wie auf „Personal & Transport". */
+function extraCostKindIcon(kind: ExtraCostKind) {
+  return kind === "PERSONAL" ? Users : Package;
+}
+
+/** Kleines graues Info-Icon; blendet den Hilfetext beim Hovern ein. */
+function InfoHint({ text }: { text: string }) {
+  return (
+    <Tooltip.Provider delayDuration={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            aria-label="Info"
+            className="text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="top"
+            align="start"
+            sideOffset={6}
+            className="z-50 max-w-xs rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md"
+          >
+            {text}
+            <Tooltip.Arrow className="fill-border" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  );
+}
 import {
   SubhireDialog,
   emptySubhire,
@@ -57,6 +91,7 @@ import {
 export interface SubhireVM {
   id: string;
   deviceId: string | null;
+  adHocItemId: string | null;
   groupId: string | null;
   name: string;
   supplier: string | null;
@@ -77,6 +112,7 @@ interface Props {
   subhires: SubhireVM[];
   extraCosts: ExtraCostVM[];
   devices: { id: string; name: string; manufacturer: string | null; model: string | null }[];
+  adHocItems: { id: string; name: string }[];
   groups: { id: string; name: string }[];
 }
 
@@ -93,6 +129,7 @@ export function CostsSection({
   subhires,
   extraCosts,
   devices,
+  adHocItems,
   groups,
 }: Props) {
   const [pending, startTransition] = useTransition();
@@ -101,6 +138,13 @@ export function CostsSection({
   const [subhireDialog, setSubhireDialog] = useState<SubhireFormValue | null>(null);
   const [subhireDelete, setSubhireDelete] = useState<SubhireVM | null>(null);
   const deviceNameById = new Map(devices.map((d) => [d.id, d.name]));
+  const adHocNameById = new Map(adHocItems.map((a) => [a.id, a.name]));
+  // Name des verknüpften Ziels (Gerät oder Vorübergehendes Gerät), falls vorhanden.
+  function linkedName(s: SubhireVM): string | null {
+    if (s.deviceId) return deviceNameById.get(s.deviceId) ?? null;
+    if (s.adHocItemId) return adHocNameById.get(s.adHocItemId) ?? null;
+    return null;
+  }
 
   const subhireTotal = subhires.reduce(
     (s, x) => s + x.unitCost * x.quantity,
@@ -182,13 +226,10 @@ export function CostsSection({
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <HandCoins className="h-5 w-5" /> Zugemietetes Material
+            <CardTitle className="text-base flex items-center gap-2">
+              <HandCoins className="h-4 w-4" /> Zugemietetes Material
+              <InfoHint text="Fehlendes Material extern zumieten. Rein interne Kosten — erscheint nicht auf Angeboten/Rechnungen und ändert die Planung nicht." />
             </CardTitle>
-            <CardDescription>
-              Fehlendes Material extern zumieten. Rein interne Kosten — erscheint
-              nicht auf Angeboten/Rechnungen und ändert die Planung nicht.
-            </CardDescription>
           </div>
           <Button
             size="sm"
@@ -219,16 +260,15 @@ export function CostsSection({
                   <TableRow key={s.id}>
                     <TableCell>
                       <div className="font-medium">{s.name}</div>
-                      {s.deviceId && (
-                        <div className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400">
+                      {(s.deviceId || s.adHocItemId) && (
+                        <div className="flex items-center gap-1 text-[11px] text-fuchsia-600 dark:text-fuchsia-400">
                           <Link2 className="h-3 w-3" />
                           verknüpft
-                          {deviceNameById.get(s.deviceId) &&
-                            deviceNameById.get(s.deviceId) !== s.name && (
-                              <span className="text-muted-foreground">
-                                ({deviceNameById.get(s.deviceId)})
-                              </span>
-                            )}
+                          {linkedName(s) && linkedName(s) !== s.name && (
+                            <span className="text-muted-foreground">
+                              ({linkedName(s)})
+                            </span>
+                          )}
                         </div>
                       )}
                     </TableCell>
@@ -255,6 +295,7 @@ export function CostsSection({
                             setSubhireDialog({
                               id: s.id,
                               deviceId: s.deviceId,
+                              adHocItemId: s.adHocItemId,
                               groupId: s.groupId,
                               name: s.name,
                               supplier: s.supplier ?? "",
@@ -298,12 +339,10 @@ export function CostsSection({
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" /> Extrakosten
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" /> Extrakosten
+              <InfoHint text="Sonstige und personaltechnische Zusatzkosten. Ebenfalls rein intern — erscheinen nicht auf Kundendokumenten." />
             </CardTitle>
-            <CardDescription>
-              Sonstige und personaltechnische Zusatzkosten. Ebenfalls rein intern.
-            </CardDescription>
           </div>
           <Button
             size="sm"
@@ -324,32 +363,30 @@ export function CostsSection({
               <TableHeader>
                 <TableRow>
                   <TableHead>Bezeichnung</TableHead>
-                  <TableHead className="w-[130px]">Kategorie</TableHead>
                   <TableHead className="text-right w-[130px]">Betrag</TableHead>
                   <TableHead className="w-[90px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {extraCosts.map((c) => (
+                {extraCosts.map((c) => {
+                  const KindIcon = extraCostKindIcon(c.kind);
+                  return (
                   <TableRow key={c.id}>
                     <TableCell>
-                      <div className="font-medium">{c.label}</div>
-                      {c.notes && (
-                        <div className="text-xs text-muted-foreground">{c.notes}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={c.kind === "PERSONAL" ? "default" : "secondary"}
-                        className="gap-1"
-                      >
-                        {c.kind === "PERSONAL" ? (
-                          <Users className="h-3 w-3" />
-                        ) : (
-                          <Package className="h-3 w-3" />
-                        )}
-                        {extraCostKindLabel(c.kind)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <KindIcon
+                          className="h-4 w-4 text-muted-foreground shrink-0"
+                          aria-label={extraCostKindLabel(c.kind)}
+                        />
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{c.label}</div>
+                          {c.notes && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {c.notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-mono">
                       {formatCurrency(c.amount)}
@@ -385,9 +422,10 @@ export function CostsSection({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 <TableRow>
-                  <TableCell colSpan={2} className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground">
                     davon Personal
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
@@ -396,7 +434,7 @@ export function CostsSection({
                   <TableCell />
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground">
                     davon Sonstiges
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
@@ -405,7 +443,7 @@ export function CostsSection({
                   <TableCell />
                 </TableRow>
                 <TableRow className="border-t-2">
-                  <TableCell colSpan={2} className="font-semibold">
+                  <TableCell className="font-semibold">
                     Extrakosten gesamt
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono font-semibold">
@@ -425,6 +463,7 @@ export function CostsSection({
         value={subhireDialog}
         onClose={() => setSubhireDialog(null)}
         devices={devices}
+        adHocItems={adHocItems}
         groups={groups}
       />
 

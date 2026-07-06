@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { UploadCloud, Download, Trash2, Loader2, FileText, Image as ImageIcon, FileArchive, File as FileIcon } from "lucide-react";
+import { UploadCloud, Download, Trash2, Loader2, FileText, Image as ImageIcon, FileArchive, File as FileIcon, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { uploadProjectFile, deleteProjectFile } from "./files-actions";
 import { cn, formatDate } from "@/lib/utils";
@@ -94,7 +94,9 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Dateien</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Paperclip className="h-4 w-4" /> Dateien
+          </CardTitle>
           <CardDescription>
             Dokumente, Pläne, Fotos zum Projekt. Drag & Drop oder Klick zum
             Hochladen.

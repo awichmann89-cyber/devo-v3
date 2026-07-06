@@ -463,6 +463,9 @@ model ProjectAdHocItem {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  // Zumietungen, die auf diese Ad-hoc-Position verweisen (interne Kostenannotation)
+  subhires    ProjectSubhire[]
+
   @@index([projectId])
   @@index([groupId])
 }
@@ -485,6 +488,10 @@ model ProjectSubhire {
   // Projekt gebucht, wird dessen Material-Zeile blau markiert.
   deviceId    String?
   device      Device?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  // Optionale Verknüpfung zu einer Ad-hoc-Position („Vorübergehendes Gerät").
+  // Ist gesetzt, wird deren Material-Zeile blau markiert.
+  adHocItemId String?
+  adHocItem   ProjectAdHocItem? @relation(fields: [adHocItemId], references: [id], onDelete: SetNull)
   // Optionale Material-Gruppe, in der eine NICHT verknüpfte Zumietung als eigene
   // blaue Zeile erscheint. Bei verknüpften Zumietungen i.d.R. leer.
   groupId     String?
@@ -500,6 +507,7 @@ model ProjectSubhire {
 
   @@index([projectId])
   @@index([deviceId])
+  @@index([adHocItemId])
   @@index([groupId])
 }
 
@@ -559,9 +567,17 @@ model Invoice {
   kind      InvoiceKind @default(INVOICE)
   // Mahnstufe (1 = 1. Mahnung, 2 = 2., 3 = letzte). Bei kind=INVOICE immer 0.
   reminderLevel Int    @default(0)
-  // Vorkasse-Flag: Wenn true, wird im PDF das „Rechnungsdatum"-Label durch
-  // „Vorkasse zum" ersetzt. Beträge und Logik bleiben identisch.
+  // Vorkasse-Flag: Wenn true, ist dies eine Vorkasse-/Anzahlungsrechnung.
+  // Im PDF wird „Zahlbar bis" durch „Vorkasse" ersetzt.
   isPrepayment Boolean @default(false)
+  // Bei Vorkasse-Rechnungen: berechneter Prozentsatz des Gesamtauftrags
+  // (z.B. 50.00). totalNet/totalGross enthalten dann den anteiligen Betrag.
+  prepaymentPercent Decimal? @db.Decimal(5, 2)
+  // Bei Schlussrechnungen: Liste der abgezogenen Vorkasse-Rechnungen als JSON
+  // ([{ number, netAmount, grossAmount }]). totalNet/totalGross sind dann der
+  // Restbetrag (Gesamtauftrag abzüglich der Anzahlungen). Null bei normalen
+  // Rechnungen.
+  deductions Json?
   // Bei kind=REMINDER: Verweis auf die ursprüngliche Rechnung
   relatedInvoiceId String?
   relatedInvoice   Invoice?  @relation("InvoiceReminders", fields: [relatedInvoiceId], references: [id], onDelete: Cascade)

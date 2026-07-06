@@ -39,6 +39,7 @@ export async function addSubhire(projectId: string, input: SubhireInput) {
     data: {
       projectId,
       deviceId: nullable(data.deviceId),
+      adHocItemId: nullable(data.adHocItemId),
       groupId,
       name: data.name.trim(),
       supplier: nullable(data.supplier),
@@ -59,6 +60,7 @@ export async function updateSubhire(subhireId: string, input: SubhireInput) {
     where: { id: subhireId },
     data: {
       deviceId: nullable(data.deviceId),
+      adHocItemId: nullable(data.adHocItemId),
       groupId: nullable(data.groupId),
       name: data.name.trim(),
       supplier: nullable(data.supplier),

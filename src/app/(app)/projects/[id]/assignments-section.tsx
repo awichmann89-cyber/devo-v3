@@ -186,6 +186,7 @@ interface Props {
 export interface SubhireVM {
   id: string;
   deviceId: string | null;
+  adHocItemId: string | null;
   groupId: string | null;
   name: string;
   supplier: string | null;
@@ -227,13 +228,20 @@ export function AssignmentsSection({
   // ----- Zumietungen -----
   // Verknüpfte Zumietungen: Menge je Gerät (markiert die Geräte-Zeile blau).
   const subhireQtyByDevice = new Map<string, number>();
-  // Freie Zumietungen (nur Gruppe, kein Gerät): eigene blaue Zeile in der Gruppe.
+  // Verknüpfte Zumietungen: Menge je Ad-hoc-Position (markiert deren Zeile blau).
+  const subhireQtyByAdHoc = new Map<string, number>();
+  // Freie Zumietungen (nur Gruppe, keine Verknüpfung): eigene blaue Zeile.
   const freeSubhiresByGroup = new Map<string, SubhireVM[]>();
   for (const s of subhires) {
     if (s.deviceId) {
       subhireQtyByDevice.set(
         s.deviceId,
         (subhireQtyByDevice.get(s.deviceId) ?? 0) + s.quantity
+      );
+    } else if (s.adHocItemId) {
+      subhireQtyByAdHoc.set(
+        s.adHocItemId,
+        (subhireQtyByAdHoc.get(s.adHocItemId) ?? 0) + s.quantity
       );
     } else if (s.groupId) {
       const arr = freeSubhiresByGroup.get(s.groupId) ?? [];
@@ -251,6 +259,7 @@ export function AssignmentsSection({
     manufacturer: d.manufacturer,
     model: d.model,
   }));
+  const adHocItemOptions = adHocItems.map((it) => ({ id: it.id, name: it.name }));
 
   function handleDeleteSubhire() {
     if (!subhireDelete) return;
@@ -734,21 +743,35 @@ export function AssignmentsSection({
     });
   }
 
-  /** Rendert eine sortierbare AdHoc-Zeile in der Geräte-Tabelle (gelb hinterlegt). */
+  /** Rendert eine sortierbare AdHoc-Zeile in der Geräte-Tabelle (gelb, bei
+   *  Zumietung blau hinterlegt). */
   function renderAdHocRow(it: ProjectAdHocItem, sortId: string) {
     const unit = Number(it.unitPrice);
     const line = unit * it.quantity * billingFactor;
+    const subhiredQty = subhireQtyByAdHoc.get(it.id) ?? 0;
+    const hasSubhire = subhiredQty > 0;
     return (
       <SortableRow
         id={sortId}
         key={sortId}
-        className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40 [&_td]:px-2 [&_td]:py-1"
+        className={cn(
+          "[&_td]:px-2 [&_td]:py-1",
+          hasSubhire
+            ? "bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40"
+            : "bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40"
+        )}
       >
         <DragHandleCell />
         <TableCell>
           {/* AdHoc-Name einzeilig — Beschreibung wandert in eigene Spalte
               parallel zur Geräte-Tabellenstruktur. */}
           <div className="font-medium truncate">{it.name}</div>
+          {hasSubhire && (
+            <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
+              <HandCoins className="h-3 w-3" />
+              zugemietet: {subhiredQty} Stk.
+            </div>
+          )}
         </TableCell>
         <TableCell className="max-w-[200px]">
           <div className="text-xs text-muted-foreground truncate">
@@ -787,6 +810,27 @@ export function AssignmentsSection({
         {!isSale && <TableCell />}
         <TableCell>
           <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-7 w-7",
+                hasSubhire && "text-fuchsia-600 dark:text-fuchsia-400"
+              )}
+              onClick={() =>
+                setSubhireDialog(
+                  emptySubhire({
+                    adHocItemId: it.id,
+                    name: it.name,
+                    quantity: it.quantity,
+                  })
+                )
+              }
+              disabled={pending}
+              title="Material zumieten"
+            >
+              <HandCoins className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -846,7 +890,7 @@ export function AssignmentsSection({
             "[&_td]:px-2 [&_td]:py-1",
             // Zugemietet → blau (dominiert die Warnung optisch).
             hasSubhire &&
-              "bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/30 dark:hover:bg-blue-950/40",
+              "bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40",
             !hasSubhire &&
               showOverWarning &&
               "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
@@ -876,7 +920,7 @@ export function AssignmentsSection({
                     </div>
                   )}
                   {hasSubhire && (
-                    <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                    <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
                       <HandCoins className="h-3 w-3" />
                       zugemietet: {subhiredQty} Stk.
                     </div>
@@ -941,7 +985,7 @@ export function AssignmentsSection({
                 size="icon"
                 className={cn(
                   "h-7 w-7",
-                  hasSubhire && "text-blue-600 dark:text-blue-400"
+                  hasSubhire && "text-fuchsia-600 dark:text-fuchsia-400"
                 )}
                 onClick={() =>
                   setSubhireDialog(
@@ -1022,12 +1066,12 @@ export function AssignmentsSection({
     return (
       <TableRow
         key={`SUBHIRE:${s.id}`}
-        className="bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/30 dark:hover:bg-blue-950/40 [&_td]:px-2 [&_td]:py-1"
+        className="bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40 [&_td]:px-2 [&_td]:py-1"
       >
         <TableCell />
         <TableCell>
           <div className="font-medium truncate">{s.name}</div>
-          <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+          <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
             <HandCoins className="h-3 w-3" />
             zugemietet{s.supplier ? ` · ${s.supplier}` : ""}
           </div>
@@ -1040,7 +1084,7 @@ export function AssignmentsSection({
         <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
         {!isSale && (
           <TableCell>
-            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+            <span className="text-xs font-medium text-fuchsia-600 dark:text-fuchsia-400">
               zugemietet
             </span>
           </TableCell>
@@ -1056,6 +1100,7 @@ export function AssignmentsSection({
                 setSubhireDialog({
                   id: s.id,
                   deviceId: s.deviceId,
+                  adHocItemId: s.adHocItemId,
                   groupId: s.groupId,
                   name: s.name,
                   supplier: s.supplier ?? "",
@@ -2477,6 +2522,7 @@ export function AssignmentsSection({
         value={subhireDialog}
         onClose={() => setSubhireDialog(null)}
         devices={deviceOptions}
+        adHocItems={adHocItemOptions}
         groups={materialGroupOptions}
       />
       <ConfirmDialog
