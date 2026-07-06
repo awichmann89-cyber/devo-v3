@@ -93,6 +93,15 @@ export async function createInvoice(
     prepaymentPercent?: number;
     /** Schlussrechnung: zieht bestehende Vorkasse-Rechnungen ab. */
     isFinal?: boolean;
+    /**
+     * Beim Überschreiben einer Rechnung: exakte Nummer, die die neue Rechnung
+     * erhalten soll, statt automatisch die nächste Sequenznummer zu ziehen.
+     * Die Überschreiben-UI belegt dies standardmäßig mit der Nummer der
+     * ersetzten Rechnung vor, damit beim Überschreiben keine neue Nummer
+     * gezogen wird. Manuell änderbar, z.B. um eine zuvor falsch vergebene
+     * Nummer nachträglich zu korrigieren.
+     */
+    customNumber?: string;
   }
 ): Promise<{ id: string; number: string }> {
   await requireRole(CAN_WRITE);
@@ -103,53 +112,61 @@ export async function createInvoice(
   const isReminder = !!options?.relatedInvoiceId;
   void totalNet; // wird vom Snapshot überschrieben — Parameter bleibt nur für Backward-Compat
 
-  // Nummernkreis abhängig vom Typ: Mahnungen haben eigenen Prefix/Counter
-  const prefix = isReminder
-    ? settings.reminderNumberPrefix.trim()
-    : settings.invoiceNumberPrefix.trim();
-  const padding = Math.max(
-    1,
-    Math.min(
-      8,
+  let number: string;
+  if (options?.customNumber) {
+    number = options.customNumber.trim();
+    if (!number) throw new Error("Rechnungsnummer darf nicht leer sein");
+    const clash = await prisma.invoice.findUnique({ where: { number } });
+    if (clash) throw new Error(`Rechnungsnummer ${number} ist bereits vergeben`);
+  } else {
+    // Nummernkreis abhängig vom Typ: Mahnungen haben eigenen Prefix/Counter
+    const prefix = isReminder
+      ? settings.reminderNumberPrefix.trim()
+      : settings.invoiceNumberPrefix.trim();
+    const padding = Math.max(
+      1,
+      Math.min(
+        8,
+        Number(
+          isReminder
+            ? settings.reminderNumberPadding
+            : settings.invoiceNumberPadding
+        ) || 3
+      )
+    );
+    const minSequence = Math.max(
+      1,
       Number(
         isReminder
-          ? settings.reminderNumberPadding
-          : settings.invoiceNumberPadding
-      ) || 3
-    )
-  );
-  const minSequence = Math.max(
-    1,
-    Number(
-      isReminder
-        ? settings.reminderNumberNextSequence
-        : settings.invoiceNumberNextSequence
-    ) || 1
-  );
+          ? settings.reminderNumberNextSequence
+          : settings.invoiceNumberNextSequence
+      ) || 1
+    );
 
-  // Höchste vorhandene Sequenz dieses Jahres und Typs ermitteln —
-  // nur über das gleiche Prefix-Schema iterieren, damit Mahnungen und
-  // Rechnungen sich ihre Sequenzen nicht gegenseitig „klauen".
-  const numberPrefix = prefix ? `${year}-${prefix}-` : `${year}-`;
-  const yearInvoices = await prisma.invoice.findMany({
-    where: {
-      kind: isReminder ? "REMINDER" : "INVOICE",
-      number: { startsWith: numberPrefix },
-    },
-    select: { number: true },
-  });
-  let maxSeq = 0;
-  for (const r of yearInvoices) {
-    const m = r.number.match(/-(\d+)$/);
-    if (m) {
-      const n = Number(m[1]);
-      if (n > maxSeq) maxSeq = n;
+    // Höchste vorhandene Sequenz dieses Jahres und Typs ermitteln —
+    // nur über das gleiche Prefix-Schema iterieren, damit Mahnungen und
+    // Rechnungen sich ihre Sequenzen nicht gegenseitig „klauen".
+    const numberPrefix = prefix ? `${year}-${prefix}-` : `${year}-`;
+    const yearInvoices = await prisma.invoice.findMany({
+      where: {
+        kind: isReminder ? "REMINDER" : "INVOICE",
+        number: { startsWith: numberPrefix },
+      },
+      select: { number: true },
+    });
+    let maxSeq = 0;
+    for (const r of yearInvoices) {
+      const m = r.number.match(/-(\d+)$/);
+      if (m) {
+        const n = Number(m[1]);
+        if (n > maxSeq) maxSeq = n;
+      }
     }
+    const nextSequence = Math.max(maxSeq + 1, minSequence);
+    number = isReminder
+      ? buildReminderNumber(year, nextSequence, prefix, padding)
+      : buildInvoiceNumber(year, nextSequence, prefix, padding);
   }
-  const nextSequence = Math.max(maxSeq + 1, minSequence);
-  const number = isReminder
-    ? buildReminderNumber(year, nextSequence, prefix, padding)
-    : buildInvoiceNumber(year, nextSequence, prefix, padding);
 
   // Snapshot bauen — entweder aus dem Original (bei Mahnung) oder aus dem
   // aktuellen Projekt-Stand (bei normaler Rechnung). Der Snapshot ist die

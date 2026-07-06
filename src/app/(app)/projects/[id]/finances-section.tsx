@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   Card,
   CardContent,
@@ -784,6 +784,12 @@ function InvoiceDialog({
     "FULL"
   );
   const [prepaymentPercent, setPrepaymentPercent] = useState<number>(50);
+  // Beim Überschreiben vorbelegte Rechnungsnummer — standardmäßig die Nummer
+  // der ersetzten Rechnung, damit die neue Rechnung dieselbe Nummer behält
+  // statt eine neue zu ziehen. Manuell änderbar (z.B. um eine zuvor falsch
+  // vergebene Nummer nachträglich zu korrigieren).
+  const [customNumber, setCustomNumber] = useState<string>("");
+  const [customNumberTouched, setCustomNumberTouched] = useState(false);
   const baseInvoices = existingInvoices.filter((i) => i.kind === "INVOICE");
   const canBeReminder = baseInvoices.length > 0;
   const [reminderTarget, setReminderTarget] = useState<string>(
@@ -804,6 +810,18 @@ function InvoiceDialog({
   // Vollrechnungen (Vorkasse-/Schlussrechnungen bleiben unangetastet).
   const willOverwrite =
     kind === "INVOICE" && invoiceMode === "FULL" && plainInvoices.length > 0;
+  // Default für die Rechnungsnummer beim Überschreiben: die Nummer der
+  // ersetzten Rechnung, damit die neue Rechnung standardmäßig dieselbe
+  // Nummer behält statt eine neue zu ziehen.
+  const overwriteDefaultNumber = plainInvoices[0]?.number ?? "";
+  useEffect(() => {
+    if (willOverwrite) {
+      if (!customNumberTouched) setCustomNumber(overwriteDefaultNumber);
+    } else {
+      setCustomNumber("");
+      setCustomNumberTouched(false);
+    }
+  }, [willOverwrite, overwriteDefaultNumber, customNumberTouched]);
 
   const computedDueDate = new Date();
   computedDueDate.setDate(computedDueDate.getDate() + dueDays);
@@ -864,11 +882,18 @@ function InvoiceDialog({
         } else {
           // Vollrechnung — vorhandene einfache Vollrechnungen überschreiben.
           if (willOverwrite) {
+            const trimmedNumber = customNumber.trim();
+            if (!trimmedNumber) {
+              toast.error("Bitte eine Rechnungsnummer angeben");
+              return;
+            }
             for (const inv of plainInvoices) {
               await deleteInvoice(inv.id);
             }
           }
-          const inv = await createInvoice(projectId, computedDueDate, defaultTotal, {});
+          const inv = await createInvoice(projectId, computedDueDate, defaultTotal, {
+            customNumber: willOverwrite ? customNumber.trim() : undefined,
+          });
           toast.success(
             willOverwrite
               ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
@@ -1011,16 +1036,35 @@ function InvoiceDialog({
           )}
 
           {willOverwrite && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
-              Es {plainInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
-              <strong>
-                {plainInvoices.length}{" "}
-                {plainInvoices.length === 1 ? "Vollrechnung" : "Vollrechnungen"}
-              </strong>{" "}
-              ({plainInvoices.map((i) => i.number).join(", ")}). Beim Fortfahren{" "}
-              {plainInvoices.length === 1 ? "wird sie" : "werden sie"} gelöscht und
-              eine neue angelegt. Vorkasse-/Schlussrechnungen bleiben erhalten.
-            </div>
+            <>
+              <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
+                Es {plainInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
+                <strong>
+                  {plainInvoices.length}{" "}
+                  {plainInvoices.length === 1 ? "Vollrechnung" : "Vollrechnungen"}
+                </strong>{" "}
+                ({plainInvoices.map((i) => i.number).join(", ")}). Beim Fortfahren{" "}
+                {plainInvoices.length === 1 ? "wird sie" : "werden sie"} gelöscht und
+                eine neue mit der unten angegebenen Nummer angelegt.
+                Vorkasse-/Schlussrechnungen bleiben erhalten.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="overwrite-number">Rechnungsnummer</Label>
+                <Input
+                  id="overwrite-number"
+                  value={customNumber}
+                  onChange={(e) => {
+                    setCustomNumberTouched(true);
+                    setCustomNumber(e.target.value);
+                  }}
+                  placeholder={overwriteDefaultNumber}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Standardmäßig die Nummer der ersetzten Rechnung, damit die
+                  Nummer beim Überschreiben erhalten bleibt. Bei Bedarf anpassbar.
+                </p>
+              </div>
+            </>
           )}
 
           <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
@@ -1063,7 +1107,11 @@ function InvoiceDialog({
             </Button>
             <Button
               type="submit"
-              disabled={pending || (kind === "REMINDER" && !canBeReminder)}
+              disabled={
+                pending ||
+                (kind === "REMINDER" && !canBeReminder) ||
+                (willOverwrite && !customNumber.trim())
+              }
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               {kind === "REMINDER"
