@@ -7,7 +7,8 @@ export default async function FinancesInvoicesPage() {
   await requireAuth();
 
   const invoices = await prisma.invoice.findMany({
-    orderBy: [{ paidAt: { sort: "asc", nulls: "first" } }, { date: "desc" }],
+    // Stumpf nach Datum: älteste oben, neuste unten.
+    orderBy: { date: "asc" },
     include: {
       project: {
         select: { id: true, name: true, customer: { select: { name: true } } },
