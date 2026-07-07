@@ -726,12 +726,6 @@ export function ServicesSection({
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <FolderOpen className="h-4 w-4" /> Zugewiesen
-                {projectServices.length > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    {projectServices.length}{" "}
-                    {projectServices.length === 1 ? "Position" : "Positionen"}
-                  </Badge>
-                )}
               </CardTitle>
               <Button
                 size="sm"

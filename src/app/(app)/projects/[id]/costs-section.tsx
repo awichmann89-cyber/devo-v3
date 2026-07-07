@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import * as Tooltip from "@radix-ui/react-tooltip";
 import {
   Card,
   CardContent,
@@ -36,7 +35,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { HandCoins, Plus, Pencil, Trash2, Loader2, Link2, Users, Package, Info } from "lucide-react";
+import { InfoHint } from "@/components/ui/info-hint";
+import { HandCoins, Plus, Pencil, Trash2, Loader2, Link2, Users, Package } from "lucide-react";
 import { toast } from "sonner";
 import type { ExtraCostKind } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
@@ -45,36 +45,6 @@ import { extraCostKindLabel } from "@/lib/labels";
 /** Icon je Extrakosten-Kategorie — gleiche Icons wie auf „Personal & Transport". */
 function extraCostKindIcon(kind: ExtraCostKind) {
   return kind === "PERSONAL" ? Users : Package;
-}
-
-/** Kleines graues Info-Icon; blendet den Hilfetext beim Hovern ein. */
-function InfoHint({ text }: { text: string }) {
-  return (
-    <Tooltip.Provider delayDuration={150}>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type="button"
-            aria-label="Info"
-            className="text-muted-foreground/60 transition-colors hover:text-muted-foreground"
-          >
-            <Info className="h-4 w-4" />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
-            side="top"
-            align="start"
-            sideOffset={6}
-            className="z-50 max-w-xs rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md"
-          >
-            {text}
-            <Tooltip.Arrow className="fill-border" />
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-    </Tooltip.Provider>
-  );
 }
 import {
   SubhireDialog,
@@ -340,7 +310,7 @@ export function CostsSection({
         <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4" /> Extrakosten
+              <Users className="h-4 w-4" /> Personal & Sonstiges
               <InfoHint text="Sonstige und personaltechnische Zusatzkosten. Ebenfalls rein intern — erscheinen nicht auf Kundendokumenten." />
             </CardTitle>
           </div>
@@ -350,7 +320,7 @@ export function CostsSection({
               setExtraDialog({ label: "", kind: "SONSTIGES", amount: 0, notes: "" })
             }
           >
-            <Plus className="h-4 w-4" /> Extrakosten hinzufügen
+            <Plus className="h-4 w-4" /> Position hinzufügen
           </Button>
         </CardHeader>
         <CardContent>

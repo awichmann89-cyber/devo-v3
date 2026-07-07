@@ -1462,9 +1462,6 @@ export function AssignmentsSection({
             <CardHeader className="px-0 pt-0 pb-3 flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Boxes /> Gebuchte Geräte
-                {project.assignments.length > 0 && (
-                  <Badge variant="outline">{project.assignments.length} Typen</Badge>
-                )}
               </CardTitle>
               <div className="flex items-center gap-2">
                 {groups.length > 0 && (

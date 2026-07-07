@@ -6,8 +6,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Table,
   TableBody,
@@ -447,11 +447,10 @@ export function FinancesSection({
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Übersicht</CardTitle>
-            <CardDescription>
-              Rabatt pro Gruppe, pro Bereich (Material/Personal & Transport)
-              und projektweit — werden in dieser Reihenfolge angewendet.
-            </CardDescription>
+            <CardTitle className="text-base flex items-center gap-2">
+              Übersicht
+              <InfoHint text="Rabatt pro Gruppe, pro Bereich (Material/Personal & Transport) und projektweit — werden in dieser Reihenfolge angewendet." />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -527,14 +526,10 @@ export function FinancesSection({
       {showResult && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
+            <CardTitle className="text-base flex items-center gap-2">
               Ergebnis nach Zusatzkosten
+              <InfoHint text="Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen und Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder Rechnungen." />
             </CardTitle>
-            <CardDescription>
-              Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen und
-              Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder
-              Rechnungen.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -555,18 +550,10 @@ export function FinancesSection({
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-muted-foreground">
-                    Extrakosten Personal
+                    Personal & Sonstiges
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
-                    {extraPersonal > 0 ? "−" + formatCurrency(extraPersonal) : "—"}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">
-                    Extrakosten Sonstiges
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
-                    {extraOther > 0 ? "−" + formatCurrency(extraOther) : "—"}
+                    {extraCostTotal > 0 ? "−" + formatCurrency(extraCostTotal) : "—"}
                   </TableCell>
                 </TableRow>
                 <TableRow
