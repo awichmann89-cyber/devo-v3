@@ -99,7 +99,6 @@ export default async function ForecastPage(props: {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Forecast</h1>
         <p className="text-muted-foreground">
           Erwarteter Umsatz und Gewinn aus geplanten Projekten im gewählten
           Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung + Extrakosten)

@@ -18,7 +18,7 @@ export default async function InspectionPage() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Prüfungsmodus</h1>
+        <h1 className="text-[21px] font-extrabold tracking-tight">Prüfungsmodus</h1>
         <p className="text-muted-foreground">
           DGUV V3 Prüfung für Geräte und Kabel — Barcode scannen oder
           Seriennummer eingeben, Ergebnis erfassen.

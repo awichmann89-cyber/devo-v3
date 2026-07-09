@@ -758,7 +758,7 @@ export function AssignmentsSection({
           "[&_td]:px-2 [&_td]:py-1",
           hasSubhire
             ? "bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40"
-            : "bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:hover:bg-yellow-950/40"
+            : "bg-warning-subtle hover:bg-warning-subtle"
         )}
       >
         <DragHandleCell />
@@ -893,7 +893,7 @@ export function AssignmentsSection({
               "bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40",
             !hasSubhire &&
               showOverWarning &&
-              "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+              "bg-destructive-subtle/70 hover:bg-destructive-subtle"
           )}
         >
           <DragHandleCell />
@@ -955,7 +955,7 @@ export function AssignmentsSection({
           {!isSale && (
             <TableCell>
               {isReserved ? (
-                <span className="text-xs font-medium text-green-600">gebucht</span>
+                <span className="text-xs font-medium text-success">gebucht</span>
               ) : (
                 <span className="text-xs text-muted-foreground">—</span>
               )}
@@ -1142,7 +1142,7 @@ export function AssignmentsSection({
           id={sortId}
           className={cn(
             isOver &&
-              "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+              "bg-destructive-subtle/70 hover:bg-destructive-subtle"
           )}
         >
           <DragHandleCell />
@@ -1242,7 +1242,7 @@ export function AssignmentsSection({
       <SortableRow
         id={sortId}
         key={sortId}
-        className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 border-t-2 border-blue-200 dark:border-blue-900/50"
+        className="bg-info-subtle hover:bg-info-subtle border-t-2 border-info/30"
       >
         <DragHandleCell />
         <TableCell colSpan={colSpan} className="py-3 text-base font-semibold text-foreground">
@@ -1668,7 +1668,7 @@ export function AssignmentsSection({
                               <SortableRow
                                 id={r.sortId}
                                 key={r.sortId}
-                                className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 border-t-2 border-blue-200 dark:border-blue-900/50"
+                                className="bg-info-subtle hover:bg-info-subtle border-t-2 border-info/30"
                               >
                                 <DragHandleCell />
                                 <TableCell
@@ -2084,7 +2084,7 @@ export function AssignmentsSection({
                                   <TableRow
                                     className={cn(
                                       isOver &&
-                                        "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+                                        "bg-destructive-subtle/70 hover:bg-destructive-subtle"
                                     )}
                                   >
                                     <TableCell>

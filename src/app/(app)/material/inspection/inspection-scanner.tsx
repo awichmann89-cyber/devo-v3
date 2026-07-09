@@ -187,13 +187,13 @@ export function InspectionScanner() {
             <CardContent className="space-y-4">
               {target.inspectionExempt ? (
                 <>
-                  <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/40">
-                    <ShieldOff className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning-subtle p-3 text-sm">
+                    <ShieldOff className="h-5 w-5 shrink-0 text-warning" />
                     <div className="space-y-1">
-                      <div className="font-medium text-amber-900 dark:text-amber-200">
+                      <div className="font-medium text-warning">
                         Keine DGUV V3 Prüfung erforderlich
                       </div>
-                      <p className="text-xs text-amber-800/80 dark:text-amber-300/80">
+                      <p className="text-xs text-warning/80">
                         {target.kind === "CABLE_UNIT"
                           ? "Dieses Kabel ist als nicht prüfpflichtig markiert."
                           : "Dieses Gerät ist als nicht prüfpflichtig markiert."}
@@ -246,7 +246,7 @@ export function InspectionScanner() {
                     <Button
                       onClick={() => recordResult("PASSED")}
                       disabled={savePending}
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      className="bg-success hover:bg-success"
                     >
                       {savePending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -259,7 +259,7 @@ export function InspectionScanner() {
                       variant="outline"
                       onClick={() => recordResult("PASSED_CONDITIONAL")}
                       disabled={savePending}
-                      className="border-amber-500 text-amber-600 hover:bg-amber-50"
+                      className="border-warning text-warning hover:bg-warning-subtle"
                     >
                       <AlertTriangle className="h-4 w-4" /> Mit Auflage
                     </Button>

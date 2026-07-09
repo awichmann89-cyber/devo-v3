@@ -3,21 +3,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  // truncate (= whitespace-nowrap + overflow-hidden + text-ellipsis) sorgt
-  // dafür, dass Badges nie umbrechen — lange Texte werden bei Überlauf mit
-  // „…" gekürzt. Die Default max-width ist eng genug, damit z.B. „Full-Service"
-  // sichtbar gekürzt wird; an einzelnen Stellen lässt sich das via className
-  // (z.B. `max-w-none` oder `max-w-[12rem]`) überschreiben.
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 max-w-[6rem] truncate",
+  // Redesign: dezent getönte Flächen mit farbigem Text statt Voll-Farben,
+  // eckigere Radien (5px) und kompakte Größe.
+  "inline-flex items-center rounded-[5px] border px-2 py-0.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 max-w-[6rem] truncate",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-        success: "border-transparent bg-green-600 text-white hover:bg-green-700",
-        warning: "border-transparent bg-yellow-500 text-white hover:bg-yellow-600",
+        default: "border-transparent bg-primary-subtle text-primary",
+        secondary: "border-transparent bg-info-subtle text-info",
+        destructive: "border-transparent bg-destructive-subtle text-destructive",
+        outline: "border-transparent bg-accent text-muted-foreground",
+        success: "border-transparent bg-success-subtle text-success",
+        warning: "border-transparent bg-warning-subtle text-warning",
+        info: "border-transparent bg-info-subtle text-info",
       },
     },
     defaultVariants: {

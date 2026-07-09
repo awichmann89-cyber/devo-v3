@@ -338,7 +338,7 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
                         "text-right tabular-nums font-mono text-sm font-medium",
                         r.profit < 0
                           ? "text-destructive"
-                          : "text-emerald-700 dark:text-emerald-400"
+                          : "text-success"
                       )}
                     >
                       {formatCurrency(r.profit)}
@@ -349,7 +349,7 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
                     <TableCell
                       className={cn(
                         "text-right tabular-nums font-mono text-sm font-medium",
-                        r.outstanding > 0 && "text-emerald-600",
+                        r.outstanding > 0 && "text-success",
                         r.outstanding < 0 && "text-destructive"
                       )}
                     >
@@ -372,7 +372,7 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
                       "text-right tabular-nums font-mono font-bold",
                       totals.profit < 0
                         ? "text-destructive"
-                        : "text-emerald-700 dark:text-emerald-400"
+                        : "text-success"
                     )}
                   >
                     {formatCurrency(totals.profit)}
@@ -408,7 +408,7 @@ function StatCard({
     <div
       className={cn(
         "rounded-lg border bg-card p-4",
-        variant === "profit" && "border-emerald-600/40",
+        variant === "profit" && "border-success/40",
         profitNegative && "border-destructive/50"
       )}
     >
@@ -416,10 +416,10 @@ function StatCard({
         className={cn(
           "text-xs uppercase tracking-wide",
           variant === "muted" && "text-muted-foreground",
-          variant === "success" && "text-emerald-600",
+          variant === "success" && "text-success",
           variant === "default" && "text-foreground",
           variant === "profit" &&
-            (profitNegative ? "text-destructive" : "text-emerald-600")
+            (profitNegative ? "text-destructive" : "text-success")
         )}
       >
         {label}
@@ -428,7 +428,7 @@ function StatCard({
         className={cn(
           "mt-1 text-xl font-bold tabular-nums font-mono",
           variant === "profit" &&
-            (profitNegative ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")
+            (profitNegative ? "text-destructive" : "text-success")
         )}
       >
         {formatCurrency(amount)}

@@ -93,11 +93,7 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Material</h1>
-          <p className="text-muted-foreground">Packeinheiten, Geräte, Kabel und Lagerorte</p>
-        </div>
+      <div className="flex items-start justify-end gap-4">
         <Button variant="outline" asChild>
           <Link href="/material/inspection">
             <ScanLine className="h-4 w-4" /> Prüfungsmodus

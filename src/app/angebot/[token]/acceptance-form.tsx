@@ -155,7 +155,7 @@ export function AcceptanceForm({
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          <CheckCircle2 className="h-5 w-5 text-success" />
           Angebot annehmen
         </CardTitle>
       </CardHeader>
@@ -226,7 +226,7 @@ export function AcceptanceForm({
           )}
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="submit" disabled={pending} className="bg-success hover:bg-success">
               {pending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

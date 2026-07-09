@@ -484,7 +484,7 @@ export function ServicesSection({
                 handleOverride(ps, raw);
               }
             }}
-            className={"h-7 text-right " + (hasOverride ? "border-amber-500" : "")}
+            className={"h-7 text-right " + (hasOverride ? "border-warning" : "")}
             title={
               hasOverride
                 ? `Katalogpreis: ${formatCurrency(ps.serviceItem.unitPrice)}`
@@ -888,7 +888,7 @@ export function ServicesSection({
                                 <SortableRow
                                   id={r.sortId}
                                   key={r.sortId}
-                                  className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 border-t-2 border-blue-200 dark:border-blue-900/50"
+                                  className="bg-info-subtle hover:bg-info-subtle border-t-2 border-info/30"
                                 >
                                   <DragHandleCell />
                                   <TableCell colSpan={5} className="py-3 text-base font-semibold text-foreground">
@@ -1007,7 +1007,7 @@ export function ServicesSection({
                                       }}
                                       className={
                                         "h-8 text-right " +
-                                        (hasOverride ? "border-amber-500" : "")
+                                        (hasOverride ? "border-warning" : "")
                                       }
                                       title={
                                         hasOverride

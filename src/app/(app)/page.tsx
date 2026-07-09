@@ -32,10 +32,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
-        <p className="text-muted-foreground">Übersicht über Material und laufende Projekte</p>
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard href="/material?tab=pack-units" title="Packeinheiten" value={packUnitCount} icon={Boxes} />
@@ -117,13 +113,15 @@ function StatCard({
 }) {
   return (
     <Link href={href}>
-      <Card className="transition-colors hover:bg-accent">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <Icon className={variant === "warning" ? "h-4 w-4 text-yellow-500" : "h-4 w-4 text-muted-foreground"} />
+      {/* Redesign: Akzentbalken links, Label gedämpft, große Zahl */}
+      <Card className="relative overflow-hidden transition-colors hover:border-primary">
+        <div className="absolute left-0 top-0 h-full w-[3px] bg-primary opacity-85" aria-hidden />
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-semibold text-muted-foreground">{title}</CardTitle>
+          <Icon className={variant === "warning" ? "h-4 w-4 text-warning" : "h-4 w-4 text-primary"} />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{value}</div>
+          <div className="text-[27px] font-extrabold leading-none tracking-tight">{value}</div>
         </CardContent>
       </Card>
     </Link>

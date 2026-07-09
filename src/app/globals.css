@@ -2,60 +2,104 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design-Tokens aus dem Cratel-Redesign (Handoff Juli 2026).
+ * Light-/Dark-Werte entsprechen den CSS-Variablen des Design-Prototyps,
+ * konvertiert in das shadcn/ui-HSL-Schema.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    /* Flächen */
+    --background: 195 13% 94%; /* #EEF1F2 */
+    --foreground: 205 21% 11%; /* #161D22 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 205 21% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --popover-foreground: 205 21% 11%;
+
+    /* Akzent (Orange) */
+    --primary: 15 90% 56%; /* #F45B28 */
+    --primary-foreground: 0 0% 100%;
+    --primary-subtle: 18 85% 95%; /* #FDEDE6 accent-tint */
+
+    --secondary: 200 18% 97%; /* #F5F7F8 surface-2 */
+    --secondary-foreground: 205 16% 21%; /* #2C363D text-body */
+    --muted: 200 18% 97%;
+    --muted-foreground: 201 7% 46%; /* #6C777D */
+    --faint: 200 8% 63%; /* #9AA4A9 */
+    --accent: 190 14% 92%; /* #E7ECED surface-3 (Hover-Fläche) */
+    --accent-foreground: 205 21% 11%;
+
+    /* Status */
+    --destructive: 348 87% 45%; /* #D70F37 */
+    --destructive-foreground: 0 0% 100%;
+    --destructive-subtle: 348 77% 93%; /* #FBE1E6 */
+    --success: 154 63% 33%; /* #1F8A5B */
+    --success-subtle: 150 35% 92%; /* #E4F2EB */
+    --warning: 36 91% 37%; /* #B26E08 */
+    --warning-subtle: 40 77% 92%; /* #FAEFD9 */
+    --info: 191 100% 30%; /* #007E99 */
+    --info-subtle: 189 41% 90%; /* #DBEDF0 */
+
+    --border: 189 12% 88%; /* #DEE4E5 */
+    --input: 186 10% 80%; /* #C7D0D1 border-strong */
+    --ring: 15 90% 56%;
+
+    /* Sidebar & Header */
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 203 11% 33%; /* #4C575E */
+
+    --chart-1: 15 90% 56%;
+    --chart-2: 191 100% 30%;
+    --chart-3: 154 63% 33%;
+    --chart-4: 36 91% 37%;
+    --chart-5: 348 87% 45%;
+
+    --radius: 0.5625rem; /* 9px Karten, 7px Buttons, 5px Badges */
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background: 204 23% 9%; /* #11171B */
+    --foreground: 180 18% 96%; /* #F2F6F6 */
+    --card: 206 21% 13%; /* #1A2228 */
+    --card-foreground: 180 18% 96%;
+    --popover: 206 21% 13%;
+    --popover-foreground: 180 18% 96%;
+
+    --primary: 15 90% 56%;
+    --primary-foreground: 0 0% 100%;
+    --primary-subtle: 9 23% 17%;
+
+    --secondary: 202 20% 16%; /* #212B31 */
+    --secondary-foreground: 187 12% 86%; /* #D6DEDF */
+    --muted: 202 20% 16%;
+    --muted-foreground: 198 9% 63%; /* #98A4A9 */
+    --faint: 200 8% 46%; /* #6C787E */
+    --accent: 203 17% 20%; /* #2B363D */
+    --accent-foreground: 180 18% 96%;
+
+    --destructive: 349 84% 63%; /* #F0526F */
+    --destructive-foreground: 0 0% 100%;
+    --destructive-subtle: 335 33% 18%;
+    --success: 153 46% 48%; /* #43B481 */
+    --success-subtle: 155 31% 15%;
+    --warning: 35 69% 59%; /* #DFA24E */
+    --warning-subtle: 41 25% 18%;
+    --info: 190 60% 53%; /* #3EB7CE */
+    --info-subtle: 195 50% 16%;
+
+    --border: 203 17% 21%; /* #2C373E */
+    --input: 203 16% 28%; /* #3B4952 */
+    --ring: 15 90% 56%;
+
+    --sidebar: 205 22% 11%; /* #151C21 */
+    --sidebar-foreground: 200 11% 73%; /* #B2BCC1 */
+
+    --chart-1: 15 90% 56%;
+    --chart-2: 190 60% 53%;
+    --chart-3: 153 46% 48%;
+    --chart-4: 35 69% 59%;
+    --chart-5: 349 84% 63%;
   }
 }
 
@@ -64,6 +108,18 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+  /* Dezente Scrollbars wie im Redesign */
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--input));
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }

@@ -32,17 +32,17 @@ const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 function projectChipClass(status: ProjectStatus): string {
   switch (status) {
     case "ACTIVE":
-      return "bg-blue-600 hover:bg-blue-700 text-white";
+      return "bg-info hover:bg-info text-white";
     case "CONFIRMED":
-      return "bg-emerald-600 hover:bg-emerald-700 text-white";
+      return "bg-success hover:bg-success text-white";
     case "DRAFT":
-      return "bg-slate-500 hover:bg-slate-600 text-white";
+      return "bg-muted-foreground hover:bg-muted-foreground text-white";
     case "COMPLETED":
-      return "bg-zinc-400 hover:bg-zinc-500 text-white";
+      return "bg-faint hover:bg-faint text-white";
     case "CANCELLED":
-      return "bg-red-600/60 hover:bg-red-600/80 text-white line-through";
+      return "bg-destructive/60 hover:bg-destructive/80 text-white line-through";
     default:
-      return "bg-slate-500 text-white";
+      return "bg-muted-foreground text-white";
   }
 }
 
@@ -239,11 +239,11 @@ export function Timeline({
 
       {/* Legende */}
       <div className="flex flex-wrap gap-4 text-xs">
-        <LegendItem color="bg-slate-500" label="Entwurf" />
-        <LegendItem color="bg-emerald-600" label="Bestätigt" />
-        <LegendItem color="bg-blue-600" label="Aktiv" />
-        <LegendItem color="bg-zinc-400" label="Abgeschlossen" />
-        <LegendItem color="bg-red-600/60" label="Storniert" />
+        <LegendItem color="bg-muted-foreground" label="Entwurf" />
+        <LegendItem color="bg-success" label="Bestätigt" />
+        <LegendItem color="bg-info" label="Aktiv" />
+        <LegendItem color="bg-faint" label="Abgeschlossen" />
+        <LegendItem color="bg-destructive/60" label="Storniert" />
       </div>
     </div>
   );

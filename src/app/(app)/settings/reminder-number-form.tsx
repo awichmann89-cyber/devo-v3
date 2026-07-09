@@ -97,7 +97,7 @@ export function ReminderNumberForm({
       </div>
 
       {currentYearMax > 0 && wouldBeBumped && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
+        <div className="rounded-md border border-warning/40 bg-warning-subtle p-3 text-xs">
           Hinweis: Im aktuellen Jahr existiert bereits Mahnungs-Sequenz{" "}
           <strong>{currentYearMax}</strong>. Niedrigere Werte werden auf{" "}
           <strong>{currentYearMax + 1}</strong> angehoben, damit keine

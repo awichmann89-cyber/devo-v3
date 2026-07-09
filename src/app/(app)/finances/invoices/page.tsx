@@ -35,12 +35,6 @@ export default async function FinancesInvoicesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Rechnungen</h1>
-        <p className="text-muted-foreground">
-          Rechnungen mit Status, Fälligkeit und Zahlungseingang
-        </p>
-      </div>
 
       {rows.length === 0 ? (
         <Card>
