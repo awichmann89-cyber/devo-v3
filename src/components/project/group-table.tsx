@@ -3,6 +3,7 @@
 import { type ReactNode } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp, Heading, Pencil, Plus, Trash2 } from "lucide-react";
@@ -87,13 +88,7 @@ export function GroupHeaderRow({
   onDelete,
 }: GroupHeaderRowProps) {
   return (
-    <TableRow
-      className={cn(
-        "border-t-2 border-t-accent bg-secondary hover:bg-secondary",
-        onActivate && "cursor-pointer"
-      )}
-      onClick={onActivate}
-    >
+    <TableRow className="border-t-2 border-t-accent bg-secondary hover:bg-secondary">
       <TableCell colSpan={colSpan} className="px-2.5 py-1.5">
         <div className="flex items-center gap-1.5">
           <span
@@ -103,6 +98,19 @@ export function GroupHeaderRow({
             )}
             aria-hidden
           />
+          {onActivate && (
+            /* Aktive Gruppe = Ziel für neue Buchungen aus dem Katalog. */
+            <Checkbox
+              checked={!!active}
+              disabled={pending}
+              onCheckedChange={() => {
+                if (!active) onActivate();
+              }}
+              className="mr-0.5 shrink-0"
+              title="Aktive Gruppe — neue Positionen aus dem Katalog landen hier"
+              aria-label="Als aktive Gruppe setzen"
+            />
+          )}
           {/* Inline editierbarer Gruppentitel (Enter oder Blur speichert). */}
           <input
             key={group.id + group.name}
@@ -127,11 +135,6 @@ export function GroupHeaderRow({
           {!group.billable && (
             <Badge variant="warning" className="shrink-0">
               nicht abrechenbar
-            </Badge>
-          )}
-          {active && (
-            <Badge variant="default" className="shrink-0">
-              Aktiv
             </Badge>
           )}
           {sumLabel && (
