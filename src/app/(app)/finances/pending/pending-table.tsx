@@ -84,7 +84,8 @@ export function PendingTable({ rows }: { rows: PendingRow[] }) {
         </div>
       </CardHeader>
       <CardContent>
-        <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+        <div className="overflow-hidden rounded-lg border">
+        <Table className="[&_td]:px-3 [&_td]:py-1.5">
           <TableHeader>
             <TableRow>
               <TableHead>Status</TableHead>
@@ -158,6 +159,7 @@ export function PendingTable({ rows }: { rows: PendingRow[] }) {
             })}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );

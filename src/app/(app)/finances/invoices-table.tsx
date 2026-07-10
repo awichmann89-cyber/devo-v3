@@ -233,7 +233,8 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
           </div>
         </CardHeader>
         <CardContent>
-          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+          <div className="overflow-hidden rounded-lg border">
+          <Table className="[&_td]:px-3 [&_td]:py-1.5">
             <TableHeader>
               <TableRow>
                 <TableHead>Nummer</TableHead>
@@ -328,7 +329,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                        <Button asChild variant="ghost" size="icon" className="h-7 w-7">
                           <a
                             href={`/api/projects/${inv.projectId}/invoices/${inv.id}/pdf?download=1`}
                             download
@@ -342,6 +343,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-7 px-2.5 text-xs"
                             onClick={() => handleMarkUnpaid(inv)}
                             disabled={pending}
                             title="Wieder als unbezahlt markieren"
@@ -350,13 +352,14 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                           </Button>
                         ) : (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => setPayDialog(inv)}>
+                            <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPayDialog(inv)}>
                               <CheckCircle2 className="h-4 w-4" /> Bezahlt
                             </Button>
                             {inv.kind === "INVOICE" && (
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="h-7 px-2.5 text-xs"
                                 onClick={() => handleCreateReminder(inv)}
                                 disabled={pending}
                                 title="Mahnung zu dieser Rechnung anlegen"
@@ -369,7 +372,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setDeleteDialog(inv)}
                           title="Rechnung löschen"
                         >
@@ -382,6 +385,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

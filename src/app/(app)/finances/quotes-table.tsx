@@ -208,7 +208,8 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
           </div>
         </CardHeader>
         <CardContent>
-          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+          <div className="overflow-hidden rounded-lg border">
+          <Table className="[&_td]:px-3 [&_td]:py-1.5">
             <TableHeader>
               <TableRow>
                 <TableHead>Nummer</TableHead>
@@ -300,7 +301,7 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                           asChild
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-7 w-7"
                         >
                           <a
                             href={`/api/projects/${q.projectId}/quotes/${q.id}/pdf?download=1`}
@@ -314,7 +315,7 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setDeleteDialog(q)}
                           title="Angebot löschen"
                         >
@@ -327,6 +328,7 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

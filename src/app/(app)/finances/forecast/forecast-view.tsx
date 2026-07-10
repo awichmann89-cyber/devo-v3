@@ -259,7 +259,7 @@ export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
             </p>
           ) : (
             <div className="overflow-hidden rounded-lg border">
-            <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+            <Table className="[&_td]:px-3 [&_td]:py-1.5">
               <TableHeader>
                 <TableRow>
                   <TableHead>Projekt / Kunde</TableHead>
