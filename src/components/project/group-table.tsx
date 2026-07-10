@@ -288,24 +288,52 @@ export function GroupTableFooter({
   onAddGroup,
   addLabel = "Gruppe hinzufügen",
   pending,
+  secondary,
   children,
 }: {
   onAddGroup: () => void;
   addLabel?: string;
   pending?: boolean;
+  /** Optionaler zweiter Button links (z.B. „Kabel-Gruppe hinzufügen"). */
+  secondary?: ReactNode;
   children?: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-secondary px-4 py-2.5">
-      <button
-        type="button"
-        onClick={onAddGroup}
-        disabled={pending}
-        className="inline-flex h-[30px] items-center gap-1.5 rounded-md border border-dashed border-input bg-transparent px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
-      >
-        <Plus className="h-3.5 w-3.5" /> {addLabel}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onAddGroup}
+          disabled={pending}
+          className="inline-flex h-[30px] items-center gap-1.5 rounded-md border border-dashed border-input bg-transparent px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+        >
+          <Plus className="h-3.5 w-3.5" /> {addLabel}
+        </button>
+        {secondary}
+      </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">{children}</div>
     </div>
+  );
+}
+
+/** Sekundärer gestrichelter Footer-Button im selben Stil. */
+export function FooterDashedButton({
+  onClick,
+  pending,
+  children,
+}: {
+  onClick: () => void;
+  pending?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="inline-flex h-[30px] items-center gap-1.5 rounded-md border border-dashed border-input bg-transparent px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+    >
+      <Plus className="h-3.5 w-3.5" /> {children}
+    </button>
   );
 }

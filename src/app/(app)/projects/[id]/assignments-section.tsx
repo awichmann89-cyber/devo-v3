@@ -63,6 +63,7 @@ import {
   NoteRowCells,
   QtyStepper,
   GroupTableFooter,
+  FooterDashedButton,
 } from "@/components/project/group-table";
 import { ScanDialog } from "./scan-dialog";
 import { toast } from "sonner";
@@ -432,7 +433,6 @@ export function AssignmentsSection({
   }
 
   // ----- Kabel-Buchungen -----
-  const [cableSearch, setCableSearch] = useState("");
   // Gebuchte Menge pro Kabel in DIESEM Projekt. Analog zur Geräte-Logik:
   // gebuchte Kabel bleiben im Katalog sichtbar, nur der freie Bestand sinkt.
   const bookedQtyByCable = new Map<string, number>();
@@ -443,8 +443,8 @@ export function AssignmentsSection({
     );
   }
   const availableCables = allCables.filter((c) => {
-    if (!cableSearch) return true;
-    const q = cableSearch.toLowerCase();
+    if (!search) return true;
+    const q = search.toLowerCase();
     return (
       c.name.toLowerCase().includes(q) ||
       (c.cableType ?? "").toLowerCase().includes(q) ||
@@ -1189,6 +1189,16 @@ export function AssignmentsSection({
               invalid={isOver}
             />
           </TableCell>
+          {!isSale && (
+            <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+          )}
+          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+          {!isSale && (
+            <TableCell>
+              <span className="text-xs text-muted-foreground">—</span>
+            </TableCell>
+          )}
           <TableCell>
             <div className="flex items-center justify-end gap-1">
               {cableGroups.length > 1 && (
@@ -1223,7 +1233,7 @@ export function AssignmentsSection({
         </SortableRow>
         {isOver && (
           <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-            <TableCell colSpan={4} className="py-1.5 text-xs text-destructive">
+            <TableCell colSpan={isSale ? 6 : 8} className="py-1.5 text-xs text-destructive">
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                 <span>
@@ -1303,22 +1313,6 @@ export function AssignmentsSection({
         </Button>
       </div>
       <Card className="p-4">
-      <Tabs defaultValue="devices" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="devices">
-            <Package className="h-4 w-4" /> Geräte
-            <span className="ml-1 text-muted-foreground">
-              ({project.assignments.length})
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="cables">
-            <CableIcon className="h-4 w-4" /> Kabel
-            <span className="ml-1 text-muted-foreground">
-              ({cableAssignments.length})
-            </span>
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="devices" className="mt-0">
       <HorizontalSplit
         storageKey="devo:material-split"
         defaultLeftPx={360}
@@ -1330,12 +1324,12 @@ export function AssignmentsSection({
           <Card className="border-0 shadow-none flex flex-col lg:h-[calc(100vh-2rem)]">
             <CardHeader className="px-0 pt-0 pb-3 space-y-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Package className="h-4 w-4" /> Geräte-Katalog
+                <Package className="h-4 w-4" /> Katalog
               </CardTitle>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Suche…"
+                  placeholder="Gerät oder Kabel suchen…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-9 pl-8"
@@ -1343,23 +1337,20 @@ export function AssignmentsSection({
               </div>
             </CardHeader>
             <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
-              {/* Mini-Tabellen-Header — erklärt was die kleine Zahl rechts
-                  neben dem Namen bedeutet (verfügbarer Bestand). */}
               <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 <span className="flex-1">Bezeichnung</span>
                 <span className="w-10 text-right">Bestand</span>
                 <span className="w-7" />
               </div>
-              {availableDevices.length === 0 ? (
+              {availableDevices.length === 0 && availableCables.length === 0 ? (
                 <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                  {allDevices.length === 0
-                    ? "Noch keine Geräte angelegt"
+                  {allDevices.length === 0 && allCables.length === 0
+                    ? "Noch keine Geräte oder Kabel angelegt"
                     : "Keine Treffer"}
                 </p>
               ) : (
                 <ul className="divide-y">
                   {groupItemsByCategory(availableDevices, categories).map((catGroup) => {
-                    // Wenn ein Vorfahr eingeklappt ist, gar nicht rendern
                     if (catGroup.ancestorKeys.some((k) => collapsedCats.has(k))) {
                       return null;
                     }
@@ -1393,8 +1384,6 @@ export function AssignmentsSection({
                           <ul className="divide-y">
                             {catGroup.items.map((d) => {
                               const bookedQty = bookedQtyByDevice.get(d.id) ?? 0;
-                              // Bestand wird um die im Projekt bereits gebuchten
-                              // Stücke reduziert, kann nicht unter 0 fallen.
                               const remainingStock = Math.max(
                                 0,
                                 d.stockQuantity - bookedQty,
@@ -1405,10 +1394,6 @@ export function AssignmentsSection({
                                   className="group flex items-center gap-2 pr-2 py-1 hover:bg-accent/40"
                                   style={{ paddingLeft: `${1.25 + catGroup.depth * 1.25}rem` }}
                                 >
-                                  {/* Kompakte Katalog-Zeile — Name truncated,
-                                      Bestand als kleine Sub-Info rechts.
-                                      Description-Preview und €/Tag bewusst
-                                      weggelassen für mehr Lesbarkeit. */}
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-sm font-medium">
                                       {d.name}
@@ -1439,6 +1424,76 @@ export function AssignmentsSection({
                       </li>
                     );
                   })}
+
+                  {/* Kabel — eigener Ordner am Ende des Katalogs */}
+                  <li key="__cables__">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 bg-muted/50 px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
+                      onClick={() => toggleCat("__cables__")}
+                    >
+                      {collapsedCats.has("__cables__") ? (
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                      <CableIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate flex-1">Kabel</span>
+                      {availableCables.length > 0 && (
+                        <span className="shrink-0 text-muted-foreground font-normal">
+                          {availableCables.length}
+                        </span>
+                      )}
+                    </button>
+                    {!collapsedCats.has("__cables__") && (
+                      <ul className="divide-y">
+                        {availableCables.length === 0 && (
+                          <li className="px-6 py-2 text-xs text-muted-foreground">
+                            {allCables.length === 0 ? "Noch keine Kabel angelegt" : "Keine Treffer"}
+                          </li>
+                        )}
+                        {availableCables.map((c) => {
+                          const conf = cableConflictMap[c.id];
+                          const reserved = conf?.packAllocation ?? 0;
+                          const bookedQty = bookedQtyByCable.get(c.id) ?? 0;
+                          const free = Math.max(
+                            0,
+                            c.stockQuantity - reserved - bookedQty,
+                          );
+                          return (
+                            <li
+                              key={c.id}
+                              className="group flex items-center gap-2 pl-6 pr-2 py-1 hover:bg-accent/40"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="truncate text-sm font-medium">{c.name}</div>
+                              </div>
+                              <span className={cn(
+                                "shrink-0 text-[11px] tabular-nums",
+                                free <= 0 ? "text-destructive font-semibold" : "text-muted-foreground",
+                              )}>
+                                {free} frei
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
+                                disabled={pending}
+                                onClick={() => handleAddCable(c.id)}
+                                title={
+                                  activeCableGroupId
+                                    ? `Zur Gruppe "${cableGroups.find((g) => g.id === activeCableGroupId)?.name}" hinzufügen`
+                                    : "Eine Kabel-Gruppe wird automatisch angelegt"
+                                }
+                              >
+                                <ArrowRight className="h-4 w-4" />
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
                 </ul>
               )}
             </CardContent>
@@ -1446,14 +1501,15 @@ export function AssignmentsSection({
         }
         right={
           <div className="flex flex-col lg:h-full">
-            {/* Kopfleiste: Zähler + Aktionen (aktive Gruppe wird per Klick auf
-                die Gruppen-Kopfzeile gesetzt). */}
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
               <div className="text-xs text-muted-foreground">
                 <span className="font-bold text-foreground">
                   {project.assignments.reduce((s, a) => s + a.quantity, 0)} Stück
                 </span>{" "}
                 zugewiesen
+                {cableAssignments.length > 0 && (
+                  <> · {cableAssignments.length} Kabeltypen</>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -1493,10 +1549,10 @@ export function AssignmentsSection({
               </div>
             </div>
 
-            {/* EINE durchgehende Tabelle — Gruppen als Kopfzeilen (Redesign). */}
+            {/* EINE durchgehende Tabelle: Material-Gruppen, danach Kabel-Gruppen. */}
             <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
               <div className="min-h-0 flex-1 overflow-y-auto">
-                {groups.length === 0 ? (
+                {groups.length === 0 && cableGroups.length === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
                     <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
                   </div>
@@ -1505,7 +1561,7 @@ export function AssignmentsSection({
                     <TableHeader>
                       <TableRow className="hover:bg-secondary">
                         <TableHead className="w-8"></TableHead>
-                        <TableHead>Gerät</TableHead>
+                        <TableHead>Gerät / Kabel</TableHead>
                         <TableHead className="w-[110px] text-center">Anzahl</TableHead>
                         {!isSale && <TableHead className="w-[56px] text-right">Tage</TableHead>}
                         <TableHead className="w-[96px] text-right">
@@ -1597,8 +1653,76 @@ export function AssignmentsSection({
                                 return renderDeviceRow(a, r.sortId);
                               })}
                             </SortableContext>
-                            {/* Freie Zumietungen — nicht sortierbar, ans Gruppenende. */}
                             {freeSubs.map((s) => renderFreeSubhireRow(s))}
+                          </TableBody>
+                        </DndContext>
+                      );
+                    })}
+
+                    {/* Kabel-Gruppen — gleiche Tabelle, Preisspalten bleiben leer. */}
+                    {cableGroups.map((g, gi) => {
+                      const cableRows = buildCableGroupRows(g.id);
+                      const groupCables = cableAssignmentsByGroup.get(g.id) ?? [];
+                      const colSpanAll = isSale ? 6 : 8;
+                      return (
+                        <DndContext
+                          key={g.id}
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => handleDragEnd(cableRows, e)}
+                        >
+                          <TableBody>
+                            <GroupHeaderRow
+                              group={g}
+                              colSpan={colSpanAll}
+                              active={activeCableGroupId === g.id}
+                              isFirst={gi === 0}
+                              isLast={gi === cableGroups.length - 1}
+                              pending={pending}
+                              onActivate={() => setActiveCableGroupId(g.id)}
+                              onRename={(name) => handleRenameGroup(g.id, name)}
+                              onMoveUp={() => handleMoveGroup(cableGroups, gi, -1)}
+                              onMoveDown={() => handleMoveGroup(cableGroups, gi, 1)}
+                              onAddNote={() => handleAddNote(g.id)}
+                              onEdit={() =>
+                                setGroupDialog({
+                                  mode: "rename",
+                                  id: g.id,
+                                  name: g.name,
+                                  billable: g.billable,
+                                  kind: "CABLE",
+                                })
+                              }
+                              onDelete={() => setDeleteGroup(g)}
+                            />
+                            {cableRows.length === 0 && (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={colSpanAll}
+                                  className="py-3 text-center text-xs text-muted-foreground"
+                                >
+                                  Noch nichts in dieser Gruppe — Kabel im Katalog anklicken
+                                  (Pfeil-Button), es landet in der aktiven Kabel-Gruppe.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <SortableContext
+                              items={cableRows.map((r) => r.sortId)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {cableRows.map((r) => {
+                                if (r.kind === "COMMENT") {
+                                  const c = (commentsByGroup.get(g.id) ?? []).find(
+                                    (x) => x.id === r.id
+                                  );
+                                  if (!c) return null;
+                                  return renderCommentRow(c, r.sortId, colSpanAll - 2);
+                                }
+                                const ca = groupCables.find((x) => x.id === r.id);
+                                if (!ca) return null;
+                                return renderCableRow(ca, r.sortId);
+                              })}
+                            </SortableContext>
                           </TableBody>
                         </DndContext>
                       );
@@ -1611,6 +1735,16 @@ export function AssignmentsSection({
                   setGroupDialog({ mode: "create", name: "", billable: true, kind: "MATERIAL" })
                 }
                 pending={pending}
+                secondary={
+                  <FooterDashedButton
+                    pending={pending}
+                    onClick={() =>
+                      setGroupDialog({ mode: "create", name: "", billable: true, kind: "CABLE" })
+                    }
+                  >
+                    Kabel-Gruppe
+                  </FooterDashedButton>
+                }
               >
                 {discount > 0 && (
                   <span>
@@ -1632,230 +1766,6 @@ export function AssignmentsSection({
           </div>
         }
       />
-        </TabsContent>
-
-        <TabsContent value="cables" className="mt-0">
-      <HorizontalSplit
-        storageKey="devo:cables-split"
-        defaultLeftPx={360}
-        minLeftPx={280}
-        minRightPx={520}
-        className="lg:items-start"
-        leftClassName="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]"
-        left={
-          <Card className="border-0 shadow-none flex flex-col lg:h-[calc(100vh-2rem)]">
-            <CardHeader className="px-0 pt-0 pb-3 space-y-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CableIcon className="h-4 w-4" /> Kabel-Katalog
-              </CardTitle>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Suche…"
-                  value={cableSearch}
-                  onChange={(e) => setCableSearch(e.target.value)}
-                  className="h-9 pl-8"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
-              {/* Mini-Tabellen-Header — die kleine Zahl zeigt verfügbare
-                  Kabel (Bestand minus Pack-Allokation minus eigene Buchung). */}
-              <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                <span className="flex-1">Bezeichnung</span>
-                <span className="w-12 text-right">frei</span>
-                <span className="w-7" />
-              </div>
-              {availableCables.length === 0 ? (
-                <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                  {allCables.length === 0
-                    ? "Noch keine Kabel angelegt"
-                    : "Keine Treffer"}
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {groupItemsByCategory(availableCables, categories).map((catGroup) => {
-                    if (catGroup.ancestorKeys.some((k) => collapsedCats.has(k))) {
-                      return null;
-                    }
-                    const isCollapsed = collapsedCats.has(catGroup.key);
-                    return (
-                      <li key={catGroup.key}>
-                        <button
-                          type="button"
-                          className="flex w-full items-center gap-1.5 bg-muted/50 px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
-                          onClick={() => toggleCat(catGroup.key)}
-                          style={{ paddingLeft: `${0.75 + catGroup.depth * 1.5}rem` }}
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                          ) : (
-                            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                          )}
-                          {isCollapsed ? (
-                            <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          )}
-                          <span className="truncate flex-1">{catGroup.name}</span>
-                          {catGroup.items.length > 0 && (
-                            <span className="shrink-0 text-muted-foreground font-normal">
-                              {catGroup.items.length}
-                            </span>
-                          )}
-                        </button>
-                        {!isCollapsed && (
-                          <ul className="divide-y">
-                            {catGroup.items.map((c) => {
-                              const conf = cableConflictMap[c.id];
-                              const reserved = conf?.packAllocation ?? 0;
-                              const bookedQty = bookedQtyByCable.get(c.id) ?? 0;
-                              // Frei = Bestand minus Pack-Reservierung minus
-                              // bereits in DIESEM Projekt gebuchte Stück.
-                              const free = Math.max(
-                                0,
-                                c.stockQuantity - reserved - bookedQty,
-                              );
-                              return (
-                                <li
-                                  key={c.id}
-                                  className="group flex items-center gap-2 pr-2 py-1 hover:bg-accent/40"
-                                  style={{ paddingLeft: `${1.25 + catGroup.depth * 1.25}rem` }}
-                                >
-                                  {/* Kompakt: nur Name + freier Bestand,
-                                      Cable-Type-Sublabel weggelassen. */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="truncate text-sm font-medium">{c.name}</div>
-                                  </div>
-                                  <span className={cn(
-                                    "shrink-0 text-[11px] tabular-nums",
-                                    free <= 0 ? "text-destructive font-semibold" : "text-muted-foreground",
-                                  )}>
-                                    {free} frei
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
-                                    disabled={pending}
-                                    onClick={() => handleAddCable(c.id)}
-                                    title={
-                                      activeCableGroupId
-                                        ? `Zur Gruppe "${cableGroups.find((g) => g.id === activeCableGroupId)?.name}" hinzufügen`
-                                        : "Eine Standardgruppe wird automatisch angelegt"
-                                    }
-                                  >
-                                    <ArrowRight className="h-4 w-4" />
-                                  </Button>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        }
-        right={
-          <div className="flex flex-col lg:h-full">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
-              <div className="text-xs text-muted-foreground">
-                <span className="font-bold text-foreground">{cableAssignments.length} Typen</span>{" "}
-                zugewiesen — Kabel erscheinen nie auf Angeboten oder Rechnungen
-              </div>
-            </div>
-            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {cableGroups.length === 0 ? (
-                  <div className="py-12 text-center text-sm text-muted-foreground">
-                    <p>Noch keine Kabel-Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
-                  </div>
-                ) : (
-                  <Table className="[&_td]:px-2 [&_td]:py-1">
-                    <TableHeader>
-                      <TableRow className="hover:bg-secondary">
-                        <TableHead className="w-8"></TableHead>
-                        <TableHead>Kabel</TableHead>
-                        <TableHead className="w-[110px] text-center">Anzahl</TableHead>
-                        <TableHead className="w-[110px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    {cableGroups.map((g, gi) => {
-                      const cableRows = buildCableGroupRows(g.id);
-                      const groupCables = cableAssignmentsByGroup.get(g.id) ?? [];
-                      return (
-                        <DndContext
-                          key={g.id}
-                          sensors={sensors}
-                          collisionDetection={closestCenter}
-                          onDragEnd={(e) => handleDragEnd(cableRows, e)}
-                        >
-                          <TableBody>
-                            <GroupHeaderRow
-                              group={g}
-                              colSpan={4}
-                              active={activeCableGroupId === g.id}
-                              isFirst={gi === 0}
-                              isLast={gi === cableGroups.length - 1}
-                              pending={pending}
-                              onActivate={() => setActiveCableGroupId(g.id)}
-                              onRename={(name) => handleRenameGroup(g.id, name)}
-                              onMoveUp={() => handleMoveGroup(cableGroups, gi, -1)}
-                              onMoveDown={() => handleMoveGroup(cableGroups, gi, 1)}
-                              onAddNote={() => handleAddNote(g.id)}
-                              onDelete={() => setDeleteGroup(g)}
-                            />
-                            {cableRows.length === 0 && (
-                              <TableRow>
-                                <TableCell
-                                  colSpan={4}
-                                  className="py-3 text-center text-xs text-muted-foreground"
-                                >
-                                  Noch nichts in dieser Gruppe — Kabel im Katalog anklicken
-                                  (Pfeil-Button), es landet in der aktiven Gruppe.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                            <SortableContext
-                              items={cableRows.map((r) => r.sortId)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {cableRows.map((r) => {
-                                if (r.kind === "COMMENT") {
-                                  const c = (commentsByGroup.get(g.id) ?? []).find(
-                                    (x) => x.id === r.id
-                                  );
-                                  if (!c) return null;
-                                  return renderCommentRow(c, r.sortId, 2);
-                                }
-                                const ca = groupCables.find((x) => x.id === r.id);
-                                if (!ca) return null;
-                                return renderCableRow(ca, r.sortId);
-                              })}
-                            </SortableContext>
-                          </TableBody>
-                        </DndContext>
-                      );
-                    })}
-                  </Table>
-                )}
-              </div>
-              <GroupTableFooter
-                onAddGroup={() =>
-                  setGroupDialog({ mode: "create", name: "", billable: true, kind: "CABLE" })
-                }
-                pending={pending}
-              />
-            </div>
-          </div>
-        }
-      />
-        </TabsContent>
-      </Tabs>
 
       {/* Gruppe-Dialog */}
       <Dialog
