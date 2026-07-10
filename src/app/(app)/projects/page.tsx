@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectsTable } from "./projects-table";
 import { ProjectDialog } from "./project-dialog";
 import { auth } from "@/auth";
@@ -66,24 +65,20 @@ export default async function ProjectsPage(props: {
   ]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <ProjectDialog
-          customers={customers}
-          users={users}
-          currentUserId={session?.user.id ?? null}
-        />
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <ProjectsTable
-            projects={projects}
-            initialFrom={isoDate(from)}
-            initialTo={isoDate(to)}
+    <div className="space-y-3">
+      <ProjectsTable
+        projects={projects}
+        initialFrom={isoDate(from)}
+        initialTo={isoDate(to)}
+        userId={session?.user.id ?? null}
+        action={
+          <ProjectDialog
+            customers={customers}
+            users={users}
+            currentUserId={session?.user.id ?? null}
           />
-        </CardContent>
-      </Card>
+        }
+      />
     </div>
   );
 }
