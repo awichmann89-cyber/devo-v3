@@ -195,7 +195,7 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
       </CardHeader>
 
       {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 pb-3">
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
         <FilterSearch value={search} onChange={setSearch} placeholder="Name oder Kunde…" />
         <DateRangeControls
           from={from}
@@ -212,7 +212,8 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
         {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
       </div>
 
-      <CardContent className="p-0">
+      <CardContent className="px-4 pb-4">
+        <div className="overflow-hidden rounded-lg border">
           <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
             <TableHeader>
               <TableRow>
@@ -291,6 +292,7 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
               ))}
             </TableBody>
           </Table>
+        </div>
       </CardContent>
     </Card>
   );

@@ -223,7 +223,7 @@ export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
         </CardHeader>
 
         {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}
-        <div className="flex flex-wrap items-center gap-2 border-b px-4 pb-3">
+        <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
           <DateRangeControls
             from={from}
             to={to}
@@ -252,12 +252,13 @@ export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
           {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
         </div>
 
-        <CardContent className="p-0">
+        <CardContent className="px-4 pb-4">
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
               Keine Projekte mit diesen Filtern.
             </p>
           ) : (
+            <div className="overflow-hidden rounded-lg border">
             <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
               <TableHeader>
                 <TableRow>
@@ -357,6 +358,7 @@ export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
                 </TableRow>
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
