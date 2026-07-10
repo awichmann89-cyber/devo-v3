@@ -816,8 +816,8 @@ export function AssignmentsSection({
           />
         </TableCell>
         {!isSale && (
-          <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-            {billingDays}
+          <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+            {billingDays} ({String(billingFactor).replace(".", ",")})
           </TableCell>
         )}
         <TableCell className="text-right tabular-nums font-mono text-sm">
@@ -962,8 +962,8 @@ export function AssignmentsSection({
             />
           </TableCell>
           {!isSale && (
-            <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-              {billingDays}
+            <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+              {billingDays} ({String(billingFactor).replace(".", ",")})
             </TableCell>
           )}
           <TableCell className="text-right tabular-nums font-mono text-sm">
@@ -1563,7 +1563,7 @@ export function AssignmentsSection({
                         <TableHead className="w-8"></TableHead>
                         <TableHead>Gerät / Kabel</TableHead>
                         <TableHead className="w-[110px] text-center">Anzahl</TableHead>
-                        {!isSale && <TableHead className="w-[56px] text-right">Tage</TableHead>}
+                        {!isSale && <TableHead className="w-[96px] text-right">Tage (Faktor)</TableHead>}
                         <TableHead className="w-[96px] text-right">
                           {isSale ? "€ / Stück" : "€ / Tag"}
                         </TableHead>
