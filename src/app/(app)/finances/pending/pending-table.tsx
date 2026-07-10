@@ -115,7 +115,7 @@ export function PendingTable({ rows }: { rows: PendingRow[] }) {
                 daysOverdue > 30
                   ? "text-destructive font-medium"
                   : daysOverdue > 7
-                  ? "text-amber-600 dark:text-amber-400 font-medium"
+                  ? "text-warning font-medium"
                   : "";
               return (
                 <TableRow key={p.id}>

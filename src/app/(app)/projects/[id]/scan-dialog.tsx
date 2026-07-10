@@ -102,7 +102,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
         {totalCount > 0 && (
           <Badge
             variant={done ? "default" : "secondary"}
-            className={done ? "ml-1 bg-emerald-600 hover:bg-emerald-600" : "ml-1"}
+            className={done ? "ml-1 bg-success hover:bg-success" : "ml-1"}
           >
             {packedCount}/{totalCount}
           </Badge>
@@ -146,7 +146,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
                   {packedCount} / {totalCount}
                 </span>
                 {done && (
-                  <Badge className="bg-emerald-600 hover:bg-emerald-600">
+                  <Badge className="bg-success hover:bg-success">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Komplett
                   </Badge>
                 )}

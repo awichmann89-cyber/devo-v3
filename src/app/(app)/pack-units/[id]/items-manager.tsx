@@ -316,7 +316,7 @@ export function ItemsManager({
                       key={it.id}
                       className={cn(
                         isOver &&
-                          "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+                          "bg-destructive-subtle/70 hover:bg-destructive-subtle"
                       )}
                     >
                       <TableCell>
@@ -514,7 +514,7 @@ export function ItemsManager({
                     key={it.id}
                     className={cn(
                       isOver &&
-                        "bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40"
+                        "bg-destructive-subtle/70 hover:bg-destructive-subtle"
                     )}
                   >
                     <TableCell>

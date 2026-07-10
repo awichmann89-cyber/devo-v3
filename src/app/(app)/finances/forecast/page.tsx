@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
-import { Card, CardContent } from "@/components/ui/card";
 import { ForecastView, ForecastRowVM } from "./forecast-view";
 import { calculateProjectTotal } from "@/lib/project-pricing";
 import { getSettings, parseDayFactorMap } from "@/lib/settings";
@@ -19,7 +18,7 @@ function parseDate(s: string | undefined, fallback: Date): Date {
 export default async function ForecastPage(props: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  await requireAuth();
+  const session = await requireAuth();
   const sp = await props.searchParams;
 
   // Default-Bereich: aktueller Monat + die nächsten 3 Monate
@@ -99,7 +98,6 @@ export default async function ForecastPage(props: {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Forecast</h1>
         <p className="text-muted-foreground">
           Erwarteter Umsatz und Gewinn aus geplanten Projekten im gewählten
           Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung + Extrakosten)
@@ -108,19 +106,12 @@ export default async function ForecastPage(props: {
         </p>
       </div>
 
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Keine Projekte in diesem Zeitraum.
-          </CardContent>
-        </Card>
-      ) : (
-        <ForecastView
-          rows={rows}
-          initialFrom={isoDate(from)}
-          initialTo={isoDate(to)}
-        />
-      )}
+      <ForecastView
+        rows={rows}
+        initialFrom={isoDate(from)}
+        initialTo={isoDate(to)}
+        userId={session.user.id ?? null}
+      />
     </div>
   );
 }

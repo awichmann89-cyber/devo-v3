@@ -449,7 +449,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <h1 className="text-[21px] font-extrabold tracking-tight">
               {project.name}
             </h1>
             <Badge variant={projectStatusVariant(project.status)}>
@@ -638,9 +638,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             reservedDeviceIds={Array.from(reservedDeviceIds)}
             billingDays={billingDays}
             billingFactor={billingFactor}
-            subtotal={subtotal}
-            discount={discount}
-            total={total}
+            subtotal={materialSubtotal}
+            discount={materialSubtotal - materialBereichNet}
+            total={materialBereichNet}
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
             cableGroups={serialize(project.groups.filter((g) => g.kind === "CABLE"))}
             adHocItems={serialize(project.adHocItems)}

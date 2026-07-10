@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -15,10 +13,6 @@ import {
   Settings,
   Building2,
   Truck,
-  Database,
-  ChevronDown,
-  ChevronRight,
-  Wallet,
   Receipt,
   TrendingUp,
   AlertCircle,
@@ -34,27 +28,24 @@ interface NavItem {
   roles?: Role[];
 }
 
-interface NavGroup {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  roles?: Role[];
-  children: NavItem[];
+interface NavSection {
+  label?: string;
+  items: NavItem[];
 }
 
-type NavEntry = NavItem | NavGroup;
-
-function isGroup(e: NavEntry): e is NavGroup {
-  return "children" in e;
-}
-
-const NAV: NavEntry[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projekte", icon: FolderKanban },
-  { href: "/calendar", label: "Kalender", icon: Calendar },
+// Flache Navigation mit Abschnitts-Überschriften (Redesign):
+// Hauptbereich · Finanzen · Stammdaten · Verwaltung
+const SECTIONS: NavSection[] = [
+  {
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/projects", label: "Projekte", icon: FolderKanban },
+      { href: "/calendar", label: "Kalender", icon: Calendar },
+    ],
+  },
   {
     label: "Finanzen",
-    icon: Wallet,
-    children: [
+    items: [
       { href: "/finances/quotes", label: "Angebote", icon: FileText },
       { href: "/finances/pending", label: "Zu fakturieren", icon: AlertCircle },
       { href: "/finances/invoices", label: "Rechnungen", icon: Receipt },
@@ -63,41 +54,43 @@ const NAV: NavEntry[] = [
   },
   {
     label: "Stammdaten",
-    icon: Database,
-    children: [
+    items: [
       { href: "/customers", label: "Kunden", icon: Building2 },
       { href: "/material", label: "Material", icon: Boxes },
       { href: "/services", label: "Personal & Transport", icon: Truck },
     ],
   },
-  { href: "/users", label: "Benutzer", icon: Users, roles: ["ADMIN"] },
-  { href: "/settings", label: "Einstellungen", icon: Settings, roles: ["ADMIN"] },
+  {
+    items: [
+      { href: "/users", label: "Benutzer", icon: Users, roles: ["ADMIN"] },
+      { href: "/settings", label: "Einstellungen", icon: Settings, roles: ["ADMIN"] },
+    ],
+  },
 ];
+
+export function CratelMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="8 12 84 76" fill="none" className={className} aria-hidden>
+      <g
+        className="stroke-foreground"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="16" y="20" width="68" height="60" rx="11" />
+        <line x1="16" y1="40" x2="84" y2="40" />
+        <rect x="37" y="57" width="26" height="10" rx="5" />
+      </g>
+      <g className="stroke-primary" strokeWidth="7" strokeLinecap="round">
+        <line x1="30" y1="34" x2="30" y2="46" />
+        <line x1="70" y1="34" x2="70" y2="46" />
+      </g>
+    </svg>
+  );
+}
 
 function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () => void }) {
   const pathname = usePathname();
-
-  const initiallyOpen = new Set<string>();
-  for (const entry of NAV) {
-    if (isGroup(entry)) {
-      const anyActive = entry.children.some(
-        (c) => pathname === c.href || pathname.startsWith(c.href + "/")
-      );
-      if (anyActive) initiallyOpen.add(entry.label);
-    }
-  }
-  const [open, setOpen] = useState<Set<string>>(initiallyOpen);
-
-  function toggle(label: string) {
-    const s = new Set(open);
-    if (s.has(label)) s.delete(label);
-    else s.add(label);
-    setOpen(s);
-  }
-
-  function visibleChildren(g: NavGroup) {
-    return g.children.filter((c) => !c.roles || c.roles.includes(role));
-  }
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -105,73 +98,38 @@ function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () => void 
   }
 
   return (
-    <nav className="space-y-1 p-4">
-      {NAV.filter((entry) => !entry.roles || entry.roles.includes(role)).map((entry) => {
-        if (!isGroup(entry)) {
-          const active = isActive(entry.href);
-          const Icon = entry.icon;
-          return (
-            <Link
-              key={entry.href}
-              href={entry.href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-secondary text-secondary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {entry.label}
-            </Link>
-          );
-        }
-        const children = visibleChildren(entry);
-        if (children.length === 0) return null;
-        const isOpen = open.has(entry.label);
-        const hasActiveChild = children.some((c) => isActive(c.href));
-        const Icon = entry.icon;
+    <nav className="flex flex-1 flex-col gap-px overflow-y-auto p-2">
+      {SECTIONS.map((section, si) => {
+        const items = section.items.filter((i) => !i.roles || i.roles.includes(role));
+        if (items.length === 0) return null;
         return (
-          <div key={entry.label}>
-            <button
-              type="button"
-              onClick={() => toggle(entry.label)}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                hasActiveChild && !isOpen
-                  ? "bg-secondary/60 text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="flex-1 text-left">{entry.label}</span>
-              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-            {isOpen && (
-              <div className="mt-1 ml-3 space-y-1 border-l pl-3">
-                {children.map((child) => {
-                  const active = isActive(child.href);
-                  const ChildIcon = child.icon;
-                  return (
-                    <Link
-                      key={child.href}
-                      href={child.href}
-                      onClick={onNavigate}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                        active
-                          ? "bg-secondary text-secondary-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
-                      <ChildIcon className="h-4 w-4" />
-                      {child.label}
-                    </Link>
-                  );
-                })}
+          <div key={section.label ?? si} className="flex flex-col gap-px">
+            {si > 0 && <div className="mx-1.5 my-2 h-px bg-border" />}
+            {section.label && (
+              <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[.09em] text-faint">
+                {section.label}
               </div>
             )}
+            {items.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-md border-l-[3px] px-2.5 py-1.5 text-[13px] transition-colors",
+                    active
+                      ? "border-primary bg-primary-subtle font-semibold text-primary"
+                      : "border-transparent font-medium text-sidebar-foreground hover:bg-secondary"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
           </div>
         );
       })}
@@ -181,25 +139,28 @@ function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () => void 
 
 function SidebarLogo({ onClose }: { onClose?: () => void }) {
   return (
-    <div className="flex h-16 items-center justify-between gap-2 border-b px-5">
-      <Image
-        src="/cratel_logo.svg"
-        alt="Cratel"
-        width={200}
-        height={60}
-        priority
-        className="h-9 w-auto"
-      />
+    <div className="flex h-[52px] shrink-0 items-center gap-2 border-b px-4">
+      <CratelMark className="h-6 w-[26px] shrink-0" />
+      <span className="text-[19px] font-extrabold tracking-tight text-foreground">Cratel</span>
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
+          className="ml-auto rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
           aria-label="Menü schließen"
         >
           <X className="h-5 w-5" />
         </button>
       )}
+    </div>
+  );
+}
+
+function SidebarFooter() {
+  return (
+    <div className="flex items-center gap-2 border-t px-4 py-2.5 text-[11px] text-faint">
+      <span className="h-[7px] w-[7px] rounded-full bg-success" aria-hidden />
+      <span>System online</span>
     </div>
   );
 }
@@ -210,9 +171,10 @@ export function Sidebar({ role }: { role: Role }) {
   return (
     <>
       {/* Desktop-Sidebar: fest links, ab lg sichtbar */}
-      <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
+      <aside className="sticky top-0 z-10 hidden h-screen w-[216px] shrink-0 flex-col border-r bg-sidebar lg:flex">
         <SidebarLogo />
         <SidebarNav role={role} />
+        <SidebarFooter />
       </aside>
 
       {/* Mobile-Drawer: Off-Canvas, gesteuert über den Burger-Button im Header */}
@@ -220,16 +182,15 @@ export function Sidebar({ role }: { role: Role }) {
         <div className="fixed inset-0 z-50 lg:hidden">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-foreground/55"
             onClick={() => setOpen(false)}
             aria-hidden
           />
           {/* Drawer */}
-          <aside className="relative h-full w-72 max-w-[85vw] bg-card shadow-xl">
+          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col bg-sidebar shadow-xl">
             <SidebarLogo onClose={() => setOpen(false)} />
-            <div className="overflow-y-auto">
-              <SidebarNav role={role} onNavigate={() => setOpen(false)} />
-            </div>
+            <SidebarNav role={role} onNavigate={() => setOpen(false)} />
+            <SidebarFooter />
           </aside>
         </div>
       )}

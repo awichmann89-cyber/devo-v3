@@ -264,7 +264,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                 return (
                   <TableRow
                     key={inv.id}
-                    className={cn(isOverdue && "bg-red-50/60 dark:bg-red-950/20")}
+                    className={cn(isOverdue && "bg-destructive-subtle/60")}
                   >
                     <TableCell className="font-mono text-sm">{inv.number}</TableCell>
                     <TableCell>
@@ -280,7 +280,7 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
                           className={cn(
                             "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-muted disabled:opacity-50",
                             inv.isPrepayment
-                              ? "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200"
+                              ? "border-info/30 bg-info-subtle text-info"
                               : "border-border"
                           )}
                           title={
@@ -425,7 +425,7 @@ function StatCard({
     variant === "destructive"
       ? "border-destructive/40 bg-destructive/5 text-destructive"
       : variant === "success"
-      ? "border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+      ? "border-success/40 bg-success-subtle text-success"
       : "border-border bg-card text-foreground";
   return (
     <button

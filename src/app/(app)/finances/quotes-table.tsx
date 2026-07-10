@@ -276,7 +276,7 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                       ) : status === "accepted" ? (
                         <Badge
                           variant="default"
-                          className="text-[10px] bg-emerald-600 hover:bg-emerald-600"
+                          className="text-[10px] bg-success hover:bg-success"
                           title={
                             q.acceptedByName
                               ? `Angenommen von ${q.acceptedByName}`

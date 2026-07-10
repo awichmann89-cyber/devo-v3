@@ -22,7 +22,7 @@ export function AutoSaveIndicator({ status, error, className }: Props) {
   }
   if (status === "saved") {
     return (
-      <div className={cn(base, "text-emerald-600", className)}>
+      <div className={cn(base, "text-success", className)}>
         <Check className="h-3.5 w-3.5" /> Gespeichert
       </div>
     );

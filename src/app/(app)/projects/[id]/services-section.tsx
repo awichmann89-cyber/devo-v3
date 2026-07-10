@@ -51,7 +51,7 @@ import {
   Users,
   Truck,
   Package,
-  MessageSquarePlus,
+
 } from "lucide-react";
 import {
   DndContext,
@@ -69,7 +69,6 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
-import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   reorderGroupItems,
@@ -84,6 +83,13 @@ function kindIcon(kind: ServiceItemKind) {
   if (kind === "TRANSPORT") return Truck;
   return Package;
 }
+
+/** Badge-Variante je ServiceItemKind (Redesign: getönte Status-Badges). */
+function kindBadgeVariant(kind: ServiceItemKind): "secondary" | "warning" | "outline" {
+  if (kind === "PERSONAL") return "secondary";
+  if (kind === "TRANSPORT") return "warning";
+  return "outline";
+}
 import { toast } from "sonner";
 import { ServiceItemDialog, ServiceItemVM } from "../../services/service-dialog";
 import {
@@ -96,7 +102,15 @@ import {
   createProjectGroup,
   updateProjectGroup,
   deleteProjectGroup,
+  renameProjectGroup,
+  reorderProjectGroups,
 } from "./groups-actions";
+import {
+  GroupHeaderRow,
+  NoteRowCells,
+  QtyStepper,
+  GroupTableFooter,
+} from "@/components/project/group-table";
 import {
   billingUnitLabel,
   billingUnitShort,
@@ -178,13 +192,6 @@ export function ServicesSection({
     }
     return map;
   }, [groupComments]);
-  const [commentDialog, setCommentDialog] = useState<{
-    mode: "create" | "edit";
-    id?: string;
-    groupId: string;
-    text: string;
-  } | null>(null);
-  const [commentDelete, setCommentDelete] = useState<ProjectGroupComment | null>(null);
 
   type ServiceRow = {
     sortId: string;
@@ -231,36 +238,55 @@ export function ServicesSection({
     });
   }
 
-  function handleSaveComment() {
-    if (!commentDialog) return;
-    const text = commentDialog.text.trim();
-    if (!text) {
-      toast.error("Text darf nicht leer sein");
-      return;
-    }
+  // ----- Redesign: Inline-Umbenennen, Gruppen-Reihenfolge, Zwischenüberschriften -----
+  function handleRenameGroup(id: string, name: string) {
     startTransition(async () => {
       try {
-        if (commentDialog.mode === "create") {
-          await addGroupComment(projectId, commentDialog.groupId, text);
-          toast.success("Kommentar hinzugefügt");
-        } else if (commentDialog.id) {
-          await updateGroupComment(commentDialog.id, text);
-          toast.success("Kommentar gespeichert");
-        }
-        setCommentDialog(null);
+        await renameProjectGroup(id, name);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
     });
   }
-  function handleDeleteComment() {
-    if (!commentDelete) return;
-    const id = commentDelete.id;
+
+  function handleMoveGroup(index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= groups.length) return;
+    const ids = groups.map((g) => g.id);
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    startTransition(async () => {
+      try {
+        await reorderProjectGroups(ids);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleAddNote(groupId: string) {
+    startTransition(async () => {
+      try {
+        await addGroupComment(projectId, groupId, "Zwischenüberschrift");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleSaveNote(id: string, text: string) {
+    startTransition(async () => {
+      try {
+        await updateGroupComment(id, text);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleDeleteNote(id: string) {
     startTransition(async () => {
       try {
         await deleteGroupComment(id);
-        setCommentDelete(null);
-        toast.success("Kommentar entfernt");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
@@ -443,7 +469,6 @@ export function ServicesSection({
       <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1">
         <DragHandleCell />
         <TableCell>
-          {/* Name nur einzeilig — Einheit/Art wandern in eigene Spalte */}
           <div className="flex items-center gap-2 font-medium truncate">
             <KindIcon
               className="h-4 w-4 text-muted-foreground shrink-0"
@@ -452,20 +477,19 @@ export function ServicesSection({
             <span className="truncate">{ps.serviceItem.name}</span>
           </div>
         </TableCell>
-        <TableCell className="text-xs text-muted-foreground">
-          {billingUnitLabel(ps.serviceItem.unit)}
+        <TableCell>
+          <Badge variant={kindBadgeVariant(ps.serviceItem.kind)}>
+            {serviceItemKindLabel(ps.serviceItem.kind)}
+          </Badge>
         </TableCell>
-        <TableCell className="text-right">
-          <Input
-            type="number"
-            step="0.5"
-            min="0"
-            defaultValue={ps.quantity}
-            onBlur={(e) => {
-              const v = Number(e.target.value);
-              if (v !== ps.quantity) handleQty(ps, e.target.value);
-            }}
-            className="h-7 text-right"
+        <TableCell className="text-center">
+          <QtyStepper
+            min={0}
+            allowDecimal
+            value={ps.quantity}
+            onChange={(v) => handleQty(ps, String(v))}
+            disabled={pending}
+            suffix={billingUnitShort(ps.serviceItem.unit)}
           />
         </TableCell>
         <TableCell className="text-right">
@@ -484,7 +508,10 @@ export function ServicesSection({
                 handleOverride(ps, raw);
               }
             }}
-            className={"h-7 text-right " + (hasOverride ? "border-amber-500" : "")}
+            className={
+              "h-7 w-24 ml-auto text-right font-mono " +
+              (hasOverride ? "border-warning" : "")
+            }
             title={
               hasOverride
                 ? `Katalogpreis: ${formatCurrency(ps.serviceItem.unitPrice)}`
@@ -722,372 +749,139 @@ export function ServicesSection({
           </Card>
         }
         right={
-          <div className="space-y-4 lg:h-full lg:overflow-y-auto lg:pr-1">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FolderOpen className="h-4 w-4" /> Zugewiesen
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setGroupDialog({ mode: "create", name: "", billable: true })}
-              >
-                <FolderPlus className="h-4 w-4" /> Gruppe anlegen
-              </Button>
+          <div className="flex flex-col lg:h-full">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
+              <div className="text-xs text-muted-foreground">
+                <span className="font-bold text-foreground">
+                  {projectServices.length} Positionen
+                </span>{" "}
+                zugewiesen
+              </div>
             </div>
 
-            {groups.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
-                  <FolderPlus className="h-8 w-8 opacity-30" />
-                  <p className="text-sm">
-                    Lege eine Gruppe an (z.B. „Aufbau", „Eventtag", „Abbau"), um
-                    Personal- und Transport-Positionen zuzuordnen.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setGroupDialog({ mode: "create", name: "", billable: true })}
-                  >
-                    <FolderPlus className="h-4 w-4" /> Erste Gruppe anlegen
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              groups.map((group) => {
-                const groupItems = servicesByGroup.get(group.id) ?? [];
-                const groupSubtotal = groupItems.reduce(
-                  (sum, ps) =>
-                    sum +
-                    ps.quantity *
-                      (ps.unitPriceOverride ?? ps.serviceItem.unitPrice),
-                  0
-                );
-                const otherGroups = groups.filter((g) => g.id !== group.id);
-                const isActive = activeGroupId === group.id;
-                return (
-                  <Card
-                    key={group.id}
-                    className={cn(
-                      "transition-shadow",
-                      isActive && "border-primary/60 shadow-md"
-                    )}
-                  >
-                    <CardHeader
-                      className="flex flex-row items-center justify-between space-y-0 pb-3 cursor-pointer"
-                      onClick={() => setActiveGroupId(group.id)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CardTitle className="text-base truncate">
-                          {group.name}
-                        </CardTitle>
-                        <Badge variant="outline" className="text-[10px]">
-                          {groupItems.length}
-                        </Badge>
-                        {!group.billable && (
-                          <Badge variant="warning" className="text-[10px]">
-                            nicht abrechenbar
-                          </Badge>
-                        )}
-                        {isActive && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Aktiv
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCommentDialog({
-                              mode: "create",
-                              groupId: group.id,
-                              text: "",
-                            });
-                          }}
-                          title="Kommentar hinzufügen"
-                        >
-                          <MessageSquarePlus className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setGroupDialog({
-                              mode: "rename",
-                              id: group.id,
-                              name: group.name,
-                              billable: group.billable,
-                            });
-                          }}
-                          title="Umbenennen"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteGroupPrompt(group);
-                          }}
-                          title="Löschen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pb-3">
-                      {(() => {
-                        const serviceRows = buildServiceGroupRows(group.id);
-                        if (serviceRows.length === 0) {
-                          return (
-                            <p className="py-4 text-center text-xs text-muted-foreground">
-                              Noch nichts in dieser Gruppe. Wähle eine Position aus dem
-                              Katalog (Pfeil-Button) — sie wird der aktiven Gruppe
-                              hinzugefügt.
-                            </p>
-                          );
-                        }
-                        return (
+            {/* EINE durchgehende Tabelle — Gruppen als Kopfzeilen (Redesign). */}
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {groups.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+                    <FolderPlus className="h-8 w-8 opacity-30" />
+                    <p className="text-sm">
+                      Lege eine Gruppe an (z.B. „Aufbau", „Eventtag", „Abbau"), um
+                      Personal- und Transport-Positionen zuzuordnen.
+                    </p>
+                  </div>
+                ) : (
+                  <Table className="[&_td]:px-2 [&_td]:py-1">
+                    <TableHeader>
+                      <TableRow className="hover:bg-secondary">
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead>Position</TableHead>
+                        <TableHead className="w-[92px]">Art</TableHead>
+                        <TableHead className="w-[130px] text-center">Menge</TableHead>
+                        <TableHead className="w-[110px] text-right">Satz</TableHead>
+                        <TableHead className="w-[110px] text-right">Summe</TableHead>
+                        <TableHead className="w-[70px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    {groups.map((group, gi) => {
+                      const groupItems = servicesByGroup.get(group.id) ?? [];
+                      const groupSubtotal = groupItems.reduce(
+                        (sum, ps) =>
+                          sum +
+                          ps.quantity *
+                            (ps.unitPriceOverride ?? ps.serviceItem.unitPrice),
+                        0
+                      );
+                      const serviceRows = buildServiceGroupRows(group.id);
+                      return (
                         <DndContext
+                          key={group.id}
                           sensors={sensors}
                           collisionDetection={closestCenter}
                           onDragEnd={(e) => handleDragEnd(serviceRows, e)}
                         >
-                        <Table className="[&_td]:py-1 [&_td]:px-2 [&_th]:h-8 [&_th]:px-2">
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-6"></TableHead>
-                              <TableHead className="px-2">Position</TableHead>
-                              <TableHead className="px-2 w-[120px]">Einheit</TableHead>
-                              <TableHead className="w-[90px] text-right px-2">Menge</TableHead>
-                              <TableHead className="w-[120px] text-right px-2">€ / Einheit</TableHead>
-                              <TableHead className="w-[100px] text-right px-2">Summe</TableHead>
-                              <TableHead className="w-[80px] px-2"></TableHead>
-                            </TableRow>
-                          </TableHeader>
                           <TableBody>
-                          <SortableContext
-                            items={serviceRows.map((r) => r.sortId)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                          {serviceRows.map((r) => {
-                            if (r.kind === "COMMENT") {
-                              const c = (commentsByGroup.get(group.id) ?? []).find(
-                                (x) => x.id === r.id
-                              );
-                              if (!c) return null;
-                              return (
-                                <SortableRow
-                                  id={r.sortId}
-                                  key={r.sortId}
-                                  className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 border-t-2 border-blue-200 dark:border-blue-900/50"
+                            <GroupHeaderRow
+                              group={group}
+                              colSpan={7}
+                              sumLabel={formatCurrency(groupSubtotal)}
+                              active={activeGroupId === group.id}
+                              isFirst={gi === 0}
+                              isLast={gi === groups.length - 1}
+                              pending={pending}
+                              onActivate={() => setActiveGroupId(group.id)}
+                              onRename={(name) => handleRenameGroup(group.id, name)}
+                              onMoveUp={() => handleMoveGroup(gi, -1)}
+                              onMoveDown={() => handleMoveGroup(gi, 1)}
+                              onAddNote={() => handleAddNote(group.id)}
+                              onEdit={() =>
+                                setGroupDialog({
+                                  mode: "rename",
+                                  id: group.id,
+                                  name: group.name,
+                                  billable: group.billable,
+                                })
+                              }
+                              onDelete={() => setDeleteGroupPrompt(group)}
+                            />
+                            {serviceRows.length === 0 && (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={7}
+                                  className="py-3 text-center text-xs text-muted-foreground"
                                 >
-                                  <DragHandleCell />
-                                  <TableCell colSpan={5} className="py-3 text-base font-semibold text-foreground">
-                                    {c.text}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center justify-end gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() =>
-                                          setCommentDialog({
-                                            mode: "edit",
-                                            id: c.id,
-                                            groupId: c.groupId,
-                                            text: c.text,
-                                          })
-                                        }
-                                        title="Bearbeiten"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-destructive hover:text-destructive"
-                                        onClick={() => setCommentDelete(c)}
-                                        disabled={pending}
-                                        title="Entfernen"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </SortableRow>
-                              );
-                            }
-                            const ps = groupItems.find((x) => x.id === r.id);
-                            if (!ps) return null;
-                            return renderServiceRow(ps, r.sortId);
-                          })}
-                          </SortableContext>
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-right font-medium">
-                              Gruppen-Zwischensumme
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                              {formatCurrency(groupSubtotal)}
-                            </TableCell>
-                            <TableCell />
-                          </TableRow>
-                          </TableBody>
-                        </Table>
-                        </DndContext>
-                        );
-                      })()}
-
-                      {false && (
-                        <Table>
-                          <TableBody>
-                            {groupItems.map((ps) => {
-                              const effectivePrice =
-                                ps.unitPriceOverride ?? ps.serviceItem.unitPrice;
-                              const line = ps.quantity * effectivePrice;
-                              const hasOverride = ps.unitPriceOverride !== null;
-                              const KindIcon = kindIcon(ps.serviceItem.kind);
-                              return (
-                                <TableRow key={ps.id}>
-                                  <TableCell>
-                                    <div className="flex items-center gap-2 font-medium">
-                                      <KindIcon
-                                        className="h-4 w-4 text-muted-foreground"
-                                        aria-label={serviceItemKindLabel(
-                                          ps.serviceItem.kind
-                                        )}
+                                  Noch nichts in dieser Gruppe — Position im Katalog anklicken
+                                  (Pfeil-Button), sie landet in der aktiven Gruppe.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <SortableContext
+                              items={serviceRows.map((r) => r.sortId)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {serviceRows.map((r) => {
+                                if (r.kind === "COMMENT") {
+                                  const c = (commentsByGroup.get(group.id) ?? []).find(
+                                    (x) => x.id === r.id
+                                  );
+                                  if (!c) return null;
+                                  return (
+                                    <SortableRow id={r.sortId} key={r.sortId}>
+                                      <DragHandleCell />
+                                      <NoteRowCells
+                                        text={c.text}
+                                        colSpan={5}
+                                        pending={pending}
+                                        onSave={(txt) => handleSaveNote(c.id, txt)}
+                                        onDelete={() => handleDeleteNote(c.id)}
                                       />
-                                      {ps.serviceItem.name}
-                                    </div>
-                                    <div className="ml-6 text-[11px] text-muted-foreground">
-                                      {billingUnitLabel(ps.serviceItem.unit)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <Input
-                                      type="number"
-                                      step="0.5"
-                                      min="0"
-                                      defaultValue={ps.quantity}
-                                      onBlur={(e) => {
-                                        const v = Number(e.target.value);
-                                        if (v !== ps.quantity)
-                                          handleQty(ps, e.target.value);
-                                      }}
-                                      className="h-8 text-right"
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      placeholder={ps.serviceItem.unitPrice.toFixed(2)}
-                                      defaultValue={
-                                        ps.unitPriceOverride === null
-                                          ? ""
-                                          : String(ps.unitPriceOverride)
-                                      }
-                                      onBlur={(e) => {
-                                        const raw = e.target.value;
-                                        const newVal =
-                                          raw.trim() === "" ? null : Number(raw);
-                                        if (newVal !== ps.unitPriceOverride) {
-                                          handleOverride(ps, raw);
-                                        }
-                                      }}
-                                      className={
-                                        "h-8 text-right " +
-                                        (hasOverride ? "border-amber-500" : "")
-                                      }
-                                      title={
-                                        hasOverride
-                                          ? `Katalogpreis: ${formatCurrency(ps.serviceItem.unitPrice)}`
-                                          : "Leer = Katalogpreis"
-                                      }
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                                    {formatCurrency(line)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-0.5">
-                                      {otherGroups.length > 0 && (
-                                        <Select
-                                          value=""
-                                          onValueChange={(v) =>
-                                            handleMoveToGroup(ps.id, v)
-                                          }
-                                        >
-                                          <SelectTrigger
-                                            className="h-7 w-7 p-0 [&>svg]:hidden"
-                                            title="In andere Gruppe verschieben"
-                                          >
-                                            <ChevronRight className="h-3.5 w-3.5 mx-auto" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {otherGroups.map((g) => (
-                                              <SelectItem key={g.id} value={g.id}>
-                                                → {g.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      )}
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-destructive hover:text-destructive"
-                                        onClick={() => setConfirmRemove(ps)}
-                                        disabled={pending}
-                                        title="Entfernen"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                            <TableRow>
-                              <TableCell colSpan={3} className="text-right font-medium">
-                                Gruppen-Zwischensumme
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                                {formatCurrency(groupSubtotal)}
-                              </TableCell>
-                              <TableCell />
-                            </TableRow>
+                                    </SortableRow>
+                                  );
+                                }
+                                const ps = groupItems.find((x) => x.id === r.id);
+                                if (!ps) return null;
+                                return renderServiceRow(ps, r.sortId);
+                              })}
+                            </SortableContext>
                           </TableBody>
-                        </Table>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
-
-            {projectServices.length > 0 && (
-              <Card>
-                <CardContent className="py-3 space-y-1 text-sm">
-                  <div className="flex justify-between font-bold">
-                    <span>Personal- &amp; Transport-Summe</span>
-                    <span className="font-mono tabular-nums">
-                      {formatCurrency(subtotal)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                        </DndContext>
+                      );
+                    })}
+                  </Table>
+                )}
+              </div>
+              <GroupTableFooter
+                onAddGroup={() =>
+                  setGroupDialog({ mode: "create", name: "", billable: true })
+                }
+                pending={pending}
+              >
+                <span>Netto Personal &amp; Transport</span>
+                <span className="font-mono text-sm font-extrabold text-primary">
+                  {formatCurrency(subtotal)}
+                </span>
+              </GroupTableFooter>
+            </div>
           </div>
         }
       />
@@ -1214,67 +1008,6 @@ export function ServicesSection({
         </DialogContent>
       </Dialog>
 
-      {/* Kommentar-Dialog */}
-      <Dialog
-        open={commentDialog !== null}
-        onOpenChange={(o) => !o && setCommentDialog(null)}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {commentDialog?.mode === "create"
-                ? "Kommentar hinzufügen"
-                : "Kommentar bearbeiten"}
-            </DialogTitle>
-            <DialogDescription>
-              Freier Text als Zwischenüberschrift in der Service-Tabelle.
-              Erscheint auch auf Angeboten und Rechnungen.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSaveComment();
-            }}
-            className="space-y-3"
-          >
-            <Textarea
-              value={commentDialog?.text ?? ""}
-              onChange={(e) =>
-                setCommentDialog((d) => (d ? { ...d, text: e.target.value } : d))
-              }
-              rows={3}
-              autoFocus
-              required
-              placeholder="z.B. Zwischenüberschrift, Hinweis, Erläuterung…"
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCommentDialog(null)}
-                disabled={pending}
-              >
-                Abbrechen
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {commentDialog?.mode === "create" ? "Hinzufügen" : "Speichern"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmDialog
-        open={commentDelete !== null}
-        onOpenChange={(o) => !o && setCommentDelete(null)}
-        title="Kommentar entfernen?"
-        description={commentDelete && <>„{commentDelete.text}" wird entfernt.</>}
-        confirmLabel="Entfernen"
-        pending={pending}
-        onConfirm={handleDeleteComment}
-      />
     </>
   );
 }

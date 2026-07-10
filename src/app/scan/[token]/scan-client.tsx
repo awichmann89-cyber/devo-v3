@@ -299,12 +299,12 @@ export function ScanClient({
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Fortschritt
               </div>
-              <div className={cn("text-2xl font-bold tabular-nums", done && "text-emerald-600")}>
+              <div className={cn("text-2xl font-bold tabular-nums", done && "text-success")}>
                 {totalScanned} / {totalRequired}
               </div>
             </div>
             {done ? (
-              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600">
+              <Badge variant="default" className="bg-success hover:bg-success">
                 <CheckCircle2 className="h-4 w-4" /> Komplett
               </Badge>
             ) : (
@@ -317,7 +317,7 @@ export function ScanClient({
             <div
               className={cn(
                 "h-full transition-all",
-                done ? "bg-emerald-600" : "bg-primary"
+                done ? "bg-success" : "bg-primary"
               )}
               style={{
                 width: totalRequired > 0
@@ -357,8 +357,8 @@ export function ScanClient({
                 wieder aus, damit der nächste Code weiter erfasst werden kann. */}
             <div className="pointer-events-none absolute inset-0">
               {scanSuccess ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-emerald-500/30 backdrop-blur-[1px] transition-opacity">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50">
+                <div className="absolute inset-0 flex items-center justify-center bg-success/30 backdrop-blur-[1px] transition-opacity">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-success shadow-lg shadow-emerald-500/50">
                     <CheckCircle2 className="h-14 w-14 text-white" strokeWidth={3} />
                   </div>
                 </div>
@@ -388,7 +388,7 @@ export function ScanClient({
           )}
 
           {cameraError && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-sm text-warning">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{cameraError}</span>
             </div>
@@ -478,12 +478,12 @@ export function ScanClient({
                         key={it.key}
                         className={cn(
                           "flex items-center gap-3 py-2.5 pr-4",
-                          complete && "bg-emerald-50"
+                          complete && "bg-success-subtle"
                         )}
                         style={{ paddingLeft: `${1.5 + (group.depth + 1) * 1.5}rem` }}
                       >
                         {complete ? (
-                          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                          <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
                         ) : (
                           <Circle className="h-5 w-5 shrink-0 text-muted-foreground" />
                         )}
@@ -504,7 +504,7 @@ export function ScanClient({
                         <div
                           className={cn(
                             "tabular-nums text-sm font-semibold",
-                            complete ? "text-emerald-700" : "text-foreground"
+                            complete ? "text-success" : "text-foreground"
                           )}
                         >
                           {it.scanned} / {it.required}

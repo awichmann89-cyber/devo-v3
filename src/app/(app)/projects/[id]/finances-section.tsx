@@ -342,12 +342,12 @@ export function FinancesSection({
               onBlur={(e) =>
                 handleBereichDiscount(kind, e.target.value, data.discountPercent)
               }
-              className="h-8 text-right"
+              className="h-8 text-right font-mono tabular-nums"
               disabled={data.items.length === 0}
             />
           </TableCell>
           <TableCell
-            className="text-right tabular-nums text-muted-foreground"
+            className="text-right tabular-nums font-mono text-muted-foreground"
             title={
               data.groupDiscountsSum > 0
                 ? `${formatCurrency(data.groupDiscountsSum)} aus Gruppen-Rabatten` +
@@ -380,7 +380,7 @@ export function FinancesSection({
                 <TableCell className="pl-10 text-sm">
                   <span className={cn(!isBillable && "line-through")}>{g.name}</span>
                   {!isBillable && (
-                    <span className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                    <span className="ml-2 inline-block rounded-[5px] bg-warning-subtle px-1.5 py-0.5 text-[10px] font-semibold text-warning">
                       nicht abrechenbar
                     </span>
                   )}
@@ -403,11 +403,11 @@ export function FinancesSection({
                     onBlur={(e) =>
                       handleGroupDiscount(g.id, e.target.value, g.discountPercent)
                     }
-                    className="h-8 text-right"
+                    className="h-8 text-right font-mono tabular-nums"
                     disabled={!isBillable}
                   />
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground text-sm">
+                <TableCell className="text-right tabular-nums font-mono text-muted-foreground text-sm">
                   {isBillable ? (discount > 0 ? "−" + formatCurrency(discount) : "—") : "—"}
                 </TableCell>
                 <TableCell
@@ -496,10 +496,10 @@ export function FinancesSection({
                       max="100"
                       defaultValue={safePct(projectDiscountPercent)}
                       onBlur={(e) => handleProjectDiscount(e.target.value)}
-                      className="h-8 text-right"
+                      className="h-8 text-right font-mono tabular-nums"
                     />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
                     {projectDiscountAmount > 0
                       ? "−" + formatCurrency(projectDiscountAmount)
                       : "—"}

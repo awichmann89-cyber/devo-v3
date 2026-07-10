@@ -40,12 +40,6 @@ export default async function PendingInvoicingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Zu fakturieren</h1>
-        <p className="text-muted-foreground">
-          Abgeschlossene Projekte ohne Rechnung — Spenden-Projekte ausgenommen
-        </p>
-      </div>
 
       {rows.length === 0 ? (
         <Card>

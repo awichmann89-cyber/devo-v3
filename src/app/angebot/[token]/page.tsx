@@ -90,7 +90,7 @@ export default async function PublicQuotePage({ params, searchParams }: PageProp
       {/* "Neue Version" Banner — wenn der Kunde auf einer alten Token-URL war
           und auf die aktuelle Version umgeleitet wurde. */}
       {ersetzt === "1" && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-sm text-warning">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <div className="font-semibold">Dies ist eine aktualisierte Version</div>
@@ -158,7 +158,7 @@ function AcceptedBox({
   signaturePng: string | null;
 }) {
   return (
-    <div className="rounded-md border border-emerald-300 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+    <div className="rounded-md border border-success/40 bg-success-subtle px-5 py-4 text-sm text-success">
       <div className="flex items-start gap-3">
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
         <div className="flex-1">
@@ -190,7 +190,7 @@ function AcceptedBox({
 
 function ExpiredBox({ expiresAt }: { expiresAt: Date }) {
   return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+    <div className="rounded-md border border-warning/40 bg-warning-subtle px-5 py-4 text-sm text-warning">
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
         <div>

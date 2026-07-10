@@ -49,12 +49,6 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Projekt-Kalender</h1>
-        <p className="text-muted-foreground">
-          Monatsübersicht aller Projekte mit Planungszeitraum
-        </p>
-      </div>
 
       <Card>
         <CardContent className="pt-6">

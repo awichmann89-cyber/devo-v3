@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "media",
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,32 +11,27 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        // Geist Sans wird via `geist/font/sans` in src/app/layout.tsx als
-        // CSS-Variable `--font-geist-sans` injiziert. Der System-Font-Stack
-        // bleibt als Fallback, falls die Variable im aktuellen Kontext (z.B.
-        // beim ersten Paint oder in Storybook) nicht gesetzt ist.
+        // Outfit (Redesign-Brand-Font) wird in src/app/layout.tsx via
+        // `next/font/google` als CSS-Variable `--font-sans` injiziert.
+        // Die PDF-Ausgabe nutzt weiterhin Geist (src/lib/pdf-fonts.ts).
         sans: [
-          "var(--font-geist-sans)",
+          "var(--font-sans)",
           "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
           "Roboto",
-          "Oxygen",
-          "Ubuntu",
-          "Cantarell",
           "Helvetica Neue",
           "Arial",
           "sans-serif",
         ],
+        // JetBrains Mono für Zahlen, Datums- und Nummernkreis-Spalten.
         mono: [
+          "var(--font-mono)",
           "ui-monospace",
           "SFMono-Regular",
           "Menlo",
-          "Monaco",
           "Consolas",
-          "Liberation Mono",
-          "Courier New",
           "monospace",
         ],
       },
@@ -54,6 +49,7 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          subtle: "hsl(var(--primary-subtle))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -70,6 +66,24 @@ const config: Config = {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          subtle: "hsl(var(--destructive-subtle))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          subtle: "hsl(var(--success-subtle))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          subtle: "hsl(var(--warning-subtle))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          subtle: "hsl(var(--info-subtle))",
+        },
+        faint: "hsl(var(--faint))",
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar))",
+          foreground: "hsl(var(--sidebar-foreground))",
         },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

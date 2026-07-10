@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Sidebar role={session.user.role} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Header user={session.user} />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+          <main className="flex-1 px-4 py-4 sm:px-5">{children}</main>
         </div>
       </div>
     </MobileNavProvider>

@@ -41,17 +41,16 @@ export function projectStatusVariant(status: ProjectStatus): "default" | "second
 }
 
 /**
- * Hintergrund-Klasse für eine Tabellenzeile, sehr dezent eingefärbt nach
- * Projekt-Status. DRAFT bleibt neutral (kein Hintergrund), die anderen
- * bekommen einen leichten Tönungs-Hauch.
+ * Zeilen-Klasse nach Projekt-Status (Redesign): statt Flächen-Tönung ein
+ * 3px-Statusbalken links an der Zeile — Farben aus den Status-Tokens.
  */
 export function projectStatusRowClass(status: ProjectStatus): string {
   return {
-    DRAFT: "",
-    CONFIRMED: "bg-green-50/40 hover:bg-green-100 dark:bg-green-950/15 dark:hover:bg-green-900/40",
-    ACTIVE: "bg-blue-50/40 hover:bg-blue-100 dark:bg-blue-950/15 dark:hover:bg-blue-900/40",
-    COMPLETED: "bg-emerald-50/40 hover:bg-emerald-100 dark:bg-emerald-950/15 dark:hover:bg-emerald-900/40",
-    CANCELLED: "bg-red-50/35 hover:bg-red-100 dark:bg-red-950/15 dark:hover:bg-red-900/40",
+    DRAFT: "border-l-[3px] border-l-transparent",
+    CONFIRMED: "border-l-[3px] border-l-info",
+    ACTIVE: "border-l-[3px] border-l-primary",
+    COMPLETED: "border-l-[3px] border-l-success",
+    CANCELLED: "border-l-[3px] border-l-destructive",
   }[status];
 }
 
