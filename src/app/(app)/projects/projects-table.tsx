@@ -52,33 +52,15 @@ interface ProjectRow {
   _count: { assignments: number };
 }
 
-const STATUS_ORDER: ProjectStatus[] = [
-  "DRAFT",
-  "CONFIRMED",
-  "ACTIVE",
-  "COMPLETED",
-  "CANCELLED",
-];
-
-// Default sichtbar: ohne CANCELLED — abgesagte Projekte sind selten relevant
-// für die normale Übersicht, können aber per Toggle eingeblendet werden.
-const DEFAULT_STATUSES: ProjectStatus[] = [
-  "DRAFT",
-  "CONFIRMED",
-  "ACTIVE",
-  "COMPLETED",
-];
-
-/** Getönte Chip-Klassen je Status — analog zu den Badge-Varianten. */
-function statusChipClass(s: ProjectStatus): string {
-  return {
-    DRAFT: "bg-accent text-muted-foreground",
-    CONFIRMED: "bg-info-subtle text-info",
-    ACTIVE: "bg-primary-subtle text-primary",
-    COMPLETED: "bg-success-subtle text-success",
-    CANCELLED: "bg-destructive-subtle text-destructive",
-  }[s];
-}
+import {
+  FILTER_STATUS_ORDER as STATUS_ORDER,
+  FILTER_DEFAULT_STATUSES as DEFAULT_STATUSES,
+  FilterSearch,
+  DateRangeControls,
+  StatusChips,
+  FilterResetButton,
+  FilterDivider,
+} from "@/components/filters/filter-controls";
 
 interface Props {
   projects: ProjectRow[];
@@ -206,96 +188,31 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
   }
 
   return (
-    <div className="space-y-3">
-      {/* Kompakte Filterleiste (Redesign): Suche, Zeitraum, Status-Chips —
-          wirkt sofort, kein »Anwenden«. Zustand wird pro Profil gespeichert. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-          <Input
-            placeholder="Name oder Kunde…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-[34px] w-[210px] pl-8"
-          />
-        </div>
-        <Input
-          type="date"
-          aria-label="Von"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            if (e.target.value && to) applyRange(e.target.value, to);
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">Projekte</CardTitle>
+        {action}
+      </CardHeader>
+
+      {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 pb-3">
+        <FilterSearch value={search} onChange={setSearch} placeholder="Name oder Kunde…" />
+        <DateRangeControls
+          from={from}
+          to={to}
+          onRangeChange={(f, t) => {
+            setFrom(f);
+            setTo(t);
+            if (f && t) applyRange(f, t);
           }}
-          className="h-[34px] w-[144px]"
+          onPreset={setPreset}
         />
-        <span className="text-xs text-faint">bis</span>
-        <Input
-          type="date"
-          aria-label="Bis"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            if (from && e.target.value) applyRange(from, e.target.value);
-          }}
-          className="h-[34px] w-[144px]"
-        />
-        <Select value="" onValueChange={(v) => setPreset(Number(v))}>
-          <SelectTrigger className="h-[34px] w-[130px] text-xs text-muted-foreground">
-            <SelectValue placeholder="Zeitraum…" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">Aktueller Monat</SelectItem>
-            <SelectItem value="3">3 Monate</SelectItem>
-            <SelectItem value="6">6 Monate</SelectItem>
-            <SelectItem value="12">12 Monate</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="mx-1 hidden h-[26px] w-px bg-border sm:block" aria-hidden />
-
-        {STATUS_ORDER.map((s) => {
-          const active = statusFilter.has(s);
-          return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => toggleStatus(s)}
-              title={active ? "Status ausblenden" : "Status einblenden"}
-              className={cn(
-                "inline-flex h-[26px] items-center gap-1 rounded-[5px] px-2.5 text-xs font-semibold transition-colors",
-                active
-                  ? statusChipClass(s)
-                  : "border border-dashed border-input font-medium text-muted-foreground hover:border-primary hover:text-primary",
-              )}
-            >
-              {active && <Check className="h-3 w-3" />}
-              {projectStatusLabel(s)}
-            </button>
-          );
-        })}
-        {!filtersAtDefault && (
-          <button
-            type="button"
-            onClick={resetClientFilters}
-            title="Filter zurücksetzen"
-            className="inline-flex h-[26px] items-center gap-1 rounded-[5px] px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive-subtle hover:text-destructive"
-          >
-            <X className="h-3.5 w-3.5" /> Zurücksetzen
-          </button>
-        )}
-
-        {action && <div className="ml-auto">{action}</div>}
+        <FilterDivider />
+        <StatusChips selected={statusFilter} onToggle={toggleStatus} />
+        {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
       </div>
 
-      {/* Tabelle */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {filtered.length} von {projects.length} Projekten
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CardContent className="p-0">
           <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
             <TableHeader>
               <TableRow>
@@ -374,8 +291,7 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

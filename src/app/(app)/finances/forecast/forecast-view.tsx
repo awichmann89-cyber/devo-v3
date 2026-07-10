@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -19,10 +19,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Check, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  FILTER_STATUS_ORDER as STATUS_ORDER,
+  FILTER_DEFAULT_STATUSES as DEFAULT_STATUSES,
+  DateRangeControls,
+  StatusChips,
+  FilterResetButton,
+  FilterDivider,
+} from "@/components/filters/filter-controls";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 import { ProjectStatus } from "@prisma/client";
@@ -46,23 +57,15 @@ export interface ForecastRowVM {
 
 type InvoiceFilter = "all" | "without" | "with";
 
-const STATUS_ORDER: ProjectStatus[] = [
-  "DRAFT",
-  "CONFIRMED",
-  "ACTIVE",
-  "COMPLETED",
-  "CANCELLED",
-];
-
-const DEFAULT_STATUSES: ProjectStatus[] = ["DRAFT", "CONFIRMED", "ACTIVE", "COMPLETED"];
-
 interface Props {
   rows: ForecastRowVM[];
   initialFrom: string; // YYYY-MM-DD
   initialTo: string;
+  /** Für die profilbezogene Filter-Persistenz (localStorage-Key). */
+  userId?: string | null;
 }
 
-export function ForecastView({ rows, initialFrom, initialTo }: Props) {
+export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -76,11 +79,62 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
   );
   const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
 
+  // ----- Filter-Persistenz pro Profil (analog Projekte-Seite) -----
+  const storageKey = `devo:forecast-filter:${userId ?? "anon"}`;
+  const restored = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          from?: string;
+          to?: string;
+          statuses?: string[];
+          invoiceFilter?: InvoiceFilter;
+        };
+        if (Array.isArray(saved.statuses)) {
+          const valid = saved.statuses.filter((s): s is ProjectStatus =>
+            (STATUS_ORDER as string[]).includes(s),
+          );
+          if (valid.length > 0) setStatusFilter(new Set(valid));
+        }
+        if (saved.invoiceFilter === "all" || saved.invoiceFilter === "without" || saved.invoiceFilter === "with") {
+          setInvoiceFilter(saved.invoiceFilter);
+        }
+        if (!params.get("from") && !params.get("to") && saved.from && saved.to) {
+          setFrom(saved.from);
+          setTo(saved.to);
+          const p = new URLSearchParams(params.toString());
+          p.set("from", saved.from);
+          p.set("to", saved.to);
+          router.replace(`/finances/forecast?${p.toString()}`);
+        }
+      }
+    } catch {
+      // localStorage nicht verfügbar — Defaults verwenden
+    }
+    restored.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!restored.current) return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ from, to, statuses: Array.from(statusFilter), invoiceFilter }),
+      );
+    } catch {
+      // localStorage nicht verfügbar — Filter gelten nur für die Session
+    }
+  }, [from, to, statusFilter, invoiceFilter, storageKey]);
+
   function applyRange(f: string, t: string) {
     const p = new URLSearchParams(params.toString());
     p.set("from", f);
     p.set("to", t);
-    router.push(`/finances/forecast?${p.toString()}`);
+    router.replace(`/finances/forecast?${p.toString()}`);
   }
 
   function setPreset(months: number) {
@@ -134,114 +188,7 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filter-Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Filter</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Zeitraum-Filter */}
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="from" className="text-xs">Von</Label>
-              <Input
-                id="from"
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="w-[160px]"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="to" className="text-xs">Bis</Label>
-              <Input
-                id="to"
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="w-[160px]"
-              />
-            </div>
-            <Button onClick={() => applyRange(from, to)} size="sm">
-              Anwenden
-            </Button>
-            <div className="ml-auto flex flex-wrap gap-1">
-              <Button variant="ghost" size="sm" onClick={() => setPreset(1)}>
-                Aktueller Monat
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setPreset(3)}>
-                3 Monate
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setPreset(6)}>
-                6 Monate
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setPreset(12)}>
-                12 Monate
-              </Button>
-            </div>
-          </div>
-
-          {/* Status-Filter */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground shrink-0 w-[60px]">
-              Status:
-            </span>
-            {STATUS_ORDER.map((s) => {
-              const active = statusFilter.has(s);
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => toggleStatus(s)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
-                    active
-                      ? "bg-secondary border-secondary text-secondary-foreground"
-                      : "border-input text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  {active && <Check className="h-3 w-3" />}
-                  {projectStatusLabel(s)}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Rechnungs-Filter */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground shrink-0 w-[60px]">
-              Rechnung:
-            </span>
-            <FilterChip
-              label="Alle"
-              active={invoiceFilter === "all"}
-              onClick={() => setInvoiceFilter("all")}
-            />
-            <FilterChip
-              label="Nur ohne Rechnung"
-              active={invoiceFilter === "without"}
-              onClick={() => setInvoiceFilter("without")}
-            />
-            <FilterChip
-              label="Nur mit Rechnung"
-              active={invoiceFilter === "with"}
-              onClick={() => setInvoiceFilter("with")}
-            />
-            {!filtersAtDefault && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto"
-                onClick={resetClientFilters}
-              >
-                <X className="h-4 w-4" /> Status/Rechnung zurücksetzen
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
+    <div className="space-y-3">
       {/* Kennzahlen */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -266,24 +213,48 @@ export function ForecastView({ rows, initialFrom, initialTo }: Props) {
         />
       </div>
 
-      {/* Projekt-Tabelle */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Projekte im Zeitraum {formatDate(new Date(initialFrom))} –{" "}
-            {formatDate(new Date(initialTo))}
-          </CardTitle>
-          <CardDescription>
-            Sortiert nach Berechnungs-Start.{" "}
-            <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).{" "}
-            <span className="text-xs">
-              ({filtered.length} von {rows.length})
-            </span>
-          </CardDescription>
+      {/* Forecast-Card: Überschrift → Filterleiste → Tabelle */}
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">Forecast</CardTitle>
+          <span className="text-[11px] text-muted-foreground">
+            Sortiert nach Berechnungs-Start · alle Beträge Netto
+          </span>
         </CardHeader>
-        <CardContent>
+
+        {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 pb-3">
+          <DateRangeControls
+            from={from}
+            to={to}
+            onRangeChange={(f, t) => {
+              setFrom(f);
+              setTo(t);
+              if (f && t) applyRange(f, t);
+            }}
+            onPreset={setPreset}
+          />
+          <Select
+            value={invoiceFilter}
+            onValueChange={(v) => setInvoiceFilter(v as InvoiceFilter)}
+          >
+            <SelectTrigger className="h-[34px] w-[170px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Rechnungen</SelectItem>
+              <SelectItem value="without">Nur ohne Rechnung</SelectItem>
+              <SelectItem value="with">Nur mit Rechnung</SelectItem>
+            </SelectContent>
+          </Select>
+          <FilterDivider />
+          <StatusChips selected={statusFilter} onToggle={toggleStatus} />
+          {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
+        </div>
+
+        <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               Keine Projekte mit diesen Filtern.
             </p>
           ) : (
@@ -437,27 +408,3 @@ function StatCard({
   );
 }
 
-function FilterChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
-        active
-          ? "bg-foreground border-foreground text-background"
-          : "border-input text-muted-foreground hover:bg-accent"
-      )}
-    >
-      {label}
-    </button>
-  );
-}
