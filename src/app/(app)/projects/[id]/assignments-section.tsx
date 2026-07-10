@@ -20,7 +20,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -56,7 +55,15 @@ import {
   createProjectGroup,
   updateProjectGroup,
   deleteProjectGroup,
+  renameProjectGroup,
+  reorderProjectGroups,
 } from "./groups-actions";
+import {
+  GroupHeaderRow,
+  NoteRowCells,
+  QtyStepper,
+  GroupTableFooter,
+} from "@/components/project/group-table";
 import { ScanDialog } from "./scan-dialog";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -94,7 +101,7 @@ import {
   type GroupItemKind,
 } from "./group-items-actions";
 import type { ProjectAdHocItem, ProjectGroupComment } from "@prisma/client";
-import { Plus, MessageSquarePlus, HandCoins } from "lucide-react";
+import { Plus, HandCoins } from "lucide-react";
 import {
   SubhireDialog,
   emptySubhire,
@@ -548,6 +555,61 @@ export function AssignmentsSection({
     });
   }
 
+  // ----- Redesign: Inline-Umbenennen, Gruppen-Reihenfolge, Zwischenüberschriften -----
+  function handleRenameGroup(id: string, name: string) {
+    startTransition(async () => {
+      try {
+        await renameProjectGroup(id, name);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleMoveGroup(list: ProjectGroup[], index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= list.length) return;
+    const ids = list.map((g) => g.id);
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    startTransition(async () => {
+      try {
+        await reorderProjectGroups(ids);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleAddNote(groupId: string) {
+    startTransition(async () => {
+      try {
+        await addGroupComment(project.id, groupId, "Zwischenüberschrift");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleSaveNote(id: string, text: string) {
+    startTransition(async () => {
+      try {
+        await updateGroupComment(id, text);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleDeleteNote(id: string) {
+    startTransition(async () => {
+      try {
+        await deleteGroupComment(id);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
   // Buchungen pro Gruppe
   const assignmentsByGroup = new Map<string, AssignmentWithDevice[]>();
   for (const a of project.assignments) {
@@ -636,52 +698,6 @@ export function AssignmentsSection({
     });
   }
 
-  // ----- Kommentar-Dialog -----
-  const [commentDialog, setCommentDialog] = useState<{
-    mode: "create" | "edit";
-    id?: string;
-    groupId: string;
-    text: string;
-  } | null>(null);
-  const [commentDelete, setCommentDelete] = useState<ProjectGroupComment | null>(null);
-
-  function handleSaveComment() {
-    if (!commentDialog) return;
-    const text = commentDialog.text.trim();
-    if (!text) {
-      toast.error("Text darf nicht leer sein");
-      return;
-    }
-    startTransition(async () => {
-      try {
-        if (commentDialog.mode === "create") {
-          await addGroupComment(project.id, commentDialog.groupId, text);
-          toast.success("Kommentar hinzugefügt");
-        } else if (commentDialog.id) {
-          await updateGroupComment(commentDialog.id, text);
-          toast.success("Kommentar gespeichert");
-        }
-        setCommentDialog(null);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
-      }
-    });
-  }
-
-  function handleDeleteComment() {
-    if (!commentDelete) return;
-    const id = commentDelete.id;
-    startTransition(async () => {
-      try {
-        await deleteGroupComment(id);
-        setCommentDelete(null);
-        toast.success("Kommentar entfernt");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
-      }
-    });
-  }
-
   type AdHocDialogState = {
     mode: "create" | "edit";
     id?: string;
@@ -766,6 +782,11 @@ export function AssignmentsSection({
           {/* AdHoc-Name einzeilig — Beschreibung wandert in eigene Spalte
               parallel zur Geräte-Tabellenstruktur. */}
           <div className="font-medium truncate">{it.name}</div>
+          {it.description?.trim() && (
+            <div className="text-[11px] text-muted-foreground truncate">
+              {it.description}
+            </div>
+          )}
           {hasSubhire && (
             <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
               <HandCoins className="h-3 w-3" />
@@ -773,14 +794,8 @@ export function AssignmentsSection({
             </div>
           )}
         </TableCell>
-        <TableCell className="max-w-[200px]">
-          <div className="text-xs text-muted-foreground truncate">
-            {it.description?.trim() ?? ""}
-          </div>
-        </TableCell>
-        <TableCell className="text-right">
-          <QuantityInput
-            min={1}
+        <TableCell className="text-center">
+          <QtyStepper
             value={it.quantity}
             onChange={(v) =>
               startTransition(async () => {
@@ -798,9 +813,13 @@ export function AssignmentsSection({
               })
             }
             disabled={pending}
-            className="h-7 w-16 text-right tabular-nums ml-auto"
           />
         </TableCell>
+        {!isSale && (
+          <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+            {billingDays}
+          </TableCell>
+        )}
         <TableCell className="text-right tabular-nums font-mono text-sm">
           {formatCurrency(unit)}
         </TableCell>
@@ -919,6 +938,11 @@ export function AssignmentsSection({
                       {make}
                     </div>
                   )}
+                  {a.device.description?.trim() && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {a.device.description}
+                    </div>
+                  )}
                   {hasSubhire && (
                     <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
                       <HandCoins className="h-3 w-3" />
@@ -929,23 +953,19 @@ export function AssignmentsSection({
               );
             })()}
           </TableCell>
-          <TableCell className="max-w-[200px]">
-            <div className="text-xs text-muted-foreground truncate">
-              {a.device.description?.trim() ?? ""}
-            </div>
-          </TableCell>
-          <TableCell className="text-right">
-            <QuantityInput
-              min={1}
+          <TableCell className="text-center">
+            <QtyStepper
               value={a.quantity}
               onChange={(v) => handleQtyChange(a.id, v)}
               disabled={pending}
-              className={cn(
-                "h-7 w-16 text-right tabular-nums ml-auto",
-                showOverWarning && "border-destructive focus-visible:ring-destructive"
-              )}
+              invalid={showOverWarning}
             />
           </TableCell>
+          {!isSale && (
+            <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+              {billingDays}
+            </TableCell>
+          )}
           <TableCell className="text-right tabular-nums font-mono text-sm">
             {formatCurrency(rate)}
           </TableCell>
@@ -1027,7 +1047,7 @@ export function AssignmentsSection({
             .join(", ");
           return (
             <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-              <TableCell colSpan={isSale ? 7 : 8} className="py-1.5 text-xs text-destructive">
+              <TableCell colSpan={isSale ? 6 : 8} className="py-1.5 text-xs text-destructive">
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <span>
@@ -1076,10 +1096,12 @@ export function AssignmentsSection({
             zugemietet{s.supplier ? ` · ${s.supplier}` : ""}
           </div>
         </TableCell>
-        <TableCell className="max-w-[200px]" />
-        <TableCell className="text-right tabular-nums font-mono text-sm">
+        <TableCell className="text-center tabular-nums font-mono text-sm">
           {s.quantity}
         </TableCell>
+        {!isSale && (
+          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+        )}
         <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
         <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
         {!isSale && (
@@ -1159,16 +1181,12 @@ export function AssignmentsSection({
               </div>
             )}
           </TableCell>
-          <TableCell className="text-right">
-            <QuantityInput
-              min={1}
+          <TableCell className="text-center">
+            <QtyStepper
               value={ca.quantity}
               onChange={(v) => handleCableQtyChange(ca.id, v)}
               disabled={pending}
-              className={cn(
-                "h-8 w-16 text-right tabular-nums ml-auto",
-                isOver && "border-destructive focus-visible:ring-destructive"
-              )}
+              invalid={isOver}
             />
           </TableCell>
           <TableCell>
@@ -1235,49 +1253,18 @@ export function AssignmentsSection({
     );
   }
 
-  /** Comment-Row mit demselben Stil wie Geräte-Comments, aber colSpan an die
-   *  Spaltenzahl der Kabel-Tabelle angepasst (Kabel hat 4 Spalten). */
+  /** Zwischenüberschrift-Zeile (Redesign): inline editierbar. colSpan = Spalten − 2. */
   function renderCommentRow(c: ProjectGroupComment, sortId: string, colSpan: number) {
     return (
-      <SortableRow
-        id={sortId}
-        key={sortId}
-        className="bg-info-subtle hover:bg-info-subtle border-t-2 border-info/30"
-      >
+      <SortableRow id={sortId} key={sortId}>
         <DragHandleCell />
-        <TableCell colSpan={colSpan} className="py-3 text-base font-semibold text-foreground">
-          {c.text}
-        </TableCell>
-        <TableCell>
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() =>
-                setCommentDialog({
-                  mode: "edit",
-                  id: c.id,
-                  groupId: c.groupId,
-                  text: c.text,
-                })
-              }
-              title="Bearbeiten"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => setCommentDelete(c)}
-              disabled={pending}
-              title="Entfernen"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </TableCell>
+        <NoteRowCells
+          text={c.text}
+          colSpan={colSpan}
+          pending={pending}
+          onSave={(txt) => handleSaveNote(c.id, txt)}
+          onDelete={() => handleDeleteNote(c.id)}
+        />
       </SortableRow>
     );
   }
@@ -1458,38 +1445,17 @@ export function AssignmentsSection({
           </Card>
         }
         right={
-          <Card className="border-0 shadow-none lg:h-full flex flex-col">
-            <CardHeader className="px-0 pt-0 pb-3 flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Boxes /> Gebuchte Geräte
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {groups.length > 0 && (
-                  <Select
-                    value={activeGroupId ?? ""}
-                    onValueChange={(v) => setActiveGroupId(v)}
-                  >
-                    <SelectTrigger className="w-[200px] h-8 text-xs">
-                      <SelectValue placeholder="Aktive Gruppe…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setGroupDialog({ mode: "create", name: "", billable: true, kind: "MATERIAL" })
-                  }
-                >
-                  <FolderPlus className="h-4 w-4" /> Gruppe anlegen
-                </Button>
+          <div className="flex flex-col lg:h-full">
+            {/* Kopfleiste: Zähler + Aktionen (aktive Gruppe wird per Klick auf
+                die Gruppen-Kopfzeile gesetzt). */}
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
+              <div className="text-xs text-muted-foreground">
+                <span className="font-bold text-foreground">
+                  {project.assignments.reduce((s, a) => s + a.quantity, 0)} Stück
+                </span>{" "}
+                zugewiesen
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
@@ -1510,7 +1476,7 @@ export function AssignmentsSection({
                     })
                   }
                 >
-                  <Plus className="h-4 w-4" /> Vorübergehendes Gerät hinzufügen
+                  <Plus className="h-4 w-4" /> Vorübergehendes Gerät
                 </Button>
                 <Button
                   size="sm"
@@ -1525,248 +1491,145 @@ export function AssignmentsSection({
                   <HandCoins className="h-4 w-4" /> Zumieten
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
-              {groups.length === 0 && (
-                <div className="rounded-md border border-dashed py-12 text-center text-sm text-muted-foreground">
-                  <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => setGroupDialog({ mode: "create", name: "", billable: true, kind: "MATERIAL" })}
-                  >
-                    <FolderPlus className="h-4 w-4" /> Erste Gruppe anlegen
-                  </Button>
-                </div>
-              )}
-              {groups.map((g) => {
-                const groupAssignments = assignmentsByGroup.get(g.id) ?? [];
-                const isActive = activeGroupId === g.id;
-                return (
-                  <Card
-                    key={g.id}
-                    className={cn(
-                      "mb-4 last:mb-0 transition-shadow cursor-pointer",
-                      isActive && "border-primary/60 shadow-md"
-                    )}
-                    onClick={() => setActiveGroupId(g.id)}
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CardTitle className="text-base truncate flex items-center gap-2">
-                          <Folder className="h-4 w-4 text-muted-foreground" />
-                          {g.name}
-                        </CardTitle>
-                        <Badge variant="outline" className="text-[10px]">
-                          {groupAssignments.length}
-                        </Badge>
-                        {!g.billable && (
-                          <Badge variant="warning" className="text-[10px]">
-                            nicht abrechenbar
-                          </Badge>
-                        )}
-                        {isActive && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Aktiv
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCommentDialog({
-                              mode: "create",
-                              groupId: g.id,
-                              text: "",
-                            });
-                          }}
-                          title="Kommentar hinzufügen"
-                        >
-                          <MessageSquarePlus className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setGroupDialog({ mode: "rename", id: g.id, name: g.name, billable: g.billable, kind: "MATERIAL" });
-                          }}
-                          title="Umbenennen"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteGroup(g);
-                          }}
-                          title="Löschen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pb-3" onClick={(e) => e.stopPropagation()}>
-                    {(() => {
-                      // Geräte + AdHoc + Comments gemixt nach sortOrder.
-                      // AdHoc-Items werden wie Geräte als normale Zeilen
-                      // gerendert (mit gelbem Hintergrund) und mit dem
-                      // Tagesfaktor multipliziert.
+            </div>
+
+            {/* EINE durchgehende Tabelle — Gruppen als Kopfzeilen (Redesign). */}
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {groups.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-muted-foreground">
+                    <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
+                  </div>
+                ) : (
+                  <Table className="[&_td]:px-2 [&_td]:py-1">
+                    <TableHeader>
+                      <TableRow className="hover:bg-secondary">
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead>Gerät</TableHead>
+                        <TableHead className="w-[110px] text-center">Anzahl</TableHead>
+                        {!isSale && <TableHead className="w-[56px] text-right">Tage</TableHead>}
+                        <TableHead className="w-[96px] text-right">
+                          {isSale ? "€ / Stück" : "€ / Tag"}
+                        </TableHead>
+                        <TableHead className="w-[110px] text-right">Summe</TableHead>
+                        {!isSale && <TableHead className="w-[76px]">Status</TableHead>}
+                        <TableHead className="w-[110px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    {groups.map((g, gi) => {
                       const mainRows = buildDeviceGroupRows(g.id);
                       const freeSubs = freeSubhiresByGroup.get(g.id) ?? [];
-                      if (mainRows.length === 0 && freeSubs.length === 0) {
+                      const groupAssignments = assignmentsByGroup.get(g.id) ?? [];
+                      const colSpanAll = isSale ? 6 : 8;
+                      const groupSum =
+                        groupAssignments.reduce(
+                          (s, a) => s + Number(a.device.dailyRate) * a.quantity * billingFactor,
+                          0
+                        ) +
+                        (adHocByGroup.get(g.id) ?? []).reduce(
+                          (s, it) => s + Number(it.unitPrice) * it.quantity * billingFactor,
+                          0
+                        );
                       return (
-                      <p className="py-4 text-center text-xs text-muted-foreground">
-                        Noch nichts in dieser Gruppe. Klicke ein Gerät aus dem
-                        Katalog (Pfeil-Button) — es wird der aktiven Gruppe
-                        hinzugefügt.
-                      </p>
-                      );
-                      }
-                      return (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={(e) => handleDragEnd(mainRows, e)}
-                      >
-                      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-6"></TableHead>
-                            <TableHead className="px-2">Gerät</TableHead>
-                            <TableHead className="px-2">Beschreibung</TableHead>
-                            <TableHead className="text-right w-[80px] px-2">Anzahl</TableHead>
-                            <TableHead className="text-right w-[100px] px-2">
-                              {isSale ? "€ / Stück" : "€ / Tag"}
-                            </TableHead>
-                            <TableHead className="text-right w-[120px] px-2">Summe</TableHead>
-                            {!isSale && <TableHead className="w-[100px] px-2">Status</TableHead>}
-                            <TableHead className="w-[120px] px-2"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        <SortableContext
-                          items={mainRows.map((r) => r.sortId)}
-                          strategy={verticalListSortingStrategy}
+                        <DndContext
+                          key={g.id}
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => handleDragEnd(mainRows, e)}
                         >
-                        {mainRows.map((r) => {
-                          if (r.kind === "COMMENT") {
-                            const c = (commentsByGroup.get(g.id) ?? []).find(
-                              (x) => x.id === r.id
-                            );
-                            if (!c) return null;
-                            return (
-                              <SortableRow
-                                id={r.sortId}
-                                key={r.sortId}
-                                className="bg-info-subtle hover:bg-info-subtle border-t-2 border-info/30"
-                              >
-                                <DragHandleCell />
+                          <TableBody>
+                            <GroupHeaderRow
+                              group={g}
+                              colSpan={colSpanAll}
+                              sumLabel={formatCurrency(groupSum)}
+                              active={activeGroupId === g.id}
+                              isFirst={gi === 0}
+                              isLast={gi === groups.length - 1}
+                              pending={pending}
+                              onActivate={() => setActiveGroupId(g.id)}
+                              onRename={(name) => handleRenameGroup(g.id, name)}
+                              onMoveUp={() => handleMoveGroup(groups, gi, -1)}
+                              onMoveDown={() => handleMoveGroup(groups, gi, 1)}
+                              onAddNote={() => handleAddNote(g.id)}
+                              onEdit={() =>
+                                setGroupDialog({
+                                  mode: "rename",
+                                  id: g.id,
+                                  name: g.name,
+                                  billable: g.billable,
+                                  kind: "MATERIAL",
+                                })
+                              }
+                              onDelete={() => setDeleteGroup(g)}
+                            />
+                            {mainRows.length === 0 && freeSubs.length === 0 && (
+                              <TableRow>
                                 <TableCell
-                                  colSpan={isSale ? 5 : 6}
-                                  className="py-3 text-base font-semibold text-foreground"
+                                  colSpan={colSpanAll}
+                                  className="py-3 text-center text-xs text-muted-foreground"
                                 >
-                                  {c.text}
+                                  Noch nichts in dieser Gruppe — Gerät im Katalog anklicken
+                                  (Pfeil-Button), es landet in der aktiven Gruppe.
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7"
-                                      onClick={() =>
-                                        setCommentDialog({
-                                          mode: "edit",
-                                          id: c.id,
-                                          groupId: c.groupId,
-                                          text: c.text,
-                                        })
-                                      }
-                                      title="Bearbeiten"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 text-destructive hover:text-destructive"
-                                      onClick={() => setCommentDelete(c)}
-                                      disabled={pending}
-                                      title="Entfernen"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </SortableRow>
-                            );
-                          }
-                          if (r.kind === "ADHOC") {
-                            const it = (adHocByGroup.get(g.id) ?? []).find(
-                              (x) => x.id === r.id
-                            );
-                            if (!it) return null;
-                            return renderAdHocRow(it, r.sortId);
-                          }
-                          // DEVICE
-                          const a = groupAssignments.find((x) => x.id === r.id);
-                          if (!a) return null;
-                          return renderDeviceRow(a, r.sortId);
-                        })}
-                        </SortableContext>
-                        {/* Freie Zumietungen (kein Gerät verknüpft) — nicht
-                            sortierbar, ans Gruppenende gehängt, blau markiert. */}
-                        {freeSubs.map((s) => renderFreeSubhireRow(s))}
-                        </TableBody>
-                      </Table>
-                      </DndContext>
+                              </TableRow>
+                            )}
+                            <SortableContext
+                              items={mainRows.map((r) => r.sortId)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {mainRows.map((r) => {
+                                if (r.kind === "COMMENT") {
+                                  const c = (commentsByGroup.get(g.id) ?? []).find(
+                                    (x) => x.id === r.id
+                                  );
+                                  if (!c) return null;
+                                  return renderCommentRow(c, r.sortId, colSpanAll - 2);
+                                }
+                                if (r.kind === "ADHOC") {
+                                  const it = (adHocByGroup.get(g.id) ?? []).find(
+                                    (x) => x.id === r.id
+                                  );
+                                  if (!it) return null;
+                                  return renderAdHocRow(it, r.sortId);
+                                }
+                                const a = groupAssignments.find((x) => x.id === r.id);
+                                if (!a) return null;
+                                return renderDeviceRow(a, r.sortId);
+                              })}
+                            </SortableContext>
+                            {/* Freie Zumietungen — nicht sortierbar, ans Gruppenende. */}
+                            {freeSubs.map((s) => renderFreeSubhireRow(s))}
+                          </TableBody>
+                        </DndContext>
                       );
-                    })()}
-
-                    {/* AdHoc-Items werden jetzt direkt in der Hauptliste oben
-                        gerendert (gelber Hintergrund). Kein separater Bereich
-                        mehr nötig. */}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-
-              {(project.assignments.length > 0 || adHocItems.length > 0) && (
-                <div className="mt-4 border-t pt-3 px-2 text-sm">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Zwischensumme</span>
-                    <span className="tabular-nums font-mono">{formatCurrency(subtotal)}</span>
-                  </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Rabatte</span>
-                      <span className="tabular-nums font-mono">
-                        −{formatCurrency(discount)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="mt-1 flex justify-between font-semibold">
-                    <span>Material gesamt</span>
-                    <span className="tabular-nums font-mono">{formatCurrency(total)}</span>
-                  </div>
-                  {!isSale && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {billingDays} Tag(e) · Mietfaktor ×{billingFactor.toFixed(2)}
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    })}
+                  </Table>
+                )}
+              </div>
+              <GroupTableFooter
+                onAddGroup={() =>
+                  setGroupDialog({ mode: "create", name: "", billable: true, kind: "MATERIAL" })
+                }
+                pending={pending}
+              >
+                {discount > 0 && (
+                  <span>
+                    Rabatte{" "}
+                    <span className="font-mono tabular-nums">−{formatCurrency(discount)}</span>
+                  </span>
+                )}
+                {!isSale && (
+                  <span>
+                    {billingDays} Tag(e) · Faktor ×{billingFactor.toFixed(2)}
+                  </span>
+                )}
+                <span>Netto Material</span>
+                <span className="font-mono text-sm font-extrabold text-primary">
+                  {formatCurrency(total)}
+                </span>
+              </GroupTableFooter>
+            </div>
+          </div>
         }
       />
         </TabsContent>
@@ -1898,293 +1761,97 @@ export function AssignmentsSection({
           </Card>
         }
         right={
-          <Card className="border-0 shadow-none lg:h-full flex flex-col">
-            <CardHeader className="px-0 pt-0 pb-3 flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CableIcon className="h-4 w-4" /> Gebuchte Kabel
-                {cableAssignments.length > 0 && (
-                  <Badge variant="outline">{cableAssignments.length} Typen</Badge>
-                )}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {cableGroups.length > 0 && (
-                  <Select
-                    value={activeCableGroupId ?? ""}
-                    onValueChange={(v) => setActiveCableGroupId(v)}
-                  >
-                    <SelectTrigger className="w-[200px] h-8 text-xs">
-                      <SelectValue placeholder="Aktive Gruppe…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cableGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setGroupDialog({ mode: "create", name: "", billable: true, kind: "CABLE" })
-                  }
-                >
-                  <FolderPlus className="h-4 w-4" /> Gruppe anlegen
-                </Button>
+          <div className="flex flex-col lg:h-full">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
+              <div className="text-xs text-muted-foreground">
+                <span className="font-bold text-foreground">{cableAssignments.length} Typen</span>{" "}
+                zugewiesen — Kabel erscheinen nie auf Angeboten oder Rechnungen
               </div>
-            </CardHeader>
-            <CardContent className="p-0 lg:flex-1 lg:overflow-y-auto">
-              {cableGroups.length === 0 && (
-                <div className="rounded-md border border-dashed py-12 text-center text-sm text-muted-foreground">
-                  <p>Noch keine Kabel-Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => setGroupDialog({ mode: "create", name: "", billable: true, kind: "CABLE" })}
-                  >
-                    <FolderPlus className="h-4 w-4" /> Erste Gruppe anlegen
-                  </Button>
-                </div>
-              )}
-              {cableGroups.map((g) => {
-                const groupCables = cableAssignmentsByGroup.get(g.id) ?? [];
-                const isActive = activeCableGroupId === g.id;
-                return (
-                  <Card
-                    key={g.id}
-                    className={cn(
-                      "mb-4 last:mb-0 transition-shadow cursor-pointer",
-                      isActive && "border-primary/60 shadow-md"
-                    )}
-                    onClick={() => setActiveCableGroupId(g.id)}
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CardTitle className="text-base truncate flex items-center gap-2">
-                          <Folder className="h-4 w-4 text-muted-foreground" />
-                          {g.name}
-                        </CardTitle>
-                        <Badge variant="outline" className="text-[10px]">
-                          {groupCables.length}
-                        </Badge>
-                        {isActive && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Aktiv
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCommentDialog({
-                              mode: "create",
-                              groupId: g.id,
-                              text: "",
-                            });
-                          }}
-                          title="Kommentar hinzufügen"
+            </div>
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {cableGroups.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-muted-foreground">
+                    <p>Noch keine Kabel-Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
+                  </div>
+                ) : (
+                  <Table className="[&_td]:px-2 [&_td]:py-1">
+                    <TableHeader>
+                      <TableRow className="hover:bg-secondary">
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead>Kabel</TableHead>
+                        <TableHead className="w-[110px] text-center">Anzahl</TableHead>
+                        <TableHead className="w-[110px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    {cableGroups.map((g, gi) => {
+                      const cableRows = buildCableGroupRows(g.id);
+                      const groupCables = cableAssignmentsByGroup.get(g.id) ?? [];
+                      return (
+                        <DndContext
+                          key={g.id}
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => handleDragEnd(cableRows, e)}
                         >
-                          <MessageSquarePlus className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setGroupDialog({ mode: "rename", id: g.id, name: g.name, billable: g.billable, kind: "CABLE" });
-                          }}
-                          title="Umbenennen"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteGroup(g);
-                          }}
-                          title="Löschen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pb-3" onClick={(e) => e.stopPropagation()}>
-                      {(() => {
-                        const cableRows = buildCableGroupRows(g.id);
-                        if (cableRows.length === 0) {
-                          return (
-                            <p className="py-4 text-center text-xs text-muted-foreground">
-                              Noch nichts in dieser Gruppe. Klicke ein Kabel aus dem
-                              Katalog (Pfeil-Button) — es wird der aktiven Gruppe
-                              hinzugefügt.
-                            </p>
-                          );
-                        }
-                        return (
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={(e) => handleDragEnd(cableRows, e)}
-                          >
-                            <Table className="[&_td]:py-1 [&_td]:px-2 [&_th]:h-8 [&_th]:px-2">
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-6"></TableHead>
-                                  <TableHead>Kabel</TableHead>
-                                  <TableHead className="text-right w-[80px]">Anzahl</TableHead>
-                                  <TableHead className="w-[120px]"></TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <SortableContext
-                                  items={cableRows.map((r) => r.sortId)}
-                                  strategy={verticalListSortingStrategy}
-                                >
-                                  {cableRows.map((r) => {
-                                    if (r.kind === "COMMENT") {
-                                      const c = (commentsByGroup.get(g.id) ?? []).find(
-                                        (x) => x.id === r.id
-                                      );
-                                      if (!c) return null;
-                                      return renderCommentRow(c, r.sortId, 2);
-                                    }
-                                    const ca = groupCables.find((x) => x.id === r.id);
-                                    if (!ca) return null;
-                                    return renderCableRow(ca, r.sortId);
-                                  })}
-                                </SortableContext>
-                              </TableBody>
-                            </Table>
-                          </DndContext>
-                        );
-                      })()}
-                      {false && (
-                        <Table>
                           <TableBody>
-                            {groupCables.map((ca) => {
-                              const conf = cableConflictMap[ca.cableId];
-                              const totalDemand = (conf?.packAllocation ?? 0) +
-                                (conf?.foreignTotal ?? 0) + ca.quantity;
-                              const stock = conf?.stock ?? ca.cable.stockQuantity;
-                              const isOver = totalDemand > stock;
-                              const overBy = totalDemand - stock;
-                              return (
-                                <Fragment key={ca.id}>
-                                  <TableRow
-                                    className={cn(
-                                      isOver &&
-                                        "bg-destructive-subtle/70 hover:bg-destructive-subtle"
-                                    )}
-                                  >
-                                    <TableCell>
-                                      <div className={cn("font-medium", isOver && "text-destructive")}>
-                                        {ca.cable.name}
-                                      </div>
-                                      {ca.cable.cableType && (
-                                        <div className="text-[11px] text-muted-foreground">
-                                          {ca.cable.cableType}
-                                          {ca.cable.lengthMeters
-                                            ? ` · ${Number(ca.cable.lengthMeters)} m`
-                                            : ""}
-                                        </div>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      <QuantityInput
-                                        min={1}
-                                        value={ca.quantity}
-                                        onChange={(v) => handleCableQtyChange(ca.id, v)}
-                                        disabled={pending}
-                                        className={cn(
-                                          "h-8 w-16 text-right tabular-nums ml-auto",
-                                          isOver && "border-destructive focus-visible:ring-destructive"
-                                        )}
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex items-center justify-end gap-1">
-                                        {cableGroups.length > 1 && (
-                                          <Select
-                                            value={ca.groupId}
-                                            onValueChange={(v) => handleMoveCableToGroup(ca.id, v)}
-                                          >
-                                            <SelectTrigger className="h-7 w-[110px] text-xs">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {cableGroups.map((og) => (
-                                                <SelectItem key={og.id} value={og.id}>
-                                                  {og.name}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        )}
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7"
-                                          onClick={() => handleRemoveCable(ca.id)}
-                                          disabled={pending}
-                                          title="Entfernen"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    </TableCell>
-                                  </TableRow>
-                                  {isOver && (
-                                    <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-                                      <TableCell colSpan={3} className="py-1.5 text-xs text-destructive">
-                                        <div className="flex items-center gap-1.5">
-                                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                          <span>
-                                            <span className="font-semibold">{overBy} zu viel:</span>{" "}
-                                            <span className="font-medium">{ca.quantity}</span> gebucht
-                                            {conf && conf.packAllocation > 0 && (
-                                              <>
-                                                {" "}
-                                                + <span className="font-medium">{conf.packAllocation}</span>{" "}
-                                                in Packeinheiten
-                                              </>
-                                            )}
-                                            {conf && conf.foreignBookings.length > 0 && (
-                                              <>
-                                                {" "}
-                                                + <span className="font-medium">{conf.foreignTotal}</span>{" "}
-                                                in {conf.foreignBookings.map((f) => f.projectName).join(", ")}
-                                              </>
-                                            )}
-                                            , Bestand: <span className="font-medium">{stock}</span>
-                                          </span>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </Fragment>
-                              );
-                            })}
+                            <GroupHeaderRow
+                              group={g}
+                              colSpan={4}
+                              active={activeCableGroupId === g.id}
+                              isFirst={gi === 0}
+                              isLast={gi === cableGroups.length - 1}
+                              pending={pending}
+                              onActivate={() => setActiveCableGroupId(g.id)}
+                              onRename={(name) => handleRenameGroup(g.id, name)}
+                              onMoveUp={() => handleMoveGroup(cableGroups, gi, -1)}
+                              onMoveDown={() => handleMoveGroup(cableGroups, gi, 1)}
+                              onAddNote={() => handleAddNote(g.id)}
+                              onDelete={() => setDeleteGroup(g)}
+                            />
+                            {cableRows.length === 0 && (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={4}
+                                  className="py-3 text-center text-xs text-muted-foreground"
+                                >
+                                  Noch nichts in dieser Gruppe — Kabel im Katalog anklicken
+                                  (Pfeil-Button), es landet in der aktiven Gruppe.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <SortableContext
+                              items={cableRows.map((r) => r.sortId)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {cableRows.map((r) => {
+                                if (r.kind === "COMMENT") {
+                                  const c = (commentsByGroup.get(g.id) ?? []).find(
+                                    (x) => x.id === r.id
+                                  );
+                                  if (!c) return null;
+                                  return renderCommentRow(c, r.sortId, 2);
+                                }
+                                const ca = groupCables.find((x) => x.id === r.id);
+                                if (!ca) return null;
+                                return renderCableRow(ca, r.sortId);
+                              })}
+                            </SortableContext>
                           </TableBody>
-                        </Table>
-                      )}
-                      {/* /false dead-code */}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </CardContent>
-          </Card>
+                        </DndContext>
+                      );
+                    })}
+                  </Table>
+                )}
+              </div>
+              <GroupTableFooter
+                onAddGroup={() =>
+                  setGroupDialog({ mode: "create", name: "", billable: true, kind: "CABLE" })
+                }
+                pending={pending}
+              />
+            </div>
+          </div>
         }
       />
         </TabsContent>
@@ -2417,67 +2084,6 @@ export function AssignmentsSection({
         onConfirm={handleDeleteAdHoc}
       />
 
-      {/* Kommentar-Dialog (für alle Tabs) */}
-      <Dialog
-        open={commentDialog !== null}
-        onOpenChange={(o) => !o && setCommentDialog(null)}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {commentDialog?.mode === "create"
-                ? "Kommentar hinzufügen"
-                : "Kommentar bearbeiten"}
-            </DialogTitle>
-            <DialogDescription>
-              Freier Text in der Material-/Kabel-/Service-Tabelle. Erscheint
-              auch auf Angeboten und Rechnungen an der gleichen Position.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSaveComment();
-            }}
-            className="space-y-3"
-          >
-            <Textarea
-              value={commentDialog?.text ?? ""}
-              onChange={(e) =>
-                setCommentDialog((d) => (d ? { ...d, text: e.target.value } : d))
-              }
-              rows={3}
-              autoFocus
-              required
-              placeholder="z.B. Zwischenüberschrift, Hinweis, Erläuterung…"
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCommentDialog(null)}
-                disabled={pending}
-              >
-                Abbrechen
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {commentDialog?.mode === "create" ? "Hinzufügen" : "Speichern"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmDialog
-        open={commentDelete !== null}
-        onOpenChange={(o) => !o && setCommentDelete(null)}
-        title="Kommentar entfernen?"
-        description={commentDelete && <>„{commentDelete.text}" wird entfernt.</>}
-        confirmLabel="Entfernen"
-        pending={pending}
-        onConfirm={handleDeleteComment}
-      />
       </Card>
 
       <ConfirmDialog
