@@ -342,7 +342,7 @@ export function FinancesSection({
               onBlur={(e) =>
                 handleBereichDiscount(kind, e.target.value, data.discountPercent)
               }
-              className="h-8 text-right font-mono tabular-nums"
+              className="ml-auto h-7 w-[72px] px-1.5 text-right font-mono text-xs tabular-nums"
               disabled={data.items.length === 0}
             />
           </TableCell>
@@ -377,7 +377,7 @@ export function FinancesSection({
                   !isBillable && "bg-muted/30 text-muted-foreground"
                 )}
               >
-                <TableCell className="pl-10 text-sm">
+                <TableCell className="!pl-8 text-sm">
                   <span className={cn(!isBillable && "line-through")}>{g.name}</span>
                   {!isBillable && (
                     <span className="ml-2 inline-block rounded-[5px] bg-warning-subtle px-1.5 py-0.5 text-[10px] font-semibold text-warning">
@@ -403,7 +403,7 @@ export function FinancesSection({
                     onBlur={(e) =>
                       handleGroupDiscount(g.id, e.target.value, g.discountPercent)
                     }
-                    className="h-8 text-right font-mono tabular-nums"
+                    className="ml-auto h-7 w-[72px] px-1.5 text-right font-mono text-xs tabular-nums"
                     disabled={!isBillable}
                   />
                 </TableCell>
@@ -426,7 +426,7 @@ export function FinancesSection({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Buttons */}
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="outline" onClick={() => setQuoteDialog(true)}>
@@ -445,22 +445,22 @@ export function FinancesSection({
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               Übersicht
               <InfoHint text="Rabatt pro Gruppe, pro Bereich (Material/Personal & Transport) und projektweit — werden in dieser Reihenfolge angewendet." />
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
+          <CardContent className="p-0">
+            <Table className="[&_td]:px-2 [&_td]:py-1 [&_th]:px-2">
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-secondary">
                   <TableHead>Bereich / Gruppe</TableHead>
-                  <TableHead className="text-right">Zwischensumme</TableHead>
-                  <TableHead className="w-[110px] text-right">Rabatt %</TableHead>
-                  <TableHead className="text-right">Rabatt</TableHead>
-                  <TableHead className="text-right">Netto</TableHead>
+                  <TableHead className="w-[130px] text-right">Zwischensumme</TableHead>
+                  <TableHead className="w-[90px] text-right">Rabatt %</TableHead>
+                  <TableHead className="w-[110px] text-right">Rabatt</TableHead>
+                  <TableHead className="w-[130px] text-right">Netto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -496,7 +496,7 @@ export function FinancesSection({
                       max="100"
                       defaultValue={safePct(projectDiscountPercent)}
                       onBlur={(e) => handleProjectDiscount(e.target.value)}
-                      className="h-8 text-right font-mono tabular-nums"
+                      className="ml-auto h-7 w-[72px] px-1.5 text-right font-mono text-xs tabular-nums"
                     />
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
@@ -524,15 +524,15 @@ export function FinancesSection({
       )}
 
       {showResult && (
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               Ergebnis nach Zusatzkosten
               <InfoHint text="Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen und Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder Rechnungen." />
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
+          <CardContent className="p-0">
+            <Table className="border-t [&_td]:px-2 [&_td]:py-1">
               <TableBody>
                 <TableRow>
                   <TableCell className="font-medium">Umsatz (Netto)</TableCell>
@@ -591,7 +591,7 @@ export function FinancesSection({
               </TableBody>
             </Table>
             {result < 0 && (
-              <p className="mt-3 text-xs font-medium text-destructive">
+              <p className="border-t px-2 py-1.5 text-xs font-medium text-destructive">
                 Achtung: Die Zusatzkosten übersteigen den Umsatz — dieses Projekt
                 ist aktuell nicht profitabel.
               </p>
@@ -609,20 +609,20 @@ export function FinancesSection({
       )}
 
       {invoices.length > 0 && (
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Erstellte Rechnungen</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
+          <CardContent className="p-0">
+            <Table className="[&_td]:px-2 [&_td]:py-1 [&_th]:px-2">
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-secondary">
                   <TableHead>Nummer</TableHead>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Fällig bis</TableHead>
-                  <TableHead className="text-right">Netto</TableHead>
-                  <TableHead className="text-right">Brutto</TableHead>
-                  <TableHead className="w-[120px]"></TableHead>
+                  <TableHead className="w-[100px]">Datum</TableHead>
+                  <TableHead className="w-[100px]">Fällig bis</TableHead>
+                  <TableHead className="w-[110px] text-right">Netto</TableHead>
+                  <TableHead className="w-[110px] text-right">Brutto</TableHead>
+                  <TableHead className="w-[76px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -653,24 +653,24 @@ export function FinancesSection({
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                        <Button asChild variant="ghost" size="icon" className="h-7 w-7">
                           <a
                             href={`/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`}
                             download
                             rel="noopener"
                             title="PDF herunterladen"
                           >
-                            <Download className="h-4 w-4" />
+                            <Download className="h-3.5 w-3.5" />
                           </a>
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setDeleteInv(inv)}
                           title="Rechnung löschen"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -1280,7 +1280,7 @@ function QuotesCard({
     : quotes.filter((q) => !q.supersededByQuoteId);
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Erstellte Angebote</CardTitle>
         {supersededCount > 0 && (
@@ -1295,17 +1295,17 @@ function QuotesCard({
           </label>
         )}
       </CardHeader>
-      <CardContent>
-        <Table>
+      <CardContent className="p-0">
+        <Table className="[&_td]:px-2 [&_td]:py-1 [&_th]:px-2">
           <TableHeader>
-            <TableRow>
+            <TableRow className="hover:bg-secondary">
               <TableHead>Nummer</TableHead>
-              <TableHead>Datum</TableHead>
-              <TableHead>Gültig bis</TableHead>
-              <TableHead className="text-right">Netto</TableHead>
-              <TableHead className="text-right">Brutto</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[120px]"></TableHead>
+              <TableHead className="w-[100px]">Datum</TableHead>
+              <TableHead className="w-[100px]">Gültig bis</TableHead>
+              <TableHead className="w-[110px] text-right">Netto</TableHead>
+              <TableHead className="w-[110px] text-right">Brutto</TableHead>
+              <TableHead className="w-[120px]">Status</TableHead>
+              <TableHead className="w-[76px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1351,24 +1351,24 @@ function QuotesCard({
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                      <Button asChild variant="ghost" size="icon" className="h-7 w-7">
                         <a
                           href={`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`}
                           download
                           rel="noopener"
                           title="PDF herunterladen"
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-3.5 w-3.5" />
                         </a>
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
                         onClick={() => onDelete(q)}
                         title="Angebot löschen"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </TableCell>
