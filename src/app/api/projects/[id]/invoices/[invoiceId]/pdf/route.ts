@@ -14,7 +14,12 @@ import {
   type DocumentSnapshot,
 } from "@/lib/document-snapshot";
 
-const fmt = (n: number) => n.toFixed(2).replace(".", ",") + " €";
+// Beträge im deutschen Format mit Tausender-Trennzeichen, z.B. „1.234,56 €".
+const fmt = (n: number) =>
+  n.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + " €";
 const INDENT_1 = "    "; // Bereich
 const INDENT_2 = "        "; // Gruppe
 const INDENT_3 = "            "; // Item
@@ -163,6 +168,11 @@ export async function GET(
   // ===== PDF erstellen =====
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   setupGeistFont(doc);
+  // Aktive Schrift nach dem Laden abgreifen ("Geist", oder "helvetica" als
+  // Fallback falls die TTFs nicht gefunden wurden). autoTable erbt die
+  // Dokument-Schrift NICHT automatisch — ohne explizites `font` in den styles
+  // würden die Tabellen im Default Helvetica statt in Geist rendern.
+  const BODY_FONT = doc.getFont().fontName;
 
   const ADDR_X = 20;
   const SENDER_Y = 45;
@@ -637,7 +647,7 @@ export async function GET(
     ],
     body,
     theme: "plain",
-    styles: { fontSize: 9, cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 } },
+    styles: { font: BODY_FONT, fontSize: 9, cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 } },
     headStyles: { fillColor: [60, 60, 60], textColor: 255, fontStyle: "bold" },
     columnStyles: {
       0: { cellWidth: "auto" },
@@ -784,7 +794,7 @@ export async function GET(
     startY: totalsY,
     body: totalsBody,
     theme: "plain",
-    styles: { fontSize: 10 },
+    styles: { font: BODY_FONT, fontSize: 10 },
     columnStyles: {
       0: { cellWidth: 150 },
       1: { halign: "right" },
