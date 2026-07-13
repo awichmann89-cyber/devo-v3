@@ -196,10 +196,13 @@ export interface SubhireVM {
   deviceId: string | null;
   adHocItemId: string | null;
   groupId: string | null;
+  /** Gruppe auf der Kosten-Seite (kind SUBHIRE) — beim Bearbeiten durchreichen. */
+  costGroupId: string | null;
   name: string;
   supplier: string | null;
   quantity: number;
   unitCost: number;
+  notes: string | null;
 }
 
 type ConflictPrompt = {
@@ -1124,11 +1127,12 @@ export function AssignmentsSection({
                   deviceId: s.deviceId,
                   adHocItemId: s.adHocItemId,
                   groupId: s.groupId,
+                  costGroupId: s.costGroupId,
                   name: s.name,
                   supplier: s.supplier ?? "",
                   quantity: s.quantity,
                   unitCost: s.unitCost,
-                  notes: "",
+                  notes: s.notes ?? "",
                 })
               }
             >

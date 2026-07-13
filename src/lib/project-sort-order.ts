@@ -65,3 +65,38 @@ export async function nextSortOrderForGroup(
   );
   return max + 1;
 }
+
+/**
+ * Wie `nextSortOrderForGroup`, aber für Gruppen auf der Kosten-Seite
+ * (kind SUBHIRE/EXTRA). Dort teilen sich Zumietungen (costSortOrder),
+ * Extrakosten (sortOrder) und Zwischenüberschriften (sortOrder) den
+ * sortOrder-Raum der Gruppe.
+ */
+export async function nextCostSortOrderForGroup(
+  projectId: string,
+  groupId: string,
+): Promise<number> {
+  const [subhire, extra, comment] = await Promise.all([
+    prisma.projectSubhire.findFirst({
+      where: { projectId, costGroupId: groupId },
+      orderBy: { costSortOrder: "desc" },
+      select: { costSortOrder: true },
+    }),
+    prisma.projectExtraCost.findFirst({
+      where: { projectId, groupId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    }),
+    prisma.projectGroupComment.findFirst({
+      where: { projectId, groupId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    }),
+  ]);
+  const max = Math.max(
+    subhire?.costSortOrder ?? -1,
+    extra?.sortOrder ?? -1,
+    comment?.sortOrder ?? -1,
+  );
+  return max + 1;
+}

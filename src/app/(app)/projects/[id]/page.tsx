@@ -653,10 +653,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               deviceId: s.deviceId,
               adHocItemId: s.adHocItemId,
               groupId: s.groupId,
+              costGroupId: s.costGroupId,
               name: s.name,
               supplier: s.supplier,
               quantity: s.quantity,
               unitCost: Number(s.unitCost),
+              notes: s.notes,
             }))}
           />
         </TabsContent>
@@ -679,13 +681,18 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               deviceId: s.deviceId,
               adHocItemId: s.adHocItemId,
               groupId: s.groupId,
+              costGroupId: s.costGroupId,
+              costSortOrder: s.costSortOrder,
               name: s.name,
               supplier: s.supplier,
               quantity: s.quantity,
               unitCost: Number(s.unitCost),
+              notes: s.notes,
             }))}
             extraCosts={project.extraCosts.map((c) => ({
               id: c.id,
+              groupId: c.groupId,
+              sortOrder: c.sortOrder,
               label: c.label,
               kind: c.kind,
               amount: Number(c.amount),
@@ -701,9 +708,21 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               id: it.id,
               name: it.name,
             }))}
-            groups={project.groups
+            materialGroups={project.groups
               .filter((g) => g.kind === "MATERIAL")
               .map((g) => ({ id: g.id, name: g.name }))}
+            subhireGroups={project.groups
+              .filter((g) => g.kind === "SUBHIRE")
+              .map((g) => ({ id: g.id, name: g.name, billable: g.billable }))}
+            extraGroups={project.groups
+              .filter((g) => g.kind === "EXTRA")
+              .map((g) => ({ id: g.id, name: g.name, billable: g.billable }))}
+            groupComments={project.groupComments.map((c) => ({
+              id: c.id,
+              groupId: c.groupId,
+              text: c.text,
+              sortOrder: c.sortOrder,
+            }))}
           />
         </TabsContent>
 

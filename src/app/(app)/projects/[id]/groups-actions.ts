@@ -121,22 +121,51 @@ export async function deleteProjectGroup(
       throw new Error("Zielgruppe ist ungültig");
     }
 
-    await prisma.$transaction([
-      ...(group.kind === "MATERIAL"
-        ? [
+    const moveOps = (() => {
+      switch (group.kind) {
+        case "MATERIAL":
+          return [
             prisma.projectAssignment.updateMany({
               where: { groupId: id },
               data: { groupId: moveToGroupId },
             }),
-          ]
-        : [
+            prisma.projectAdHocItem.updateMany({
+              where: { groupId: id },
+              data: { groupId: moveToGroupId },
+            }),
+          ];
+        case "CABLE":
+          return [
+            prisma.projectCableAssignment.updateMany({
+              where: { groupId: id },
+              data: { groupId: moveToGroupId },
+            }),
+          ];
+        case "SUBHIRE":
+          return [
+            prisma.projectSubhire.updateMany({
+              where: { costGroupId: id },
+              data: { costGroupId: moveToGroupId },
+            }),
+          ];
+        case "EXTRA":
+          return [
+            prisma.projectExtraCost.updateMany({
+              where: { groupId: id },
+              data: { groupId: moveToGroupId },
+            }),
+          ];
+        default:
+          return [
             prisma.projectService.updateMany({
               where: { groupId: id },
               data: { groupId: moveToGroupId },
             }),
-          ]),
-      prisma.projectGroup.delete({ where: { id } }),
-    ]);
+          ];
+      }
+    })();
+
+    await prisma.$transaction([...moveOps, prisma.projectGroup.delete({ where: { id } })]);
   } else {
     await prisma.projectGroup.delete({ where: { id } });
   }

@@ -3,14 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
-import { nextSortOrderForGroup } from "@/lib/project-sort-order";
+import {
+  nextSortOrderForGroup,
+  nextCostSortOrderForGroup,
+} from "@/lib/project-sort-order";
 
 export type GroupItemKind =
   | "DEVICE"
   | "CABLE"
   | "SERVICE"
   | "ADHOC"
-  | "COMMENT";
+  | "COMMENT"
+  // Kosten-Seite: Zumietungen (costSortOrder) und Extrakosten (sortOrder).
+  | "SUBHIRE"
+  | "EXTRA";
 
 /**
  * Speichert die neue Reihenfolge aller Items einer Gruppe.
@@ -57,6 +63,20 @@ export async function reorderGroupItems(
           data: { sortOrder: idx },
           select: { id: true },
         });
+      case "SUBHIRE":
+        // Reihenfolge in der Kosten-Gruppe — NICHT `sortOrder`, das die
+        // Position freier Zumietungen im Material-Tab steuert.
+        return prisma.projectSubhire.update({
+          where: { id: it.id },
+          data: { costSortOrder: idx },
+          select: { id: true },
+        });
+      case "EXTRA":
+        return prisma.projectExtraCost.update({
+          where: { id: it.id },
+          data: { sortOrder: idx },
+          select: { id: true },
+        });
     }
   });
 
@@ -74,8 +94,16 @@ export async function addGroupComment(
   if (!t) throw new Error("Text darf nicht leer sein");
 
   // Am Ende der Gruppe einsortieren — über ALLE Item-Typen, damit der
-  // Kommentar nicht zwischen Geräten oder Services landet.
-  const sortOrder = await nextSortOrderForGroup(projectId, groupId);
+  // Kommentar nicht zwischen Geräten oder Services landet. Kosten-Gruppen
+  // (SUBHIRE/EXTRA) haben einen eigenen sortOrder-Raum.
+  const group = await prisma.projectGroup.findUnique({
+    where: { id: groupId },
+    select: { kind: true },
+  });
+  const sortOrder =
+    group?.kind === "SUBHIRE" || group?.kind === "EXTRA"
+      ? await nextCostSortOrderForGroup(projectId, groupId)
+      : await nextSortOrderForGroup(projectId, groupId);
 
   const created = await prisma.projectGroupComment.create({
     data: { projectId, groupId, text: t, sortOrder },

@@ -32,6 +32,11 @@ export interface SubhireFormValue {
   deviceId: string | null;
   adHocItemId: string | null;
   groupId: string | null;
+  /**
+   * Gruppe auf der Kosten-Seite (kind SUBHIRE). undefined = nicht ändern
+   * (z.B. Bearbeitung aus dem Material-Tab); null = Default-Gruppe.
+   */
+  costGroupId?: string | null;
   name: string;
   supplier: string;
   quantity: number;
@@ -46,6 +51,7 @@ export function emptySubhire(
     deviceId: null,
     adHocItemId: null,
     groupId: null,
+    costGroupId: null,
     name: "",
     supplier: "",
     quantity: 1,
@@ -140,6 +146,7 @@ export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, 
           deviceId: form.deviceId,
           adHocItemId: form.adHocItemId,
           groupId: form.groupId,
+          costGroupId: form.costGroupId,
           supplier: form.supplier.trim() || null,
           quantity: form.quantity,
           unitCost: form.unitCost,

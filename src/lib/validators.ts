@@ -205,6 +205,8 @@ export const subhireSchema = z.object({
   deviceId: z.string().optional().nullable(),
   adHocItemId: z.string().optional().nullable(),
   groupId: z.string().optional().nullable(),
+  // Gruppe auf der Kosten-Seite (kind SUBHIRE). undefined = nicht ändern.
+  costGroupId: z.string().optional().nullable(),
   supplier: z.string().max(200).optional().nullable(),
   quantity: z.coerce.number().int().min(1).default(1),
   unitCost: z.coerce.number().min(0).default(0),
@@ -214,6 +216,8 @@ export const subhireSchema = z.object({
 // Sonstige / personaltechnische Extrakosten.
 export const extraCostSchema = z.object({
   label: z.string().min(1, "Bezeichnung erforderlich").max(200),
+  // Gruppe auf der Kosten-Seite (kind EXTRA). undefined = nicht ändern.
+  groupId: z.string().optional().nullable(),
   kind: z.nativeEnum(ExtraCostKind).default("SONSTIGES"),
   amount: z.coerce.number().min(0).default(0),
   notes: z.string().max(500).optional().nullable(),

@@ -393,6 +393,10 @@ enum ProjectGroupKind {
   MATERIAL
   SERVICE
   CABLE
+  // Gruppen auf der Kosten-Seite (rein interne Kostenschicht):
+  // SUBHIRE → Zugemietetes Material, EXTRA → Personal & Sonstiges.
+  SUBHIRE
+  EXTRA
 }
 
 // Gruppen-Überschrift innerhalb eines Projekts.
@@ -419,7 +423,11 @@ model ProjectGroup {
   comments         ProjectGroupComment[]
   // Freie (nicht mit einem Gerät verknüpfte) Zumietungen, die als eigene
   // blaue Zeile in dieser Gruppe erscheinen.
-  subhires         ProjectSubhire[]
+  subhires         ProjectSubhire[] @relation("SubhireMaterialGroup")
+  // Zumietungen, die auf der Kosten-Seite in dieser Gruppe (kind SUBHIRE) stehen.
+  costSubhires     ProjectSubhire[] @relation("SubhireCostGroup")
+  // Extrakosten, die auf der Kosten-Seite in dieser Gruppe (kind EXTRA) stehen.
+  extraCosts       ProjectExtraCost[]
 
   @@index([projectId, kind, sortOrder])
 }
@@ -495,13 +503,20 @@ model ProjectSubhire {
   // Optionale Material-Gruppe, in der eine NICHT verknüpfte Zumietung als eigene
   // blaue Zeile erscheint. Bei verknüpften Zumietungen i.d.R. leer.
   groupId     String?
-  group       ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group       ProjectGroup? @relation("SubhireMaterialGroup", fields: [groupId], references: [id], onDelete: SetNull)
+  // Gruppe auf der Kosten-Seite (kind SUBHIRE). Getrennt von `groupId`, weil
+  // dieses die Platzierung im Material-Tab steuert.
+  costGroupId String?
+  costGroup   ProjectGroup? @relation("SubhireCostGroup", fields: [costGroupId], references: [id], onDelete: SetNull)
   name        String        // Bezeichnung (bei Verknüpfung Default = Gerätename)
   supplier    String?       // Von wem (Vermieter/Lieferant)
   quantity    Int           @default(1)
   unitCost    Decimal       @db.Decimal(10, 2) // Kosten pro Stück (netto), pauschal
   notes       String?
   sortOrder   Int           @default(0)
+  // Reihenfolge innerhalb der Kosten-Gruppe (getrennt von `sortOrder`, das die
+  // Reihenfolge freier Zumietungen in der Material-Gruppe steuert).
+  costSortOrder Int         @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -509,6 +524,7 @@ model ProjectSubhire {
   @@index([deviceId])
   @@index([adHocItemId])
   @@index([groupId])
+  @@index([costGroupId])
 }
 
 // Sonstige / personaltechnische Extrakosten. Rein interne Kostenposition,
@@ -517,6 +533,9 @@ model ProjectExtraCost {
   id          String        @id @default(cuid())
   projectId   String
   project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Gruppe auf der Kosten-Seite (kind EXTRA).
+  groupId     String?
+  group       ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   label       String
   kind        ExtraCostKind @default(SONSTIGES)
   amount      Decimal       @db.Decimal(10, 2) // Gesamtbetrag (netto)
@@ -526,6 +545,7 @@ model ProjectExtraCost {
   updatedAt   DateTime      @updatedAt
 
   @@index([projectId])
+  @@index([groupId])
 }
 
 // Generisches Key-Value-Setting-Store (z.B. Rechnungsnummer-Prefix)
