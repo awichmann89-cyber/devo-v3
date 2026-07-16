@@ -1471,6 +1471,18 @@ export function AssignmentsSection({
                             >
                               <div className="flex-1 min-w-0">
                                 <div className="truncate text-sm font-medium">{c.name}</div>
+                                {(c.cableType || c.lengthMeters != null) && (
+                                  <div className="truncate text-[11px] text-muted-foreground">
+                                    {[
+                                      c.cableType,
+                                      c.lengthMeters != null
+                                        ? `${Number(c.lengthMeters)} m`
+                                        : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </div>
+                                )}
                               </div>
                               <span className={cn(
                                 "shrink-0 text-[11px] tabular-nums",
