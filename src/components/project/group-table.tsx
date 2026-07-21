@@ -88,13 +88,23 @@ export function GroupHeaderRow({
   onDelete,
 }: GroupHeaderRowProps) {
   return (
-    <TableRow className="border-t-2 border-t-accent bg-secondary hover:bg-secondary">
+    <TableRow
+      className={cn(
+        "border-t-2 border-t-primary/60 transition-colors",
+        // Gruppen-Header sind grundsätzlich orange getönt. Die AKTIVE Gruppe
+        // (Ziel neuer Buchungen aus dem Katalog) hebt sich zusätzlich durch
+        // einen kräftigeren Orangeton ab — nicht nur über die Checkbox.
+        active
+          ? "bg-primary/25 hover:bg-primary/25"
+          : "bg-primary-subtle hover:bg-primary-subtle"
+      )}
+    >
       <TableCell colSpan={colSpan} className="px-2.5 py-1.5">
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              "h-[15px] w-[3px] shrink-0 rounded-sm",
-              active ? "bg-primary" : "bg-input"
+              "shrink-0 rounded-sm",
+              active ? "h-[18px] w-[4px] bg-primary" : "h-[15px] w-[3px] bg-primary/40"
             )}
             aria-hidden
           />
@@ -186,7 +196,7 @@ export function NoteRowCells({
     <>
       <TableCell colSpan={colSpan} className="px-2.5 py-1">
         <div className="flex items-center gap-2">
-          <Heading className="h-3 w-3 shrink-0 text-faint" aria-hidden />
+          <Heading className="h-4 w-4 shrink-0 text-foreground" aria-hidden />
           <input
             key={text}
             defaultValue={text}
@@ -200,7 +210,7 @@ export function NoteRowCells({
               if (v && v !== text) onSave(v);
               else e.target.value = text;
             }}
-            className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-xs font-semibold italic text-muted-foreground outline-none focus:bg-card focus:not-italic focus:text-foreground focus:shadow-[inset_0_0_0_1px_hsl(var(--input))]"
+            className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm font-bold text-foreground outline-none focus:bg-card focus:shadow-[inset_0_0_0_1px_hsl(var(--input))]"
             aria-label="Zwischenüberschrift"
           />
         </div>

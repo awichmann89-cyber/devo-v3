@@ -782,8 +782,11 @@ export function CostsSection({
   }
 
   return (
-    <Card className="p-4">
-      <div className="flex flex-col">
+    // Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
+    // 52px-Headers + Abstände) und clippt intern, sodass die Kosten-Tabelle in
+    // ihrer eigenen Fläche scrollt statt die ganze Seite wachsen zu lassen.
+    <Card className="p-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <div className="flex flex-col lg:min-h-0 lg:flex-1">
         {/* Kopfzeile: Summen links, Aktionen rechts. */}
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -823,7 +826,7 @@ export function CostsSection({
         </div>
 
         {/* EINE durchgehende Tabelle: Zumietungs-Gruppen, danach Extrakosten-Gruppen. */}
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
           <div className="min-h-0 flex-1 overflow-y-auto">
             {isEmpty ? (
               <div className="py-12 text-center text-sm text-muted-foreground">

@@ -562,16 +562,22 @@ export function ServicesSection({
 
   return (
     <>
-      <Card className="p-4">
+      {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
+          52px-Headers + Abstände) und clippt intern. So kann die Seite nicht
+          so weit scrollen, dass die Katalog-Suche hinter dem App-Header
+          verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
+          jeweils in ihrer eigenen Spalte. */}
+      <Card className="p-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
       <HorizontalSplit
         storageKey="devo:services-split"
         defaultLeftPx={360}
         minLeftPx={280}
         minRightPx={520}
-        className="lg:items-start"
-        leftClassName="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]"
+        className="lg:min-h-0 lg:flex-1 lg:items-stretch"
+        leftClassName="lg:flex lg:flex-col lg:min-h-0"
+        rightClassName="lg:flex lg:flex-col lg:min-h-0"
         left={
-          <Card className="border-0 shadow-none flex flex-col lg:h-[calc(100vh-2rem)]">
+          <Card className="border-0 shadow-none flex flex-col lg:flex-1 lg:min-h-0">
             <CardHeader className="px-0 pt-0 pb-3 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -749,7 +755,7 @@ export function ServicesSection({
           </Card>
         }
         right={
-          <div className="flex flex-col lg:h-full">
+          <div className="flex flex-col lg:flex-1 lg:min-h-0">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
               <div className="text-xs text-muted-foreground">
                 <span className="font-bold text-foreground">

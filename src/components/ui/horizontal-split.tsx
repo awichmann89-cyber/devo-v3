@@ -18,6 +18,13 @@ interface Props {
    * bestimmt.
    */
   leftClassName?: string;
+  /**
+   * Zusätzliche Klassen für den Wrapper der rechten Spalte — symmetrisch zu
+   * `leftClassName`. Nötig, wenn beide Spalten auf Viewport-Höhe begrenzt und
+   * unabhängig scrollbar sein sollen (dann füllt der Wrapper per Flex die Höhe,
+   * statt sich an prozentualen Höhen aufzuhängen).
+   */
+  rightClassName?: string;
 }
 
 export function HorizontalSplit({
@@ -29,6 +36,7 @@ export function HorizontalSplit({
   storageKey,
   className,
   leftClassName,
+  rightClassName,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [leftPx, setLeftPx] = useState<number>(defaultLeftPx);
@@ -102,7 +110,7 @@ export function HorizontalSplit({
           )}
         />
       </div>
-      <div className="min-w-0 flex-1">{right}</div>
+      <div className={cn("min-w-0 flex-1", rightClassName)}>{right}</div>
     </div>
   );
 }

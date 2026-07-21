@@ -723,18 +723,24 @@ export async function GET(
   const outroLines = OUTRO_TEXT
     ? (doc.splitTextToSize(OUTRO_TEXT, outroWidth) as string[])
     : [];
-  // Seitenumbruch falls Hinweis + Schlusstext + Signatur nicht mehr passen
-  const REQUIRED_FOR_OUTRO =
-    (noteLines.length > 0 ? noteLines.length * 5 + 5 : 0) +
-    outroLines.length * 5 +
-    32;
-  if (endY + REQUIRED_FOR_OUTRO > PAGE_HEIGHT - PAGE_BOTTOM_RESERVED) {
-    doc.addPage();
-    endY = 35;
-  }
+  // Ab hier wird der Schlussblock (Hinweis, AGB-Text, Grüße, Signatur, Button)
+  // manuell Zeile für Zeile gezeichnet — anders als die autoTable-Tabellen
+  // darüber paginiert jsPDF das NICHT automatisch. Damit weder der Fließtext
+  // noch der "Online annehmen"-Button in den Briefpapier-Footer laufen, prüfen
+  // wir vor jedem Element via ensureSpace(), ob bis zum reservierten Footer-
+  // Bereich noch genug Platz frei ist, und brechen sonst auf eine neue Seite um.
+  const CONTENT_TOP = 35;
   let outroY = endY + 4;
+  const ensureSpace = (needed: number) => {
+    if (outroY + needed > PAGE_HEIGHT - PAGE_BOTTOM_RESERVED) {
+      doc.addPage();
+      outroY = CONTENT_TOP;
+    }
+  };
+
   // 1. Optionaler Hinweistext aus dem Dialog
   for (const line of noteLines) {
+    ensureSpace(5);
     doc.text(line, ADDR_X, outroY);
     outroY += 5;
   }
@@ -743,26 +749,46 @@ export async function GET(
   }
   // 2. Fester AGB-/Abschlusstext
   for (const line of outroLines) {
+    ensureSpace(5);
     doc.text(line, ADDR_X, outroY);
     outroY += 5;
   }
+
+  // 3. Grüße + Signatur + Button + Footer-Hinweis bilden einen zusammen-
+  // hängenden Block, der nicht getrennt werden soll. Höhe vorab schätzen und
+  // bei Bedarf komplett auf die nächste Seite umbrechen — so bleibt der Button
+  // immer mit der Signatur zusammen und landet nie im Footer.
+  const maintainerName =
+    snapMaintainer?.name ||
+    snapMaintainer?.email ||
+    "";
+  const companyName = (snapCompanyName || "PubliXound").trim();
+  const acceptBlockHeight = quote.acceptedAt
+    ? 8 // Bestätigungszeile
+    : quote.acceptToken
+      ? 12 + 10 // Button-Höhe + URL-Zeile darunter
+      : 0;
+  const SIGNATURE_BLOCK_HEIGHT =
+    8 + // Abstand über "Mit freundlichen Grüßen"
+    10 + // Grußzeile
+    (maintainerName ? 5 : 0) +
+    (companyName ? 5 : 0) +
+    8 + // Abstand über Button/Bestätigung
+    acceptBlockHeight +
+    12; // Footer-Hinweis + unterer Rand
+  ensureSpace(SIGNATURE_BLOCK_HEIGHT);
 
   // Mit freundlichen Grüßen + Projektverantwortlicher + Firmenname (eingerückt)
   outroY += 8;
   doc.text("Mit freundlichen Grüßen", ADDR_X, outroY);
   outroY += 10;
   const SIGNATURE_INDENT = ADDR_X + 6;
-  const maintainerName =
-    snapMaintainer?.name ||
-    snapMaintainer?.email ||
-    "";
   if (maintainerName) {
     doc.setFont(undefined as unknown as string, "bold");
     doc.text(maintainerName, SIGNATURE_INDENT, outroY);
     outroY += 5;
     doc.setFont(undefined as unknown as string, "normal");
   }
-  const companyName = (snapCompanyName || "PubliXound").trim();
   if (companyName) {
     doc.text(companyName, SIGNATURE_INDENT, outroY);
     outroY += 5;
