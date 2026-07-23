@@ -1332,8 +1332,8 @@ function QuotesCard({
                       </Badge>
                     ) : q.acceptedAt ? (
                       <Badge
-                        variant="default"
-                        className="gap-1 bg-emerald-600 text-[10px] hover:bg-emerald-600"
+                        variant="success"
+                        className="max-w-none gap-1 text-[10px]"
                         title={
                           q.acceptedByName
                             ? `Angenommen am ${formatDate(q.acceptedAt)} von ${q.acceptedByName}`

@@ -52,8 +52,10 @@ export async function GET(req: Request) {
     },
   });
 
-  // Origin für den Projekt-Link in der Mail — Vercel Cron ruft die
-  // Production-Domain auf, daher aus den Request-Headers ableitbar.
+  // Origin für den Projekt-Link in der Mail. Vercel Cron ruft die Route
+  // über die deployment-spezifische *.vercel.app-URL auf — für Links in
+  // Mails ist daher AUTH_URL (die echte Domain) die bessere Quelle; der
+  // Request-Host dient nur als Fallback.
   const host =
     (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "")
       .split(",")[0]
@@ -61,7 +63,9 @@ export async function GET(req: Request) {
   const proto =
     (req.headers.get("x-forwarded-proto") ?? "").split(",")[0].trim() ||
     (host.startsWith("localhost") ? "http" : "https");
-  const baseUrl = host ? `${proto}://${host}` : null;
+  const baseUrl =
+    process.env.AUTH_URL?.replace(/\/+$/, "") ||
+    (host ? `${proto}://${host}` : null);
 
   let sent = 0;
   let skipped = 0;

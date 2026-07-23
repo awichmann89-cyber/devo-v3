@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Download, Search, Trash2, X } from "lucide-react";
+import { CheckCircle2, Download, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -276,14 +276,15 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
                         </Badge>
                       ) : status === "accepted" ? (
                         <Badge
-                          variant="default"
-                          className="text-[10px] bg-success hover:bg-success"
+                          variant="success"
+                          className="max-w-none gap-1 text-[10px]"
                           title={
                             q.acceptedByName
                               ? `Angenommen von ${q.acceptedByName}`
                               : "Angenommen"
                           }
                         >
+                          <CheckCircle2 className="h-3 w-3" />
                           Angenommen
                         </Badge>
                       ) : (

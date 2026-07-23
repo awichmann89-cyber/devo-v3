@@ -5,7 +5,9 @@ import authConfig from "@/auth.config";
 // Middleware läuft im Edge Runtime — daher die slim Config OHNE Prisma.
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/public", "/api/calendar", "/scan", "/q", "/angebot"];
+// /api/cron ist hier ausgenommen, weil Vercel Cron ohne Session aufruft —
+// die Cron-Routen authentifizieren sich selbst über CRON_SECRET (Bearer).
+const PUBLIC_PATHS = ["/login", "/api/auth", "/public", "/api/calendar", "/api/cron", "/scan", "/q", "/angebot"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
