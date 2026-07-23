@@ -82,7 +82,11 @@ export async function sendQuoteAcceptedEmails(
   const resend = new Resend(apiKey);
 
   const companyName = (await getSetting("companyName")).trim();
-  const from = companyName ? `${companyName} <${FROM_ADDRESS}>` : FROM_ADDRESS;
+  // Anzeigename mit Pipe/Umlauten → in Anführungszeichen (RFC 5322).
+  const fromName = companyName
+    ? `Auftragsbestätigung | ${companyName}`
+    : "Auftragsbestätigung";
+  const from = `"${fromName.replaceAll('"', "'")}" <${FROM_ADDRESS}>`;
   const footer = companyName || FROM_ADDRESS;
 
   const baseUrl = getBaseUrl();
