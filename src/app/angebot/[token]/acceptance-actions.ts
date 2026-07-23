@@ -103,6 +103,16 @@ export async function acceptQuote(input: {
     null;
   const userAgent = h.get("user-agent") ?? null;
 
+  // Origin für die Links in den Bestätigungs-Mails — die Domain, über die
+  // der Kunde die Angebotsseite gerade aufgerufen hat (hinter dem Vercel-
+  // Proxy stehen Host/Proto in den Forwarded-Headers).
+  const host =
+    (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim();
+  const proto =
+    (h.get("x-forwarded-proto") ?? "").split(",")[0].trim() ||
+    (host.startsWith("localhost") ? "http" : "https");
+  const baseUrl = host ? `${proto}://${host}` : null;
+
   // Update Quote + Project in einer Transaktion. Project-Status nur dann
   // ändern, wenn er aktuell DRAFT ist (siehe Doc-Comment oben).
   await prisma.$transaction(async (tx) => {
@@ -139,6 +149,7 @@ export async function acceptQuote(input: {
     customerEmail: email,
     maintainerEmail: quote.project.maintainer?.email ?? null,
     maintainerName: quote.project.maintainer?.name ?? null,
+    baseUrl,
   });
 
   // Caches invalidieren

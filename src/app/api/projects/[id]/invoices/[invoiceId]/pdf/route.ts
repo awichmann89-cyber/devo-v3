@@ -8,6 +8,7 @@ import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseHexColor } from "@/lib/settings";
 import { setupGeistFont } from "@/lib/pdf-fonts";
+import { drawLabeledWrappedText } from "@/lib/pdf-text";
 import {
   buildSnapshotFromProject,
   isValidSnapshot,
@@ -257,17 +258,21 @@ export async function GET(
       : invoice.dueDate.toLocaleDateString("de-DE");
   doc.text(`Zahlbar bis: ${dueValue}`, ADDR_X, metaY);
   metaY += 5;
-  doc.text(
-    `Projekt: ${projectName} (${projectKindLabel(projectKind as Parameters<typeof projectKindLabel>[0])})`,
-    ADDR_X,
-    metaY
-  );
-  metaY += 5;
-  // Seitenbreite und rechter Rand — für automatischen Umbruch der
-  // Mietzeitraum-Zeile bei mehreren Zeiträumen.
+  // Seitenbreite und rechter Rand — für den Auto-Umbruch der Projekt- und
+  // Mietzeitraum-Zeile, falls Name bzw. Zeiträume nicht in eine Zeile passen.
   const INV_PAGE_WIDTH = doc.internal.pageSize.getWidth();
   const INV_TEXT_RIGHT_MARGIN = 14;
   const invTextWidth = INV_PAGE_WIDTH - ADDR_X - INV_TEXT_RIGHT_MARGIN;
+  // Lange Projektnamen umbrechen; Folgezeilen bündig unter dem Wert.
+  metaY = drawLabeledWrappedText(
+    doc,
+    "Projekt: ",
+    `${projectName} (${projectKindLabel(projectKind as Parameters<typeof projectKindLabel>[0])})`,
+    ADDR_X,
+    metaY,
+    invTextWidth
+  );
+  metaY += 5;
   if (!isSale) {
     // Eintägige Zeiträume nur mit einem Datum ausgeben statt „24.07.2026 –
     // 24.07.2026". Das passt insbesondere bei Vermietungen, die aus vielen
@@ -281,14 +286,16 @@ export async function GET(
       snapBillingPeriods.length === 1
         ? formatPeriod(snapBillingPeriods[0])
         : snapBillingPeriods.map(formatPeriod).join(" | ");
-    // splitTextToSize bricht den Text automatisch um, wenn er die
-    // Seitenbreite überschreitet — z.B. bei 3+ Berechnungszeiträumen.
-    const fullLine = `Mietzeitraum: ${periodsText} (${days} Tage)`;
-    const periodLines = doc.splitTextToSize(fullLine, invTextWidth) as string[];
-    for (let i = 0; i < periodLines.length; i++) {
-      doc.text(periodLines[i], ADDR_X, metaY);
-      if (i < periodLines.length - 1) metaY += 5;
-    }
+    // Bei vielen Zeiträumen (z.B. 3+ Berechnungszeiträume) automatisch
+    // umbrechen, Folgezeilen bündig unter dem Wert.
+    metaY = drawLabeledWrappedText(
+      doc,
+      "Mietzeitraum: ",
+      `${periodsText} (${days} Tage)`,
+      ADDR_X,
+      metaY,
+      invTextWidth
+    );
   }
 
   const tableStartY = metaY + (isSale ? 5 : 10);

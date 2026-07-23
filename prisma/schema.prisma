@@ -612,6 +612,10 @@ model Invoice {
   vatPercent Decimal  @default(0) @db.Decimal(5, 2)
   // Zahlungseingang — null wenn noch nicht bezahlt
   paidAt    DateTime?
+  // Zeitpunkt, zu dem der Projekt-Verantwortliche über die überschrittene
+  // Zahlungsfrist benachrichtigt wurde (Cron /api/cron/overdue-invoices).
+  // Null = noch nicht benachrichtigt — verhindert Mehrfach-Mails.
+  overdueNotifiedAt DateTime?
   // Vollständiger Snapshot der Render-Daten zum Zeitpunkt der Erstellung:
   // Empfänger, Positionen, Preise, Rabatte, Summen, Settings (MwSt, Firma).
   // Wird im PDF verwendet, damit nachträgliche Änderungen am Projekt die
