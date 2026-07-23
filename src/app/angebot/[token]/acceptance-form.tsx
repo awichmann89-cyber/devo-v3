@@ -9,7 +9,9 @@ import { Loader2, CheckCircle2, AlertCircle, Eraser } from "lucide-react";
 import { acceptQuote, type AcceptQuoteResult } from "./acceptance-actions";
 
 /**
- * Annahme-Formular für ein Angebot. Pflichtfelder: Name + Signatur + Häkchen.
+ * Annahme-Formular für ein Angebot. Pflichtfelder: Name + E-Mail + Signatur
+ * + Häkchen. An die E-Mail-Adresse geht nach der Annahme automatisch eine
+ * Bestätigung (ebenso an den Projekt-Zuständigen), siehe acceptQuote.
  *
  * Canvas-Signatur: nutzt Pointer-Events (deckt Maus + Touch + Pen ab).
  * Wir zeichnen mit weichen Linien, exportieren als PNG-DataURL und schicken
@@ -27,6 +29,7 @@ export function AcceptanceForm({
   quoteNumber: string;
 }) {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +109,10 @@ export function AcceptanceForm({
       setError("Bitte geben Sie Ihren vollständigen Namen an.");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Bitte geben Sie eine gültige E-Mail-Adresse an.");
+      return;
+    }
     if (!hasSignature) {
       setError("Bitte zeichnen Sie Ihre Unterschrift im Feld.");
       return;
@@ -124,6 +131,7 @@ export function AcceptanceForm({
         const result: AcceptQuoteResult = await acceptQuote({
           token,
           name: name.trim(),
+          email: email.trim(),
           signaturePng,
           agreementChecked,
         });
@@ -135,6 +143,7 @@ export function AcceptanceForm({
             SUPERSEDED:
               "Dieses Angebot wurde durch eine neue Version ersetzt. Bitte Seite neu laden.",
             INVALID_NAME: "Bitte geben Sie einen gültigen Namen an.",
+            INVALID_EMAIL: "Bitte geben Sie eine gültige E-Mail-Adresse an.",
             INVALID_SIGNATURE: "Die Unterschrift konnte nicht verarbeitet werden.",
             AGREEMENT_REQUIRED: "Bitte das Häkchen zur Annahme setzen.",
           };
@@ -171,6 +180,24 @@ export function AcceptanceForm({
               disabled={pending}
               style={{ fontSize: 16 }}
             />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="email">Ihre E-Mail-Adresse *</Label>
+            <Input
+              id="email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="max@beispiel.de"
+              disabled={pending}
+              style={{ fontSize: 16 }}
+            />
+            <p className="text-xs text-muted-foreground">
+              An diese Adresse senden wir Ihnen die Annahme-Bestätigung.
+            </p>
           </div>
 
           <div className="space-y-1">

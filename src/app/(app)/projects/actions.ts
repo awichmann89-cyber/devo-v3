@@ -11,6 +11,11 @@ import {
 import { findConflicts } from "@/lib/availability";
 import { redirect } from "next/navigation";
 import { nextSortOrderForGroup } from "@/lib/project-sort-order";
+import {
+  recomputeInvoiceNextSequence,
+  recomputeQuoteNextSequence,
+  recomputeReminderNextSequence,
+} from "@/lib/settings";
 
 export async function createProject(input: unknown) {
   const session = await requireRole(CAN_WRITE);
@@ -83,8 +88,31 @@ export async function updateProject(id: string, input: unknown) {
 
 export async function deleteProject(id: string) {
   await requireRole(CAN_WRITE);
-  await prisma.project.delete({ where: { id } });
+
+  // Quote + Invoice hängen mit onDelete: Restrict am Projekt — die DB
+  // verhindert also ein stilles Kaskadieren der Finanz-Dokumente. Beim
+  // bewussten Löschen des Projekts (Confirm-Dialog warnt explizit) räumen
+  // wir sie daher in derselben Transaktion mit ab. Mahnungen hängen per
+  // Cascade an ihrer Rechnung bzw. tragen selbst die projectId.
+  const [deletedQuotes, deletedInvoices] = await prisma.$transaction([
+    prisma.quote.deleteMany({ where: { projectId: id } }),
+    prisma.invoice.deleteMany({ where: { projectId: id } }),
+    prisma.project.delete({ where: { id } }),
+  ]);
+
+  // Nummernkreise freigeben, falls ein gelöschtes Dokument die höchste
+  // Nummer trug — analog zu deleteQuote/deleteInvoice.
+  if (deletedQuotes.count > 0) await recomputeQuoteNextSequence();
+  if (deletedInvoices.count > 0) {
+    await recomputeInvoiceNextSequence();
+    await recomputeReminderNextSequence();
+  }
+
   revalidatePath("/projects");
+  revalidatePath("/finances/quotes");
+  revalidatePath("/finances/invoices");
+  revalidatePath("/finances/forecast");
+  revalidatePath("/settings");
   redirect("/projects");
 }
 

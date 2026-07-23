@@ -33,8 +33,9 @@ export function DeleteProjectButton({ id, name }: { id: string; name: string }) 
         title="Projekt löschen?"
         description={
           <>
-            <strong>{name}</strong> wird unwiderruflich gelöscht inklusive aller
-            zugewiesenen Packeinheiten in diesem Projekt.
+            <strong>{name}</strong> wird unwiderruflich gelöscht — inklusive
+            aller zugewiesenen Packeinheiten sowie aller Angebote und
+            Rechnungen dieses Projekts.
           </>
         }
         confirmLabel="Löschen"

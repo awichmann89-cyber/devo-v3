@@ -652,6 +652,9 @@ model Quote {
   acceptToken           String?   @unique
   acceptedAt            DateTime?
   acceptedByName        String?
+  // E-Mail-Adresse, die der Kunde beim Annehmen angibt. Empfänger der
+  // automatischen Bestätigungs-Mail (siehe sendQuoteAcceptedEmails).
+  acceptedByEmail       String?
   // Base64-encoded PNG der Canvas-Unterschrift. Text-Spalte, typisch
   // 30-100 KB. Limit serverseitig per Validierung (200 KB max).
   acceptedSignaturePng  String?

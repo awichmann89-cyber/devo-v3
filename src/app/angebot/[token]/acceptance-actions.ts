@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { sendQuoteAcceptedEmails } from "@/lib/email";
 
 /**
  * Resultat-Typ der Annahme-Action. Diskriminierter Union, damit die UI
@@ -19,12 +20,16 @@ export type AcceptQuoteResult =
         | "EXPIRED"
         | "SUPERSEDED"
         | "INVALID_NAME"
+        | "INVALID_EMAIL"
         | "INVALID_SIGNATURE"
         | "AGREEMENT_REQUIRED";
     };
 
 /** Maximale erlaubte Größe der Signatur-PNG-DataURL (~200 KB). */
 const MAX_SIGNATURE_BYTES = 200_000;
+
+/** Bewusst lockere E-Mail-Prüfung — Tippfehler fängt eh nur der Bounce. */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Nimmt ein Angebot per Public-Token an. Wird vom AcceptanceForm aufgerufen,
@@ -37,15 +42,20 @@ const MAX_SIGNATURE_BYTES = 200_000;
 export async function acceptQuote(input: {
   token: string;
   name: string;
+  email: string;
   signaturePng: string;
   agreementChecked: boolean;
 }): Promise<AcceptQuoteResult> {
   const token = (input.token ?? "").trim();
   const name = (input.name ?? "").trim();
+  const email = (input.email ?? "").trim();
   const signaturePng = (input.signaturePng ?? "").trim();
 
   if (!input.agreementChecked) return { ok: false, reason: "AGREEMENT_REQUIRED" };
   if (!name || name.length < 2) return { ok: false, reason: "INVALID_NAME" };
+  if (!email || email.length > 254 || !EMAIL_REGEX.test(email)) {
+    return { ok: false, reason: "INVALID_EMAIL" };
+  }
   if (!signaturePng.startsWith("data:image/png;base64,")) {
     return { ok: false, reason: "INVALID_SIGNATURE" };
   }
@@ -58,11 +68,19 @@ export async function acceptQuote(input: {
     where: { acceptToken: token },
     select: {
       id: true,
+      number: true,
       projectId: true,
       expiresAt: true,
       acceptedAt: true,
       supersededByQuoteId: true,
-      project: { select: { id: true, status: true } },
+      project: {
+        select: {
+          id: true,
+          status: true,
+          name: true,
+          maintainer: { select: { name: true, email: true } },
+        },
+      },
     },
   });
   if (!quote) return { ok: false, reason: "UNKNOWN_TOKEN" };
@@ -93,6 +111,7 @@ export async function acceptQuote(input: {
       data: {
         acceptedAt: now,
         acceptedByName: name,
+        acceptedByEmail: email,
         acceptedSignaturePng: signaturePng,
         acceptedIp: ip,
         acceptedUserAgent: userAgent,
@@ -105,6 +124,21 @@ export async function acceptQuote(input: {
         data: { status: "CONFIRMED", confirmedAt: now },
       });
     }
+  });
+
+  // Bestätigungs-Mails an Kunde + Zuständigen. Die Annahme ist zu diesem
+  // Zeitpunkt bereits committed — Mail-Fehler dürfen sie nicht scheitern
+  // lassen, daher loggt sendQuoteAcceptedEmails intern statt zu werfen.
+  await sendQuoteAcceptedEmails({
+    quoteNumber: quote.number,
+    projectId: quote.project.id,
+    projectName: quote.project.name,
+    token,
+    acceptedAt: now,
+    acceptedByName: name,
+    customerEmail: email,
+    maintainerEmail: quote.project.maintainer?.email ?? null,
+    maintainerName: quote.project.maintainer?.name ?? null,
   });
 
   // Caches invalidieren
