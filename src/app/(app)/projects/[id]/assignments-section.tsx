@@ -621,6 +621,11 @@ export function AssignmentsSection({
     assignmentsByGroup.set(a.groupId, arr);
   }
 
+  // Packliste/Digital-Packen brauchen mindestens eine gebuchte Position —
+  // Kabel alleine reichen dafür aus.
+  const hasPackableItems =
+    project.assignments.length > 0 || cableAssignments.length > 0;
+
   // Kabel-Buchungen pro Gruppe
   const cableAssignmentsByGroup = new Map<string, CableAssignmentWithCable[]>();
   for (const ca of cableAssignments) {
@@ -1288,7 +1293,7 @@ export function AssignmentsSection({
       <div className="mb-3 flex justify-end gap-2">
         <ScanDialog
           projectId={project.id}
-          hasAssignments={project.assignments.length > 0}
+          hasAssignments={hasPackableItems}
           packedCount={scanProgress.packed}
           totalCount={scanProgress.total}
         />
@@ -1296,20 +1301,20 @@ export function AssignmentsSection({
           asChild
           size="sm"
           variant="default"
-          disabled={project.assignments.length === 0}
+          disabled={!hasPackableItems}
         >
           <a
             href={`/api/projects/${project.id}/packlist.pdf?download=1`}
             download
             rel="noopener"
             title={
-              project.assignments.length === 0
-                ? "Erst Geräte buchen"
+              !hasPackableItems
+                ? "Erst Geräte oder Kabel buchen"
                 : "Packliste herunterladen"
             }
-            aria-disabled={project.assignments.length === 0}
+            aria-disabled={!hasPackableItems}
             onClick={(e) => {
-              if (project.assignments.length === 0) e.preventDefault();
+              if (!hasPackableItems) e.preventDefault();
             }}
           >
             <Download className="h-4 w-4" /> Packliste herunterladen

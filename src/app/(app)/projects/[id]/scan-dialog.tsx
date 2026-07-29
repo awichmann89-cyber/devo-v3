@@ -96,7 +96,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
         variant="outline"
         onClick={() => setOpen(true)}
         disabled={!hasAssignments}
-        title={hasAssignments ? "Per Handy scannen" : "Erst Geräte buchen"}
+        title={hasAssignments ? "Per Handy scannen" : "Erst Geräte oder Kabel buchen"}
       >
         <QrCode className="h-4 w-4" /> Digital Packen
         {totalCount > 0 && (
@@ -117,7 +117,8 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
             </DialogTitle>
             <DialogDescription>
               QR-Code mit dem Handy scannen. Auf der Seite kannst du dann Packeinheiten- und
-              Geräte-Codes scannen — sie werden in der Packliste abgehakt.
+              Geräte-Codes scannen — sie werden in der Packliste abgehakt. Kabel haben
+              keinen Code und werden dort direkt per +/- abgehakt.
             </DialogDescription>
           </DialogHeader>
 

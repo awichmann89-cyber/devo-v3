@@ -17,11 +17,15 @@ export default async function PublicScanPage(props: {
       assignments: {
         include: { device: { include: { category: true } } },
       },
+      cableAssignments: {
+        include: { cable: { include: { category: true } } },
+      },
       packingScans: {
         orderBy: { scannedAt: "desc" },
         include: {
           packUnit: { select: { id: true, code: true, name: true } },
           device: { select: { id: true, name: true } },
+          cable: { select: { id: true, name: true } },
           deviceSerial: { select: { serialNumber: true } },
         },
       },
@@ -55,17 +59,25 @@ export default async function PublicScanPage(props: {
       quantity: a.quantity,
       device: a.device,
     })),
-    projectPackUnits
+    projectPackUnits,
+    project.cableAssignments.map((ca) => ({
+      cableId: ca.cableId,
+      quantity: ca.quantity,
+      cable: ca.cable,
+    }))
   );
 
   // Pro Packlisten-Item den Ist-Stand aus den Scans aggregieren
   const scansByPackUnit = new Map<string, number>();
   const scansByDevice = new Map<string, number>();
+  const scansByCable = new Map<string, number>();
   for (const s of project.packingScans) {
     if (s.packUnitId) {
       scansByPackUnit.set(s.packUnitId, (scansByPackUnit.get(s.packUnitId) ?? 0) + 1);
     } else if (s.deviceId) {
       scansByDevice.set(s.deviceId, (scansByDevice.get(s.deviceId) ?? 0) + 1);
+    } else if (s.cableId) {
+      scansByCable.set(s.cableId, (scansByCable.get(s.cableId) ?? 0) + 1);
     }
   }
 
@@ -79,8 +91,24 @@ export default async function PublicScanPage(props: {
   for (const a of project.assignments) {
     deviceCategory.set(a.deviceId, a.device.categoryId ?? null);
   }
+  const cableCategory = new Map<string, string | null>();
+  for (const ca of project.cableAssignments) {
+    cableCategory.set(ca.cableId, ca.cable.categoryId ?? null);
+  }
 
   const items = packList.map((it) => {
+    if (it.kind === "CABLE") {
+      return {
+        kind: "CABLE" as const,
+        key: `cable:${it.cableId}`,
+        cableId: it.cableId,
+        name: it.cableName,
+        required: it.quantity,
+        scanned: Math.min(scansByCable.get(it.cableId) ?? 0, it.quantity),
+        scannedRaw: scansByCable.get(it.cableId) ?? 0,
+        categoryId: cableCategory.get(it.cableId) ?? null,
+      };
+    }
     if (it.kind === "PACK") {
       return {
         kind: "PACK" as const,
@@ -114,8 +142,14 @@ export default async function PublicScanPage(props: {
       ? `${s.packUnit.code} · ${s.packUnit.name}`
       : s.device
         ? `${s.device.name}${s.deviceSerial ? " · " + s.deviceSerial.serialNumber : ""}`
-        : "(unbekannt)",
-    kind: s.packUnit ? ("PACK_UNIT" as const) : ("DEVICE" as const),
+        : s.cable
+          ? s.cable.name
+          : "(unbekannt)",
+    kind: s.packUnit
+      ? ("PACK_UNIT" as const)
+      : s.cable
+        ? ("CABLE" as const)
+        : ("DEVICE" as const),
   }));
 
   return (

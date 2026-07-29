@@ -22,6 +22,11 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
           device: { include: { category: true } },
         },
       },
+      cableAssignments: {
+        include: {
+          cable: { include: { category: true } },
+        },
+      },
     },
   });
   if (!project) return new NextResponse("Not found", { status: 404 });
@@ -85,8 +90,13 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       cableItems: p.cableItems.map((ci) => ({
         cableId: ci.cableId,
         quantity: ci.quantity,
-        cable: { name: ci.cable.name },
+        cable: { name: ci.cable.name, weight: ci.cable.weight },
       })),
+    })),
+    project.cableAssignments.map((ca) => ({
+      cableId: ca.cableId,
+      quantity: ca.quantity,
+      cable: { name: ca.cable.name, weight: ca.cable.weight },
     }))
   );
 
@@ -104,6 +114,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
 
   const packs = packList.filter((p): p is Extract<typeof p, { kind: "PACK" }> => p.kind === "PACK");
   const loose = packList.filter((p): p is Extract<typeof p, { kind: "LOOSE" }> => p.kind === "LOOSE");
+  const cables = packList.filter((p): p is Extract<typeof p, { kind: "CABLE" }> => p.kind === "CABLE");
 
   // Gruppierung nach Kategorie
   type CategoryGroup = {
@@ -112,6 +123,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     sortKey: string;
     packs: typeof packs;
     loose: typeof loose;
+    cables: typeof cables;
   };
   const groups = new Map<string, CategoryGroup>();
   function ensureGroup(categoryId: string | null): CategoryGroup {
@@ -124,6 +136,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       sortKey: info.sortKey,
       packs: [],
       loose: [],
+      cables: [],
     };
     groups.set(info.key, g);
     return g;
@@ -136,6 +149,10 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   for (const l of loose) {
     const a = project.assignments.find((x) => x.deviceId === l.deviceId);
     ensureGroup(a?.device.categoryId ?? null).loose.push(l);
+  }
+  for (const c of cables) {
+    const ca = project.cableAssignments.find((x) => x.cableId === c.cableId);
+    ensureGroup(ca?.cable.categoryId ?? null).cables.push(c);
   }
 
   const sortedGroups = Array.from(groups.values()).sort((a, b) =>
@@ -267,6 +284,20 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         },
       ]);
     }
+
+    if (g.cables.length > 0) body.push(subSectionRow("Kabel"));
+    for (const c of g.cables) {
+      body.push([
+        { content: `${c.quantity}×`, styles: { halign: "left" } },
+        c.cableName,
+        {
+          content: c.weightPerUnit
+            ? `${(c.weightPerUnit * c.quantity).toFixed(1)} kg`
+            : "—",
+          styles: { halign: "right" },
+        },
+      ]);
+    }
   }
 
   autoTable(doc, {
@@ -294,7 +325,14 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   const totalPacks = packs.reduce((s, p) => s + p.quantity, 0);
   const totalDevices = packList.reduce((s, p) => {
     if (p.kind === "PACK") return s + p.contents.reduce((cs, c) => cs + c.total, 0);
+    if (p.kind === "CABLE") return s;
     return s + p.quantity;
+  }, 0);
+  // Kabel: gebuchte Kabel + die in den Packeinheiten mitreisenden.
+  const totalCables = packList.reduce((s, p) => {
+    if (p.kind === "PACK") return s + p.cables.reduce((cs, c) => cs + c.total, 0);
+    if (p.kind === "CABLE") return s + p.quantity;
+    return s;
   }, 0);
   const totalWeight = packList.reduce(
     (s, p) => s + p.weightPerUnit * p.quantity,
@@ -304,7 +342,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
-    `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalWeight.toFixed(1)} kg`,
+    `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalCables} Kabel | ${totalWeight.toFixed(1)} kg`,
     14,
     finalY + 8
   );

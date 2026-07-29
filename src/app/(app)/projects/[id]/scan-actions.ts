@@ -218,6 +218,58 @@ export async function submitScanWithToken(
 }
 
 /**
+ * Hakt ein gebuchtes Kabel auf der digitalen Packliste ab bzw. nimmt einen
+ * Haken wieder zurück. Kabel tragen keinen QR-Code — der Eintrag entsteht
+ * durch Antippen, `scannedCode` ist deshalb fix "MANUELL".
+ * Auth erfolgt rein über den Token im Path-Param (wie beim Scannen).
+ *
+ * `delta` = +1 (abhaken) oder -1 (letzten Haken entfernen).
+ */
+export async function togglePackedCableWithToken(
+  token: string,
+  cableId: string,
+  delta: 1 | -1
+): Promise<{ ok: boolean }> {
+  if (!token || !cableId) return { ok: false };
+
+  const project = await prisma.project.findFirst({
+    where: { packToken: token },
+    select: {
+      id: true,
+      cableAssignments: { where: { cableId }, select: { quantity: true } },
+    },
+  });
+  if (!project) return { ok: false };
+  // Nur gebuchte Kabel sind abhakbar.
+  if (project.cableAssignments.length === 0) return { ok: false };
+
+  if (delta === 1) {
+    // Nicht über den Bedarf hinaus abhaken.
+    const required = project.cableAssignments.reduce((s, a) => s + a.quantity, 0);
+    const done = await prisma.packingScan.count({
+      where: { projectId: project.id, cableId },
+    });
+    if (done >= required) return { ok: false };
+
+    await prisma.packingScan.create({
+      data: { projectId: project.id, cableId, scannedCode: "MANUELL" },
+    });
+  } else {
+    const last = await prisma.packingScan.findFirst({
+      where: { projectId: project.id, cableId },
+      orderBy: { scannedAt: "desc" },
+      select: { id: true },
+    });
+    if (!last) return { ok: false };
+    await prisma.packingScan.delete({ where: { id: last.id } });
+  }
+
+  revalidatePath(`/scan/${token}`);
+  revalidatePath(`/projects/${project.id}`);
+  return { ok: true };
+}
+
+/**
  * Setzt alle PackingScans vom Public-Endpoint aus zurück (Auth via Token).
  */
 export async function resetPackingScansWithToken(

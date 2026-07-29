@@ -65,7 +65,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           orderBy: { sortOrder: "asc" },
         },
         packingScans: {
-          select: { id: true, packUnitId: true, deviceId: true },
+          select: { id: true, packUnitId: true, deviceId: true, cableId: true },
         },
         files: {
           include: {
@@ -370,8 +370,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     0
   );
 
-  // Gewicht für die KPI-Card: Packeinheiten-Leergewicht (× Stück lt. Packliste)
-  // + Gewicht der losen Geräte. Logik exakt wie auf der Packliste.
+  // Gewicht für die KPI-Card: Packeinheiten-Leergewicht inkl. der darin
+  // liegenden Kabel (× Stück lt. Packliste) + lose Geräte + gebuchte Kabel.
+  // Logik exakt wie auf der Packliste.
   const bookedDeviceIds = project.assignments.map((a) => a.deviceId);
   const projectPackUnits =
     bookedDeviceIds.length > 0
@@ -407,8 +408,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       cableItems: pu.cableItems.map((ci) => ({
         cableId: ci.cableId,
         quantity: ci.quantity,
-        cable: { name: ci.cable.name },
+        cable: { name: ci.cable.name, weight: ci.cable.weight },
       })),
+    })),
+    project.cableAssignments.map((ca) => ({
+      cableId: ca.cableId,
+      quantity: ca.quantity,
+      cable: { name: ca.cable.name, weight: ca.cable.weight },
     }))
   );
   const totalWeightKg = projectPackList.reduce(
@@ -420,11 +426,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   // Auf Soll-Quantity gecapped — Über-Scans werden im Badge nicht weitergezählt.
   const scansByPackUnit = new Map<string, number>();
   const scansByDevice = new Map<string, number>();
+  const scansByCable = new Map<string, number>();
   for (const s of project.packingScans) {
     if (s.packUnitId) {
       scansByPackUnit.set(s.packUnitId, (scansByPackUnit.get(s.packUnitId) ?? 0) + 1);
     } else if (s.deviceId) {
       scansByDevice.set(s.deviceId, (scansByDevice.get(s.deviceId) ?? 0) + 1);
+    } else if (s.cableId) {
+      scansByCable.set(s.cableId, (scansByCable.get(s.cableId) ?? 0) + 1);
     }
   }
   let scanTotalRequired = 0;
@@ -433,6 +442,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     scanTotalRequired += it.quantity;
     if (it.kind === "PACK") {
       scanTotalDone += Math.min(scansByPackUnit.get(it.packUnitId) ?? 0, it.quantity);
+    } else if (it.kind === "CABLE") {
+      scanTotalDone += Math.min(scansByCable.get(it.cableId) ?? 0, it.quantity);
     } else {
       scanTotalDone += Math.min(scansByDevice.get(it.deviceId) ?? 0, it.quantity);
     }
@@ -516,7 +527,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               {totalWeightKg.toFixed(1)} kg
             </div>
             <div className="text-xs text-muted-foreground">
-              Packeinheiten (leer) + lose Geräte
+              Packeinheiten (leer, inkl. Kabel) + lose Geräte + Kabel
             </div>
           </CardContent>
         </Card>

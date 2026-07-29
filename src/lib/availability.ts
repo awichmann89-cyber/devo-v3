@@ -181,9 +181,11 @@ export async function getOverlappingAssignments(
             blockingByDevice.set(c.deviceId, arr);
           }
         }
-      } else {
+      } else if (item.kind === "LOOSE") {
         byDevice.set(item.deviceId, (byDevice.get(item.deviceId) ?? 0) + item.quantity);
       }
+      // CABLE-Einträge sind für die Geräte-Verfügbarkeit irrelevant (und
+      // entstehen hier ohnehin nicht — es werden keine Kabel übergeben).
     }
     // Sicherheits-Floor: effective darf nie unter booked liegen
     // (z.B. wenn ein Gerät gar nicht in einem PackUnit ist).

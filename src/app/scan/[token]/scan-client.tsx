@@ -12,7 +12,9 @@ import {
   Circle,
   Keyboard,
   Loader2,
+  Minus,
   Package,
+  Plus,
   Trash2,
   RotateCcw,
   AlertTriangle,
@@ -25,6 +27,7 @@ import {
   submitScanWithToken,
   resetPackingScansWithToken,
   deletePackingScanWithToken,
+  togglePackedCableWithToken,
   type ScanResult,
 } from "../../(app)/projects/[id]/scan-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -50,7 +53,18 @@ type LooseItem = {
   scannedRaw: number;
   categoryId: string | null;
 };
-type Item = PackItem | LooseItem;
+// Kabel tragen keinen QR-Code — sie werden über +/- manuell abgehakt.
+type CableItem = {
+  kind: "CABLE";
+  key: string;
+  cableId: string;
+  name: string;
+  required: number;
+  scanned: number;
+  scannedRaw: number;
+  categoryId: string | null;
+};
+type Item = PackItem | LooseItem | CableItem;
 
 type CategoryLite = { id: string; name: string; parentId: string | null };
 
@@ -59,7 +73,7 @@ type RecentScan = {
   scannedAt: string;
   scannedCode: string;
   label: string;
-  kind: "PACK_UNIT" | "DEVICE";
+  kind: "PACK_UNIT" | "DEVICE" | "CABLE";
 };
 
 interface Props {
@@ -276,6 +290,25 @@ export function ScanClient({
     });
   }
 
+  // Kabel haben keinen QR-Code — hier wird pro Tipp ein Stück abgehakt bzw.
+  // der letzte Haken wieder zurückgenommen.
+  function handleCableToggle(cableId: string, delta: 1 | -1) {
+    startTransition(async () => {
+      const r = await togglePackedCableWithToken(token, cableId, delta);
+      if (!r.ok) {
+        toast.error(
+          delta === 1
+            ? "Schon vollständig abgehakt"
+            : "Nichts zum Zurücknehmen"
+        );
+        return;
+      }
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate?.(40);
+      }
+    });
+  }
+
   function handleDelete(scanId: string) {
     startTransition(async () => {
       await deletePackingScanWithToken(token, scanId);
@@ -454,7 +487,7 @@ export function ScanClient({
         <CardContent className="p-0">
           {items.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Keine Geräte gebucht
+              Nichts gebucht
             </p>
           ) : (
             <ul className="divide-y">
@@ -498,7 +531,11 @@ export function ScanClient({
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {it.kind === "PACK" ? "Packeinheit" : "Lose"}
+                            {it.kind === "PACK"
+                              ? "Packeinheit"
+                              : it.kind === "CABLE"
+                                ? "Kabel · manuell abhaken"
+                                : "Lose"}
                           </div>
                         </div>
                         <div
@@ -509,6 +546,31 @@ export function ScanClient({
                         >
                           {it.scanned} / {it.required}
                         </div>
+                        {/* Kabel tragen keinen QR-Code → +/- statt Scan */}
+                        {it.kind === "CABLE" && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-9 w-9"
+                              disabled={pending || it.scanned === 0}
+                              onClick={() => handleCableToggle(it.cableId, -1)}
+                              title="Einen Haken zurücknehmen"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-9 w-9"
+                              disabled={pending || complete}
+                              onClick={() => handleCableToggle(it.cableId, 1)}
+                              title="Ein Stück abhaken"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </li>
                     );
                   })}

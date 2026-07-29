@@ -143,6 +143,7 @@ model Cable {
   units       CableUnit[]
   assignments ProjectCableAssignment[]
   packUnitItems PackUnitCable[]
+  packingScans PackingScan[]
 
   @@index([categoryId])
 }
@@ -806,11 +807,15 @@ model PackingScan {
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  // Genau eines von beiden ist gesetzt:
+  // Genau eines der drei ist gesetzt:
   packUnitId  String?
   packUnit    PackUnit? @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
   deviceId    String?
   device      Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  // Kabel tragen keinen QR-Code — diese Einträge entstehen durch manuelles
+  // Abhaken auf der digitalen Packliste (scannedCode = "MANUELL").
+  cableId     String?
+  cable       Cable?    @relation(fields: [cableId], references: [id], onDelete: Cascade)
   // Wenn der Scan über eine konkrete Seriennummer aufgelöst wurde
   deviceSerialId String?
   deviceSerial   DeviceSerialNumber? @relation(fields: [deviceSerialId], references: [id], onDelete: SetNull)
@@ -821,6 +826,7 @@ model PackingScan {
   @@index([projectId])
   @@index([packUnitId])
   @@index([deviceId])
+  @@index([cableId])
 }
 
 // Hochgeladene Dateien zu einem Projekt (PDFs, Bilder, Office-Dokumente etc.).
