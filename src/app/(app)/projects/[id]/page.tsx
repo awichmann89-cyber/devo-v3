@@ -408,13 +408,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       cableItems: pu.cableItems.map((ci) => ({
         cableId: ci.cableId,
         quantity: ci.quantity,
-        cable: { name: ci.cable.name, weight: ci.cable.weight },
+        cable: ci.cable,
       })),
     })),
     project.cableAssignments.map((ca) => ({
       cableId: ca.cableId,
       quantity: ca.quantity,
-      cable: { name: ca.cable.name, weight: ca.cable.weight },
+      cable: ca.cable,
     }))
   );
   const totalWeightKg = projectPackList.reduce(

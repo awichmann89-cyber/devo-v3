@@ -68,6 +68,7 @@ import {
 import { ScanDialog } from "./scan-dialog";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
+import { cableSpecLabel } from "@/lib/labels";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { groupItemsByCategory } from "@/lib/category-tree";
@@ -1181,12 +1182,13 @@ export function AssignmentsSection({
             <div className={cn("font-medium", isOver && "text-destructive")}>
               {ca.cable.name}
             </div>
-            {ca.cable.cableType && (
+            {/* Typ + Länge + Steckerenden — sonst ist nicht erkennbar,
+                welches Kabel genau gebucht ist. */}
+            {(ca.cable.cableType || cableSpecLabel(ca.cable)) && (
               <div className="text-[11px] text-muted-foreground">
-                {ca.cable.cableType}
-                {ca.cable.lengthMeters
-                  ? ` · ${Number(ca.cable.lengthMeters)} m`
-                  : ""}
+                {[ca.cable.cableType, cableSpecLabel(ca.cable)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
             )}
           </TableCell>

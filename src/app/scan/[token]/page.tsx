@@ -103,6 +103,7 @@ export default async function PublicScanPage(props: {
         key: `cable:${it.cableId}`,
         cableId: it.cableId,
         name: it.cableName,
+        spec: it.spec,
         required: it.quantity,
         scanned: Math.min(scansByCable.get(it.cableId) ?? 0, it.quantity),
         scannedRaw: scansByCable.get(it.cableId) ?? 0,

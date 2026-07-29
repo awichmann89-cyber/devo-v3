@@ -90,13 +90,13 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       cableItems: p.cableItems.map((ci) => ({
         cableId: ci.cableId,
         quantity: ci.quantity,
-        cable: { name: ci.cable.name, weight: ci.cable.weight },
+        cable: ci.cable,
       })),
     })),
     project.cableAssignments.map((ca) => ({
       cableId: ca.cableId,
       quantity: ca.quantity,
-      cable: { name: ca.cable.name, weight: ca.cable.weight },
+      cable: ca.cable,
     }))
   );
 
@@ -263,7 +263,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
             },
           },
           {
-            content: `        ${cab.cableName}  (Kabel)`,
+            content: `        ${cab.cableName}${cab.spec ? ` · ${cab.spec}` : ""}  (Kabel)`,
             styles: { textColor: 130, fontSize: 8, fontStyle: "italic" },
           },
           { content: "", styles: { textColor: 130, fontSize: 8 } },
@@ -289,7 +289,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     for (const c of g.cables) {
       body.push([
         { content: `${c.quantity}×`, styles: { halign: "left" } },
-        c.cableName,
+        // Länge + Steckerenden dazu, damit beim Packen klar ist welches Kabel
+        c.spec ? `${c.cableName} · ${c.spec}` : c.cableName,
         {
           content: c.weightPerUnit
             ? `${(c.weightPerUnit * c.quantity).toFixed(1)} kg`

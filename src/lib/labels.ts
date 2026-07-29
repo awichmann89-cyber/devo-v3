@@ -95,3 +95,38 @@ export function billingUnitShort(unit: BillingUnit): string {
     PIECE: "Stück",
   }[unit];
 }
+
+// Prisma-Decimals kommen je nach Aufrufer als Decimal-Objekt (Server) oder
+// bereits als number/string (nach serialize()) an.
+type DecimalLike = number | string | { toString(): string };
+
+/**
+ * Kurzbeschreibung eines Kabels für Listen, Packliste und PDF:
+ * „10 m · XLR 5pol male → XLR 5pol female".
+ *
+ * Länge und Stecker sind einzeln optional — fehlende Angaben fallen weg,
+ * ohne jede Angabe kommt null zurück. Ist nur ein Steckerende gepflegt,
+ * wird nur dieses ausgegeben (ohne Pfeil).
+ */
+export function cableSpecLabel(cable: {
+  lengthMeters?: DecimalLike | null;
+  connectorA?: string | null;
+  connectorB?: string | null;
+}): string | null {
+  const parts: string[] = [];
+
+  if (cable.lengthMeters != null && cable.lengthMeters !== "") {
+    const meters = Number(cable.lengthMeters);
+    if (Number.isFinite(meters) && meters > 0) {
+      // Nachkommastellen nur zeigen, wenn vorhanden (10 m statt 10,00 m)
+      parts.push(`${String(meters).replace(".", ",")} m`);
+    }
+  }
+
+  const a = cable.connectorA?.trim() || null;
+  const b = cable.connectorB?.trim() || null;
+  if (a && b) parts.push(`${a} → ${b}`);
+  else if (a || b) parts.push((a ?? b) as string);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}

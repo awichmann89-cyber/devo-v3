@@ -59,6 +59,8 @@ type CableItem = {
   key: string;
   cableId: string;
   name: string;
+  // Länge + Steckerenden ("10 m · XLR male → XLR female")
+  spec: string | null;
   required: number;
   scanned: number;
   scannedRaw: number;
@@ -534,7 +536,11 @@ export function ScanClient({
                             {it.kind === "PACK"
                               ? "Packeinheit"
                               : it.kind === "CABLE"
-                                ? "Kabel · manuell abhaken"
+                                ? // Länge + Stecker statt nur „Kabel" — beim
+                                  // Packen muss der Typ eindeutig sein.
+                                  it.spec
+                                  ? `${it.spec} · manuell abhaken`
+                                  : "Kabel · manuell abhaken"
                                 : "Lose"}
                           </div>
                         </div>
