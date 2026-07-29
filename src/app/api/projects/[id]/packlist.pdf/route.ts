@@ -6,6 +6,33 @@ import autoTable from "jspdf-autotable";
 import { buildPackList } from "@/lib/packlist";
 import { buildProjectPdfFilename } from "@/lib/utils";
 
+/**
+ * Die jsPDF-Standardfonts (Helvetica & Co.) können nur WinAnsi/Latin-1.
+ * Zeichen außerhalb davon — z.B. der Pfeil „→" aus der Kabel-Beschreibung —
+ * rendert jsPDF nicht nur falsch, es zerreißt auch die Buchstabenabstände
+ * der ganzen Zeile. Deshalb läuft JEDER Text vor der Ausgabe hier durch.
+ */
+function pdfText(value: string): string {
+  return (
+    value
+      .replace(/[→⇒➔]/g, "->")
+      .replace(/[←⇐]/g, "<-")
+      .replace(/[✓✔]/g, "x")
+      .replace(/[•·]/g, "·") // Bullet → WinAnsi-Mittelpunkt
+      // Was WinAnsi dann noch immer nicht kann, ersetzen wir sichtbar,
+      // statt es die Zeile zerschießen zu lassen. Erlaubt sind Latin-1
+      // plus die WinAnsi-Extras (Anführungszeichen, Gedankenstriche, …, €).
+      .replace(/[^\n\x20-\xFF–—‘’‚“”„…€]/g, "?")
+  );
+}
+
+/** Wendet pdfText auf eine autoTable-Zelle an (String oder {content}). */
+type PdfCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+function sanitizeCell(cell: PdfCell): PdfCell {
+  if (typeof cell === "string") return pdfText(cell);
+  return { ...cell, content: pdfText(cell.content) };
+}
+
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
@@ -104,10 +131,12 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   doc.setFontSize(20);
   doc.text("Packliste", 14, 20);
   doc.setFontSize(10);
-  doc.text(`Projekt: ${project.name}`, 14, 28);
-  if (project.customer) doc.text(`Kunde: ${project.customer.name}`, 14, 33);
+  doc.text(pdfText(`Projekt: ${project.name}`), 14, 28);
+  if (project.customer) doc.text(pdfText(`Kunde: ${project.customer.name}`), 14, 33);
   doc.text(
-    `Planung: ${project.planningStart.toLocaleDateString("de-DE")} – ${project.planningEnd.toLocaleDateString("de-DE")}`,
+    pdfText(
+      `Planung: ${project.planningStart.toLocaleDateString("de-DE")} – ${project.planningEnd.toLocaleDateString("de-DE")}`
+    ),
     14,
     38
   );
@@ -159,9 +188,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     a.sortKey.localeCompare(b.sortKey, "de")
   );
 
-  type CellDef =
-    | string
-    | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+  type CellDef = PdfCell;
   const body: CellDef[][] = [];
 
   // Kategorie-Section: dunkler Streifen, Text in Bezeichnungs-Spalte
@@ -304,7 +331,9 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   autoTable(doc, {
     startY: 48,
     head: [["Anzahl", "Bezeichnung", "Gewicht"]],
-    body,
+    // Sonderzeichen erst hier abfangen — so muss keine der Zeilen-Bauten
+    // oben daran denken.
+    body: body.map((row) => row.map(sanitizeCell)),
     theme: "plain",
     styles: { fontSize: 10, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 } },
     headStyles: {
@@ -343,7 +372,9 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
-    `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalCables} Kabel | ${totalWeight.toFixed(1)} kg`,
+    pdfText(
+      `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalCables} Kabel | ${totalWeight.toFixed(1)} kg`
+    ),
     14,
     finalY + 8
   );
