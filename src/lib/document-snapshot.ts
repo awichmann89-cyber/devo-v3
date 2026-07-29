@@ -54,7 +54,7 @@ export interface DocumentSnapshot {
   isSale: boolean;
 
   /**
-   * Material-, Service- und Cable-Gruppen mit allen Items inline.
+   * Material- und Service-Gruppen mit allen Items inline.
    * Geräte sind bereits nach name|manufacturer|model|dailyRate aggregiert.
    * Nicht-abrechenbare Gruppen werden NICHT geschrieben — die fallen schon
    * beim Bauen weg.
@@ -244,8 +244,10 @@ export function buildSnapshotFromProject(
     arr.sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
-  // Nur abrechenbare MATERIAL- und SERVICE-Gruppen schreiben.
-  // CABLE-Gruppen werden für Finanzdokumente nicht ausgegeben.
+  // Nur abrechenbare MATERIAL- und SERVICE-Gruppen schreiben. Gebuchte Kabel
+  // haben keinen Preis und erscheinen nie auf Finanzdokumenten — eine Gruppe,
+  // in der NUR Kabel liegen, bliebe also komplett leer und wird deshalb
+  // (wie jede andere leere Gruppe) gar nicht erst als Überschrift ausgegeben.
   const groups: DocumentSnapshot["groups"] = project.groups
     .filter(
       (g) =>
@@ -261,7 +263,14 @@ export function buildSnapshotFromProject(
       adHocRows: adHocByGroup.get(g.id) ?? [],
       serviceRows: servicesByGroup.get(g.id) ?? [],
       comments: commentsByGroup.get(g.id) ?? [],
-    }));
+    }))
+    .filter(
+      (g) =>
+        g.materialRows.length > 0 ||
+        g.adHocRows.length > 0 ||
+        g.serviceRows.length > 0 ||
+        g.comments.length > 0,
+    );
 
   // Berechnung der Summen — identisch zur PDF-Logik.
   let materialBereichSub = 0;

@@ -307,7 +307,7 @@ export function GroupTableFooter({
   onAddGroup: () => void;
   addLabel?: string;
   pending?: boolean;
-  /** Optionaler zweiter Button links (z.B. „Kabel-Gruppe hinzufügen"). */
+  /** Optionaler zweiter Button links (z.B. „Kosten-Gruppe hinzufügen"). */
   secondary?: ReactNode;
   children?: ReactNode;
 }) {

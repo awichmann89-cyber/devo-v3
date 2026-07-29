@@ -8,7 +8,8 @@ import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 
 /**
  * Bucht ein Kabel in ein Projekt — analog zu addAssignment für Geräte.
- * groupId muss zu einer CABLE-Gruppe gehören.
+ * groupId ist eine ganz normale MATERIAL-Gruppe: Kabel und Geräte liegen
+ * gemeinsam in denselben Gruppen.
  */
 export async function addCableAssignment(projectId: string, input: unknown) {
   await requireRole(CAN_WRITE);
@@ -33,32 +34,6 @@ export async function addCableAssignment(projectId: string, input: unknown) {
   });
 
   revalidatePath(`/projects/${projectId}`);
-}
-
-/**
- * Stellt sicher, dass es mindestens eine CABLE-Gruppe gibt, und gibt deren ID zurück.
- * Wird vom Cable-Tab beim ersten Buchen gerufen, damit keine Material-Gruppe missbraucht wird.
- */
-export async function ensureDefaultCableGroup(projectId: string): Promise<string> {
-  await requireRole(CAN_WRITE);
-  const existing = await prisma.projectGroup.findFirst({
-    where: { projectId, kind: "CABLE" },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
-
-  const created = await prisma.projectGroup.create({
-    data: {
-      projectId,
-      kind: "CABLE",
-      name: "Kabel",
-      sortOrder: 0,
-    },
-    select: { id: true },
-  });
-  revalidatePath(`/projects/${projectId}`);
-  return created.id;
 }
 
 export async function removeCableAssignment(projectId: string, assignmentId: string) {

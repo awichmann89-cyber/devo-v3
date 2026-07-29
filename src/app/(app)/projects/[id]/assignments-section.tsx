@@ -63,7 +63,6 @@ import {
   NoteRowCells,
   QtyStepper,
   GroupTableFooter,
-  FooterDashedButton,
 } from "@/components/project/group-table";
 import { ScanDialog } from "./scan-dialog";
 import { toast } from "sonner";
@@ -88,7 +87,6 @@ import {
   removeCableAssignment,
   updateCableAssignmentQuantity,
   moveCableAssignmentToGroup,
-  ensureDefaultCableGroup,
 } from "../cable-actions";
 import {
   addAdHocItem,
@@ -176,8 +174,8 @@ interface Props {
   subtotal: number;
   discount: number;
   total: number;
+  /** Material-Gruppen — enthalten Geräte, Kabel und Ad-hoc-Positionen. */
   groups: ProjectGroup[];
-  cableGroups: ProjectGroup[];
   adHocItems: ProjectAdHocItem[];
   groupComments: ProjectGroupComment[];
   categories: Category[];
@@ -226,7 +224,6 @@ export function AssignmentsSection({
   discount,
   total,
   groups,
-  cableGroups,
   adHocItems,
   groupComments,
   categories,
@@ -290,7 +287,7 @@ export function AssignmentsSection({
   const [search, setSearch] = useState("");
   const [conflictPrompt, setConflictPrompt] = useState<ConflictPrompt | null>(null);
 
-  // Aktive Gruppe (für neu hinzugefügte Items) — Geräte
+  // Aktive Gruppe (für neu hinzugefügte Geräte UND Kabel)
   const [activeGroupId, setActiveGroupId] = useState<string | null>(groups[0]?.id ?? null);
   useEffect(() => {
     if (!activeGroupId && groups[0]) setActiveGroupId(groups[0].id);
@@ -299,24 +296,11 @@ export function AssignmentsSection({
     }
   }, [groups, activeGroupId]);
 
-  // Aktive Gruppe für Kabel — eigener State, da CABLE-Gruppen separat sind
-  const [activeCableGroupId, setActiveCableGroupId] = useState<string | null>(
-    cableGroups[0]?.id ?? null
-  );
-  useEffect(() => {
-    if (!activeCableGroupId && cableGroups[0]) setActiveCableGroupId(cableGroups[0].id);
-    if (activeCableGroupId && !cableGroups.find((g) => g.id === activeCableGroupId)) {
-      setActiveCableGroupId(cableGroups[0]?.id ?? null);
-    }
-  }, [cableGroups, activeCableGroupId]);
-
-  // Group-Dialog wird für beide Tabs verwendet — kind sagt, wofür angelegt werden soll
   const [groupDialog, setGroupDialog] = useState<{
     mode: "create" | "rename";
     id?: string;
     name: string;
     billable: boolean;
-    kind: "MATERIAL" | "CABLE";
   } | null>(null);
   const [deleteGroup, setDeleteGroup] = useState<ProjectGroup | null>(null);
 
@@ -459,12 +443,17 @@ export function AssignmentsSection({
   });
 
   async function handleAddCable(cableId: string) {
-    let groupId = activeCableGroupId;
-    if (!groupId && cableGroups.length === 0) {
+    // Kabel landen in derselben aktiven Material-Gruppe wie Geräte. Ist noch
+    // gar keine Gruppe da, wird — wie bei Geräten — eine Standardgruppe angelegt.
+    let groupId = activeGroupId;
+    if (!groupId && groups.length === 0) {
       try {
-        const id = await ensureDefaultCableGroup(project.id);
-        groupId = id;
-        setActiveCableGroupId(id);
+        const res = await createProjectGroup(project.id, {
+          name: "Material",
+          kind: "MATERIAL",
+        });
+        groupId = res.id;
+        setActiveGroupId(res.id);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
         return;
@@ -530,7 +519,7 @@ export function AssignmentsSection({
         if (groupDialog.mode === "create") {
           await createProjectGroup(project.id, {
             name,
-            kind: groupDialog.kind,
+            kind: "MATERIAL",
             billable: groupDialog.billable,
           });
         } else if (groupDialog.id) {
@@ -664,24 +653,20 @@ export function AssignmentsSection({
     sortOrder: number;
   };
 
-  /** Items + AdHoc + Comments einer Gruppe als geordnete Liste (für DnD und Render). */
-  function buildDeviceGroupRows(groupId: string): GroupRow[] {
+  /**
+   * Geräte + Kabel + AdHoc + Comments einer Gruppe als geordnete Liste
+   * (für DnD und Render). Alle Typen teilen sich den sortOrder-Raum der Gruppe.
+   */
+  function buildGroupRows(groupId: string): GroupRow[] {
     const out: GroupRow[] = [];
     for (const a of assignmentsByGroup.get(groupId) ?? []) {
       out.push({ sortId: `DEVICE:${a.id}`, kind: "DEVICE", id: a.id, sortOrder: a.sortOrder ?? 0 });
     }
-    for (const it of adHocByGroup.get(groupId) ?? []) {
-      out.push({ sortId: `ADHOC:${it.id}`, kind: "ADHOC", id: it.id, sortOrder: it.sortOrder ?? 0 });
-    }
-    for (const c of commentsByGroup.get(groupId) ?? []) {
-      out.push({ sortId: `COMMENT:${c.id}`, kind: "COMMENT", id: c.id, sortOrder: c.sortOrder ?? 0 });
-    }
-    return out.sort((a, b) => a.sortOrder - b.sortOrder);
-  }
-  function buildCableGroupRows(groupId: string): GroupRow[] {
-    const out: GroupRow[] = [];
     for (const ca of cableAssignmentsByGroup.get(groupId) ?? []) {
       out.push({ sortId: `CABLE:${ca.id}`, kind: "CABLE", id: ca.id, sortOrder: ca.sortOrder ?? 0 });
+    }
+    for (const it of adHocByGroup.get(groupId) ?? []) {
+      out.push({ sortId: `ADHOC:${it.id}`, kind: "ADHOC", id: it.id, sortOrder: it.sortOrder ?? 0 });
     }
     for (const c of commentsByGroup.get(groupId) ?? []) {
       out.push({ sortId: `COMMENT:${c.id}`, kind: "COMMENT", id: c.id, sortOrder: c.sortOrder ?? 0 });
@@ -1212,7 +1197,7 @@ export function AssignmentsSection({
           )}
           <TableCell>
             <div className="flex items-center justify-end gap-1">
-              {cableGroups.length > 1 && (
+              {groups.length > 1 && (
                 <Select
                   value={ca.groupId}
                   onValueChange={(v) => handleMoveCableToGroup(ca.id, v)}
@@ -1221,7 +1206,7 @@ export function AssignmentsSection({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {cableGroups.map((og) => (
+                    {groups.map((og) => (
                       <SelectItem key={og.id} value={og.id}>
                         {og.name}
                       </SelectItem>
@@ -1510,9 +1495,9 @@ export function AssignmentsSection({
                                 disabled={pending}
                                 onClick={() => handleAddCable(c.id)}
                                 title={
-                                  activeCableGroupId
-                                    ? `Zur Gruppe "${cableGroups.find((g) => g.id === activeCableGroupId)?.name}" hinzufügen`
-                                    : "Eine Kabel-Gruppe wird automatisch angelegt"
+                                  activeGroupId
+                                    ? `Zur Gruppe "${groups.find((g) => g.id === activeGroupId)?.name}" hinzufügen`
+                                    : "Eine Standardgruppe wird automatisch angelegt"
                                 }
                               >
                                 <ArrowRight className="h-4 w-4" />
@@ -1578,10 +1563,11 @@ export function AssignmentsSection({
               </div>
             </div>
 
-            {/* EINE durchgehende Tabelle: Material-Gruppen, danach Kabel-Gruppen. */}
+            {/* EINE durchgehende Tabelle: Material-Gruppen mit Geräten, Kabeln
+                und Ad-hoc-Positionen gemischt. */}
             <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
               <div className="min-h-0 flex-1 overflow-y-auto">
-                {groups.length === 0 && cableGroups.length === 0 ? (
+                {groups.length === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
                     <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
                   </div>
@@ -1602,9 +1588,10 @@ export function AssignmentsSection({
                       </TableRow>
                     </TableHeader>
                     {groups.map((g, gi) => {
-                      const mainRows = buildDeviceGroupRows(g.id);
+                      const mainRows = buildGroupRows(g.id);
                       const freeSubs = freeSubhiresByGroup.get(g.id) ?? [];
                       const groupAssignments = assignmentsByGroup.get(g.id) ?? [];
+                      const groupCables = cableAssignmentsByGroup.get(g.id) ?? [];
                       const colSpanAll = isSale ? 6 : 8;
                       const groupSum =
                         groupAssignments.reduce(
@@ -1642,7 +1629,6 @@ export function AssignmentsSection({
                                   id: g.id,
                                   name: g.name,
                                   billable: g.billable,
-                                  kind: "MATERIAL",
                                 })
                               }
                               onDelete={() => setDeleteGroup(g)}
@@ -1653,8 +1639,8 @@ export function AssignmentsSection({
                                   colSpan={colSpanAll}
                                   className="py-3 text-center text-xs text-muted-foreground"
                                 >
-                                  Noch nichts in dieser Gruppe — Gerät im Katalog anklicken
-                                  (Pfeil-Button), es landet in der aktiven Gruppe.
+                                  Noch nichts in dieser Gruppe — Gerät oder Kabel im Katalog
+                                  anklicken (Pfeil-Button), es landet in der aktiven Gruppe.
                                 </TableCell>
                               </TableRow>
                             )}
@@ -1677,6 +1663,11 @@ export function AssignmentsSection({
                                   if (!it) return null;
                                   return renderAdHocRow(it, r.sortId);
                                 }
+                                if (r.kind === "CABLE") {
+                                  const ca = groupCables.find((x) => x.id === r.id);
+                                  if (!ca) return null;
+                                  return renderCableRow(ca, r.sortId);
+                                }
                                 const a = groupAssignments.find((x) => x.id === r.id);
                                 if (!a) return null;
                                 return renderDeviceRow(a, r.sortId);
@@ -1687,93 +1678,14 @@ export function AssignmentsSection({
                         </DndContext>
                       );
                     })}
-
-                    {/* Kabel-Gruppen — gleiche Tabelle, Preisspalten bleiben leer. */}
-                    {cableGroups.map((g, gi) => {
-                      const cableRows = buildCableGroupRows(g.id);
-                      const groupCables = cableAssignmentsByGroup.get(g.id) ?? [];
-                      const colSpanAll = isSale ? 6 : 8;
-                      return (
-                        <DndContext
-                          key={g.id}
-                          sensors={sensors}
-                          collisionDetection={closestCenter}
-                          onDragEnd={(e) => handleDragEnd(cableRows, e)}
-                        >
-                          <TableBody>
-                            <GroupHeaderRow
-                              group={g}
-                              colSpan={colSpanAll}
-                              active={activeCableGroupId === g.id}
-                              isFirst={gi === 0}
-                              isLast={gi === cableGroups.length - 1}
-                              pending={pending}
-                              onActivate={() => setActiveCableGroupId(g.id)}
-                              onRename={(name) => handleRenameGroup(g.id, name)}
-                              onMoveUp={() => handleMoveGroup(cableGroups, gi, -1)}
-                              onMoveDown={() => handleMoveGroup(cableGroups, gi, 1)}
-                              onAddNote={() => handleAddNote(g.id)}
-                              onEdit={() =>
-                                setGroupDialog({
-                                  mode: "rename",
-                                  id: g.id,
-                                  name: g.name,
-                                  billable: g.billable,
-                                  kind: "CABLE",
-                                })
-                              }
-                              onDelete={() => setDeleteGroup(g)}
-                            />
-                            {cableRows.length === 0 && (
-                              <TableRow>
-                                <TableCell
-                                  colSpan={colSpanAll}
-                                  className="py-3 text-center text-xs text-muted-foreground"
-                                >
-                                  Noch nichts in dieser Gruppe — Kabel im Katalog anklicken
-                                  (Pfeil-Button), es landet in der aktiven Kabel-Gruppe.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                            <SortableContext
-                              items={cableRows.map((r) => r.sortId)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {cableRows.map((r) => {
-                                if (r.kind === "COMMENT") {
-                                  const c = (commentsByGroup.get(g.id) ?? []).find(
-                                    (x) => x.id === r.id
-                                  );
-                                  if (!c) return null;
-                                  return renderCommentRow(c, r.sortId, colSpanAll - 2);
-                                }
-                                const ca = groupCables.find((x) => x.id === r.id);
-                                if (!ca) return null;
-                                return renderCableRow(ca, r.sortId);
-                              })}
-                            </SortableContext>
-                          </TableBody>
-                        </DndContext>
-                      );
-                    })}
                   </Table>
                 )}
               </div>
               <GroupTableFooter
                 onAddGroup={() =>
-                  setGroupDialog({ mode: "create", name: "", billable: true, kind: "MATERIAL" })
+                  setGroupDialog({ mode: "create", name: "", billable: true })
                 }
                 pending={pending}
-                secondary={
-                  <FooterDashedButton
-                    pending={pending}
-                    onClick={() =>
-                      setGroupDialog({ mode: "create", name: "", billable: true, kind: "CABLE" })
-                    }
-                  >
-                    Kabel-Gruppe
-                  </FooterDashedButton>
-                }
               >
                 {discount > 0 && (
                   <span>
@@ -1830,32 +1742,29 @@ export function AssignmentsSection({
                 required
               />
             </div>
-            {groupDialog?.kind !== "CABLE" && (
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={groupDialog?.billable ?? true}
-                  onChange={(e) =>
-                    setGroupDialog((g) =>
-                      g ? { ...g, billable: e.target.checked } : g
-                    )
-                  }
-                  className="mt-0.5 h-4 w-4 rounded border-input"
-                />
-                <span>
-                  <span className="font-medium">Abrechenbar</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder
-                    Rechnungen auf und fließt nicht in Gesamtsummen ein.
-                  </span>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={groupDialog?.billable ?? true}
+                onChange={(e) =>
+                  setGroupDialog((g) =>
+                    g ? { ...g, billable: e.target.checked } : g
+                  )
+                }
+                className="mt-0.5 h-4 w-4 rounded border-input"
+              />
+              <span>
+                <span className="font-medium">Abrechenbar</span>
+                <span className="block text-xs text-muted-foreground">
+                  Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder
+                  Rechnungen auf und fließt nicht in Gesamtsummen ein.
                 </span>
-              </label>
-            )}
-            {groupDialog?.kind === "CABLE" && (
-              <p className="text-xs text-muted-foreground">
-                Kabel-Gruppen erscheinen nie auf Angeboten oder Rechnungen.
-              </p>
-            )}
+              </span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Gebuchte Kabel erscheinen nie auf Angeboten oder Rechnungen — nur auf
+              der Packliste.
+            </p>
             <DialogFooter>
               <Button
                 type="button"

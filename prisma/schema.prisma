@@ -390,10 +390,11 @@ model Project {
 
 // Gruppen-Typ: gehört zum Material- oder zum Personal/Transport-Tab.
 // (Zwei separate Listen pro Projekt, damit z.B. "Ton" und "Aufbau" nicht vermischt werden.)
+// MATERIAL nimmt Geräte, Kabel und Ad-hoc-Positionen gemeinsam auf — es gibt
+// bewusst KEINEN eigenen Kabel-Gruppentyp mehr (Migration 22).
 enum ProjectGroupKind {
   MATERIAL
   SERVICE
-  CABLE
   // Gruppen auf der Kosten-Seite (rein interne Kostenschicht):
   // SUBHIRE → Zugemietetes Material, EXTRA → Personal & Sonstiges.
   SUBHIRE

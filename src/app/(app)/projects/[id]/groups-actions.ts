@@ -124,19 +124,17 @@ export async function deleteProjectGroup(
     const moveOps = (() => {
       switch (group.kind) {
         case "MATERIAL":
+          // Material-Gruppen enthalten Geräte, Kabel und Ad-hoc-Positionen.
           return [
             prisma.projectAssignment.updateMany({
               where: { groupId: id },
               data: { groupId: moveToGroupId },
             }),
-            prisma.projectAdHocItem.updateMany({
+            prisma.projectCableAssignment.updateMany({
               where: { groupId: id },
               data: { groupId: moveToGroupId },
             }),
-          ];
-        case "CABLE":
-          return [
-            prisma.projectCableAssignment.updateMany({
+            prisma.projectAdHocItem.updateMany({
               where: { groupId: id },
               data: { groupId: moveToGroupId },
             }),

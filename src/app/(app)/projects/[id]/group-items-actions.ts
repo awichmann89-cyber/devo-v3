@@ -23,7 +23,7 @@ export type GroupItemKind =
  * Der `sortOrder`-Index ist gruppenweit, also gemeinsam für Geräte, Kabel,
  * Services, AdHoc-Positionen und Kommentare. Welche Typen sich in einer
  * Gruppe befinden, hängt vom `kind` der Gruppe ab (MATERIAL → Geräte +
- * AdHoc, CABLE → Kabel, SERVICE → Services); Kommentare können in jeder.
+ * Kabel + AdHoc, SERVICE → Services); Kommentare können in jeder.
  */
 export async function reorderGroupItems(
   projectId: string,

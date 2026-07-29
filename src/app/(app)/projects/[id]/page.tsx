@@ -653,7 +653,6 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             discount={materialSubtotal - materialBereichNet}
             total={materialBereichNet}
             groups={serialize(project.groups.filter((g) => g.kind === "MATERIAL"))}
-            cableGroups={serialize(project.groups.filter((g) => g.kind === "CABLE"))}
             adHocItems={serialize(project.adHocItems)}
             groupComments={serialize(project.groupComments)}
             categories={serialize(allCategories)}
