@@ -55,6 +55,36 @@ function escapeText(s: string): string {
     .replace(/;/g, "\\;");
 }
 
+/**
+ * RFC-5545-Zeilenfaltung: Content-Lines dürfen max. 75 Oktette lang sein,
+ * längere werden mit CRLF + Leerzeichen umgebrochen. Muss auf UTF-8-Byte-Basis
+ * zählen und darf Mehrbyte-Zeichen (Umlaute, Emojis) nicht zerschneiden —
+ * sonst zeigen iOS/Apple Kalender lange Beschreibungen kaputt an.
+ */
+function foldLine(line: string): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(line).length <= 75) return line;
+
+  const segments: string[] = [];
+  let current = "";
+  let currentBytes = 0;
+  for (const ch of line) {
+    const chBytes = encoder.encode(ch).length;
+    // Fortsetzungszeilen beginnen mit einem Leerzeichen, das mitzählt.
+    const max = segments.length === 0 ? 75 : 74;
+    if (currentBytes + chBytes > max) {
+      segments.push(current);
+      current = ch;
+      currentBytes = chBytes;
+    } else {
+      current += ch;
+      currentBytes += chBytes;
+    }
+  }
+  if (current) segments.push(current);
+  return segments.join("\r\n ");
+}
+
 export function buildIcs(calendarName: string, events: IcsEvent[]): string {
   const now = new Date();
   const stamp = timestampUtc(now);
@@ -84,5 +114,5 @@ export function buildIcs(calendarName: string, events: IcsEvent[]): string {
     lines.push("END:VEVENT");
   }
   lines.push("END:VCALENDAR");
-  return lines.join("\r\n") + "\r\n";
+  return lines.map(foldLine).join("\r\n") + "\r\n";
 }

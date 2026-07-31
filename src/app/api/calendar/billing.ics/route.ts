@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/settings";
 import { buildIcs, IcsEvent } from "@/lib/ics";
 import { projectStatusEmoji } from "@/lib/labels";
+import {
+  aggregateDeviceCounts,
+  buildProjectCalendarDescription,
+} from "@/lib/calendar-description";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +24,21 @@ export async function GET(req: Request) {
     include: {
       customer: { select: { name: true } },
       billingPeriods: { orderBy: { start: "asc" } },
+      projectNotes: { orderBy: { updatedAt: "desc" } },
+      assignments: {
+        select: { quantity: true, device: { select: { name: true } } },
+      },
     },
     orderBy: { planningStart: "asc" },
   });
 
   const events: IcsEvent[] = [];
   for (const p of projects) {
+    const description = buildProjectCalendarDescription({
+      customerName: p.customer?.name,
+      devices: aggregateDeviceCounts(p.assignments),
+      notes: p.projectNotes,
+    });
     p.billingPeriods.forEach((bp, idx) => {
       events.push({
         uid: `project-${p.id}-billing-${bp.id}@cratel`,
@@ -35,7 +48,7 @@ export async function GET(req: Request) {
           p.billingPeriods.length > 1
             ? `${projectStatusEmoji(p.status)} ${p.name} (Periode ${idx + 1})`
             : `${projectStatusEmoji(p.status)} ${p.name}`,
-        description: p.customer?.name ?? undefined,
+        description,
       });
     });
   }

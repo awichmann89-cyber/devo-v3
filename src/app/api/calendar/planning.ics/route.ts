@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/settings";
 import { buildIcs, IcsEvent } from "@/lib/ics";
 import { projectStatusEmoji } from "@/lib/labels";
+import {
+  aggregateDeviceCounts,
+  buildProjectCalendarDescription,
+} from "@/lib/calendar-description";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +21,13 @@ export async function GET(req: Request) {
   // Stornierte Projekte bleiben im Feed sichtbar — der Status wird über das
   // Emoji im Betreff transportiert.
   const projects = await prisma.project.findMany({
-    include: { customer: { select: { name: true } } },
+    include: {
+      customer: { select: { name: true } },
+      projectNotes: { orderBy: { updatedAt: "desc" } },
+      assignments: {
+        select: { quantity: true, device: { select: { name: true } } },
+      },
+    },
     orderBy: { planningStart: "asc" },
   });
 
@@ -26,7 +36,11 @@ export async function GET(req: Request) {
     start: p.planningStart,
     end: p.planningEnd,
     summary: `${projectStatusEmoji(p.status)} ${p.name}`,
-    description: p.customer?.name ?? undefined,
+    description: buildProjectCalendarDescription({
+      customerName: p.customer?.name,
+      devices: aggregateDeviceCounts(p.assignments),
+      notes: p.projectNotes,
+    }),
   }));
 
   const ics = buildIcs("Cratel Planungszeiträume", events);
