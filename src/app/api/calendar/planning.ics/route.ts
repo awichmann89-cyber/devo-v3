@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/settings";
 import { buildIcs, IcsEvent } from "@/lib/ics";
-import { ProjectStatus } from "@prisma/client";
+import { projectStatusEmoji } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,9 @@ export async function GET(req: Request) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
+  // Stornierte Projekte bleiben im Feed sichtbar — der Status wird über das
+  // Emoji im Betreff transportiert.
   const projects = await prisma.project.findMany({
-    where: { status: { not: ProjectStatus.CANCELLED } },
     include: { customer: { select: { name: true } } },
     orderBy: { planningStart: "asc" },
   });
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
     uid: `project-${p.id}-planning@cratel`,
     start: p.planningStart,
     end: p.planningEnd,
-    summary: p.name,
+    summary: `${projectStatusEmoji(p.status)} ${p.name}`,
     description: p.customer?.name ?? undefined,
   }));
 

@@ -40,6 +40,17 @@ export function projectStatusVariant(status: ProjectStatus): "default" | "second
   }[status];
 }
 
+/** Emoji-Präfix für Kalendereinträge (ICS-Feeds) je Projekt-Status. */
+export function projectStatusEmoji(status: ProjectStatus): string {
+  return {
+    DRAFT: "📝",
+    CONFIRMED: "✅",
+    ACTIVE: "🟢",
+    COMPLETED: "🏁",
+    CANCELLED: "❌",
+  }[status];
+}
+
 /**
  * Zeilen-Klasse nach Projekt-Status (Redesign): statt Flächen-Tönung ein
  * 3px-Statusbalken links an der Zeile — Farben aus den Status-Tokens.
