@@ -16,6 +16,12 @@ const nextConfig: NextConfig = {
       "./node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf",
       "./node_modules/geist/dist/fonts/geist-sans/Geist-Bold.ttf",
     ],
+    // Stundenzettel-Route liegt außerhalb des projects-Globs — ohne eigenen
+    // Eintrag fällt sie auf Vercel still auf Helvetica zurück.
+    "/api/persons/**/pdf/**/*": [
+      "./node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf",
+      "./node_modules/geist/dist/fonts/geist-sans/Geist-Bold.ttf",
+    ],
   },
 };
 

@@ -135,6 +135,8 @@ interface Props {
   subhireTotal: number;
   extraPersonal: number;
   extraOther: number;
+  /** Personalkosten aus dem Einsatzplan (Freelancer-Sätze + Minijobber-Stunden). */
+  personnelCost: number;
 }
 
 export function FinancesSection({
@@ -151,6 +153,7 @@ export function FinancesSection({
   subhireTotal,
   extraPersonal,
   extraOther,
+  personnelCost,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [invoiceDialog, setInvoiceDialog] = useState(false);
@@ -221,7 +224,7 @@ export function FinancesSection({
 
   // ----- Interne Ergebnis-Rechnung (Umsatz abzgl. Zusatzkosten) -----
   const extraCostTotal = extraPersonal + extraOther;
-  const additionalCosts = subhireTotal + extraCostTotal;
+  const additionalCosts = subhireTotal + extraCostTotal + personnelCost;
   const result = grandTotal - additionalCosts;
   const marginPct = grandTotal > 0 ? (result / grandTotal) * 100 : null;
   const showResult = additionalCosts > 0 || grandTotal > 0;
@@ -528,7 +531,7 @@ export function FinancesSection({
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               Ergebnis nach Zusatzkosten
-              <InfoHint text="Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen und Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder Rechnungen." />
+              <InfoHint text="Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen, Personal aus dem Einsatzplan und manuellen Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder Rechnungen." />
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -550,7 +553,15 @@ export function FinancesSection({
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-muted-foreground">
-                    Personal & Sonstiges
+                    Personal (Einsatzplan)
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                    {personnelCost > 0 ? "−" + formatCurrency(personnelCost) : "—"}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-muted-foreground">
+                    Extrakosten (manuell)
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
                     {extraCostTotal > 0 ? "−" + formatCurrency(extraCostTotal) : "—"}

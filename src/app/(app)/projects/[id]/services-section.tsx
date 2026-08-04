@@ -46,9 +46,13 @@ import {
   AlertTriangle,
   ChevronRight,
   ChevronDown,
+  Clock,
   Folder,
   FolderOpen,
+  Receipt,
   Users,
+  UserPlus,
+  UserRound,
   Truck,
   Package,
 
@@ -99,6 +103,19 @@ import {
   moveProjectServiceToGroup,
 } from "./services-actions";
 import {
+  removePersonAssignment,
+  setAssignmentInvoiceReceived,
+  updateAssignmentAgreedRate,
+} from "./person-assignments-actions";
+import {
+  PersonAssignmentDialog,
+  type PersonAssignmentVM,
+  type PersonOptionVM,
+} from "./person-assignment-dialog";
+import { formatMinutes } from "@/lib/personnel-costs";
+import { employmentTypeLabel, employmentTypeVariant } from "@/lib/labels";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import {
   createProjectGroup,
   updateProjectGroup,
   deleteProjectGroup,
@@ -136,6 +153,21 @@ export interface ProjectServiceVM {
     unitPrice: number;
     active: boolean;
   };
+  // Einsatzplan: konkrete Personen an dieser Position
+  personAssignments: PersonAssignmentVM[];
+}
+
+/** Kompakte Anzeige des geplanten Zeitfensters eines Einsatzes. */
+function assignmentTimeLabel(a: PersonAssignmentVM): string {
+  if (!a.plannedStart || !a.plannedEnd) return "ganztägig";
+  const s = new Date(a.plannedStart);
+  const e = new Date(a.plannedEnd);
+  const time = (d: Date) =>
+    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (s.toDateString() === e.toDateString()) {
+    return `${formatDate(s)}, ${time(s)}–${time(e)} Uhr`;
+  }
+  return `${formatDateTime(s)} – ${formatDateTime(e)}`;
 }
 
 export function ServicesSection({
@@ -144,12 +176,18 @@ export function ServicesSection({
   catalog,
   groups,
   groupComments,
+  persons,
+  planningStartIso,
+  planningEndIso,
 }: {
   projectId: string;
   projectServices: ProjectServiceVM[];
   catalog: ServiceItemVM[];
   groups: ProjectGroup[];
   groupComments: ProjectGroupComment[];
+  persons: PersonOptionVM[];
+  planningStartIso: string;
+  planningEndIso: string;
 }) {
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<string>("all");
@@ -157,6 +195,12 @@ export function ServicesSection({
   const [pending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<ProjectServiceVM | null>(null);
+  // Einsatz-Dialog: anlegen (assignment null) oder bearbeiten
+  const [assignDialog, setAssignDialog] = useState<{
+    projectServiceId: string;
+    serviceName: string;
+    assignment: PersonAssignmentVM | null;
+  } | null>(null);
 
   // Aktive Gruppe
   const [activeGroupId, setActiveGroupId] = useState<string | null>(
@@ -395,6 +439,45 @@ export function ServicesSection({
     });
   }
 
+  // ----- Einsatzplan (Personen an Positionen) -----
+  function handleAssignmentRate(a: PersonAssignmentVM, value: string) {
+    const trimmed = value.trim();
+    const newVal = trimmed === "" ? null : Number(trimmed);
+    if (newVal !== null && (!isFinite(newVal) || newVal < 0)) return;
+    startTransition(async () => {
+      try {
+        await updateAssignmentAgreedRate(a.id, newVal);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleInvoiceToggle(a: PersonAssignmentVM) {
+    startTransition(async () => {
+      try {
+        await setAssignmentInvoiceReceived(a.id, !a.invoiceReceived);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
+  function handleRemoveAssignment(a: PersonAssignmentVM) {
+    startTransition(async () => {
+      try {
+        await removePersonAssignment(a.id);
+        toast.success(
+          a.loggedMinutes > 0
+            ? "Einsatz entfernt — erfasste Zeiten bleiben erhalten"
+            : "Einsatz entfernt"
+        );
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler");
+      }
+    });
+  }
+
   function handleSaveGroup() {
     if (!groupDialog) return;
     const name = groupDialog.name.trim();
@@ -458,6 +541,118 @@ export function ServicesSection({
     0
   );
 
+  /** Rendert eine Einsatz-Subzeile unter ihrer Service-Zeile (nicht sortierbar). */
+  function renderAssignmentRow(ps: ProjectServiceVM, a: PersonAssignmentVM) {
+    const isFreelancer = a.employmentType === "FREELANCER";
+    return (
+      <TableRow
+        key={`assignment:${a.id}`}
+        className="bg-muted/20 hover:bg-muted/30 [&_td]:px-2 [&_td]:py-1"
+      >
+        <TableCell />
+        <TableCell>
+          <div className="flex items-center gap-2 pl-6 text-sm">
+            <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{a.personName}</span>
+            <Badge variant={employmentTypeVariant(a.employmentType)}>
+              {employmentTypeLabel(a.employmentType)}
+            </Badge>
+          </div>
+          {a.notes && (
+            <div className="pl-11 text-xs text-muted-foreground line-clamp-1">
+              {a.notes}
+            </div>
+          )}
+        </TableCell>
+        <TableCell colSpan={2}>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{assignmentTimeLabel(a)}</span>
+            {a.loggedMinutes > 0 && (
+              <Badge variant="outline" className="gap-1 font-mono">
+                <Clock className="h-3 w-3" />
+                {formatMinutes(a.loggedMinutes)} h erfasst
+              </Badge>
+            )}
+          </div>
+        </TableCell>
+        <TableCell className="text-right">
+          {isFreelancer ? (
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Satz"
+              defaultValue={a.agreedRate === null ? "" : String(a.agreedRate)}
+              onBlur={(e) => {
+                const raw = e.target.value;
+                const newVal = raw.trim() === "" ? null : Number(raw);
+                if (newVal !== a.agreedRate) handleAssignmentRate(a, raw);
+              }}
+              className="h-7 w-24 ml-auto text-right font-mono"
+              title="Vereinbarter Satz (€, gesamt) — zählt als Projektkosten"
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+        <TableCell className="text-right tabular-nums font-mono text-xs text-muted-foreground">
+          {isFreelancer && a.agreedRate !== null ? formatCurrency(a.agreedRate) : ""}
+        </TableCell>
+        <TableCell>
+          <div className="flex gap-0.5">
+            {isFreelancer && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={
+                  "h-7 w-7 " +
+                  (a.invoiceReceived
+                    ? "text-success hover:text-success"
+                    : "text-muted-foreground")
+                }
+                onClick={() => handleInvoiceToggle(a)}
+                disabled={pending}
+                title={
+                  a.invoiceReceived
+                    ? "Rechnung erhalten — Klick zum Zurücksetzen"
+                    : "Rechnung noch nicht erhalten — Klick zum Markieren"
+                }
+              >
+                <Receipt className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() =>
+                setAssignDialog({
+                  projectServiceId: ps.id,
+                  serviceName: ps.serviceItem.name,
+                  assignment: a,
+                })
+              }
+              disabled={pending}
+              title="Einsatz bearbeiten"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              onClick={() => handleRemoveAssignment(a)}
+              disabled={pending}
+              title="Einsatz entfernen (erfasste Zeiten bleiben erhalten)"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
   /** Rendert eine sortierbare Service-Zeile (Personal/Transport). */
   function renderServiceRow(ps: ProjectServiceVM, sortId: string) {
     const otherGroups = groups.filter((g) => g.id !== ps.groupId);
@@ -465,8 +660,12 @@ export function ServicesSection({
     const line = ps.quantity * effectivePrice;
     const hasOverride = ps.unitPriceOverride !== null;
     const KindIcon = kindIcon(ps.serviceItem.kind);
+    // Fragment: Service-Zeile + Einsatz-Subzeilen. Die Subzeilen sind NICHT im
+    // SortableContext registriert — sie folgen ihrer Parent-Zeile in
+    // DOM-Reihenfolge, bewegen sich beim Drag aber erst nach dem Drop mit.
     return (
-      <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1">
+      <Fragment key={sortId}>
+      <SortableRow id={sortId} className="[&_td]:px-2 [&_td]:py-1">
         <DragHandleCell />
         <TableCell>
           <div className="flex items-center gap-2 font-medium truncate">
@@ -524,6 +723,22 @@ export function ServicesSection({
         </TableCell>
         <TableCell>
           <div className="flex gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() =>
+                setAssignDialog({
+                  projectServiceId: ps.id,
+                  serviceName: ps.serviceItem.name,
+                  assignment: null,
+                })
+              }
+              disabled={pending}
+              title="Person einplanen"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+            </Button>
             {otherGroups.length > 0 && (
               <Select
                 value=""
@@ -557,6 +772,8 @@ export function ServicesSection({
           </div>
         </TableCell>
       </SortableRow>
+      {ps.personAssignments.map((a) => renderAssignmentRow(ps, a))}
+      </Fragment>
     );
   }
 
@@ -786,7 +1003,7 @@ export function ServicesSection({
                         <TableHead className="w-[130px] text-center">Menge</TableHead>
                         <TableHead className="w-[110px] text-right">Satz</TableHead>
                         <TableHead className="w-[110px] text-right">Summe</TableHead>
-                        <TableHead className="w-[70px]"></TableHead>
+                        <TableHead className="w-[100px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     {groups.map((group, gi) => {
@@ -902,6 +1119,17 @@ export function ServicesSection({
         }}
       />
 
+      <PersonAssignmentDialog
+        open={assignDialog !== null}
+        onOpenChange={(o) => !o && setAssignDialog(null)}
+        projectServiceId={assignDialog?.projectServiceId ?? null}
+        serviceName={assignDialog?.serviceName ?? ""}
+        assignment={assignDialog?.assignment ?? null}
+        persons={persons}
+        planningStartIso={planningStartIso}
+        planningEndIso={planningEndIso}
+      />
+
       <Dialog
         open={confirmRemove !== null}
         onOpenChange={(o) => !o && setConfirmRemove(null)}
@@ -917,6 +1145,20 @@ export function ServicesSection({
                 <>
                   <strong>{confirmRemove.serviceItem.name}</strong> wird aus diesem
                   Projekt entfernt. Der Katalog-Eintrag bleibt unverändert.
+                  {confirmRemove.personAssignments.length > 0 && (
+                    <>
+                      {" "}
+                      <strong>
+                        {confirmRemove.personAssignments.length} zugeordnete{" "}
+                        {confirmRemove.personAssignments.length === 1
+                          ? "Einsatz wird"
+                          : "Einsätze werden"}{" "}
+                        mit entfernt
+                      </strong>{" "}
+                      (inkl. vereinbarter Freelancer-Sätze). Bereits erfasste
+                      Arbeitszeiten bleiben erhalten.
+                    </>
+                  )}
                 </>
               )}
             </DialogDescription>

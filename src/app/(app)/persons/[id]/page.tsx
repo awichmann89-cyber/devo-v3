@@ -1,0 +1,239 @@
+import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, CalendarClock, Receipt, UserRound } from "lucide-react";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { employmentTypeLabel, employmentTypeVariant } from "@/lib/labels";
+import { PersonLinksCard } from "./person-links-card";
+import { PersonEditButton } from "./person-edit-button";
+import { TimeEntriesSection } from "./time-entries-section";
+
+export default async function PersonDetailPage(props: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await props.params;
+
+  const person = await prisma.person.findUnique({ where: { id } });
+  if (!person) notFound();
+
+  // Token lazy anlegen (Muster /calendar mit getOrCreateCalendarToken) —
+  // die Links-Card braucht ihn direkt beim ersten Aufruf.
+  let token = person.personalToken;
+  if (!token) {
+    token = crypto.randomUUID().replace(/-/g, "");
+    await prisma.person.update({
+      where: { id },
+      data: { personalToken: token },
+    });
+  }
+
+  const [assignments, timeEntries, projects] = await Promise.all([
+    prisma.personAssignment.findMany({
+      where: { personId: id },
+      include: {
+        projectService: {
+          select: { serviceItem: { select: { name: true } } },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            planningStart: true,
+            planningEnd: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.timeEntry.findMany({
+      where: { personId: id },
+      include: { project: { select: { name: true } } },
+      orderBy: { workDate: "desc" },
+    }),
+    prisma.project.findMany({
+      select: { id: true, name: true },
+      orderBy: { planningStart: "desc" },
+      take: 200,
+    }),
+  ]);
+
+  const personVM = {
+    id: person.id,
+    name: person.name,
+    employmentType: person.employmentType,
+    email: person.email,
+    phone: person.phone,
+    address: person.address,
+    notes: person.notes,
+    active: person.active,
+    hourlyWage: person.hourlyWage != null ? Number(person.hourlyWage) : null,
+    defaultDayRate:
+      person.defaultDayRate != null ? Number(person.defaultDayRate) : null,
+  };
+
+  const now = new Date();
+  const sortedAssignments = assignments
+    .map((a) => ({
+      id: a.id,
+      projectId: a.project.id,
+      projectName: a.project.name,
+      serviceName: a.projectService.serviceItem.name,
+      start: a.plannedStart ?? a.project.planningStart,
+      end: a.plannedEnd ?? a.project.planningEnd,
+      timed: a.plannedStart !== null,
+      agreedRate: a.agreedRate != null ? Number(a.agreedRate) : null,
+      invoiceReceived: a.invoiceReceived,
+      notes: a.notes,
+    }))
+    .sort((a, b) => +b.start - +a.start);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/persons" title="Zurück zum Personalstamm">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <UserRound className="h-5 w-5" />
+            {person.name}
+          </h2>
+          <Badge variant={employmentTypeVariant(person.employmentType)}>
+            {employmentTypeLabel(person.employmentType)}
+          </Badge>
+          {!person.active && <Badge variant="outline">Inaktiv</Badge>}
+        </div>
+        <PersonEditButton person={personVM} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Stammdaten</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <dl className="grid grid-cols-[120px_1fr] gap-y-1.5">
+              <dt className="text-muted-foreground">E-Mail</dt>
+              <dd>{person.email ?? "—"}</dd>
+              <dt className="text-muted-foreground">Telefon</dt>
+              <dd>{person.phone ?? "—"}</dd>
+              <dt className="text-muted-foreground">Adresse</dt>
+              <dd className="whitespace-pre-line">{person.address ?? "—"}</dd>
+              {person.employmentType === "MINIJOBBER" && (
+                <>
+                  <dt className="text-muted-foreground">Stundenlohn</dt>
+                  <dd className="font-mono">
+                    {personVM.hourlyWage != null
+                      ? `${formatCurrency(personVM.hourlyWage)} / h`
+                      : "—"}
+                  </dd>
+                </>
+              )}
+              {person.employmentType === "FREELANCER" && (
+                <>
+                  <dt className="text-muted-foreground">Tagessatz</dt>
+                  <dd className="font-mono">
+                    {personVM.defaultDayRate != null
+                      ? `${formatCurrency(personVM.defaultDayRate)} / Tag`
+                      : "—"}
+                  </dd>
+                </>
+              )}
+            </dl>
+            {person.notes && (
+              <p className="border-t pt-2 text-muted-foreground whitespace-pre-line">
+                {person.notes}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <PersonLinksCard personId={person.id} initialToken={token} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarClock className="h-4 w-4" /> Einsätze
+          </CardTitle>
+          <CardDescription>
+            Alle Einsätze — geplant wird im Projekt (Tab Personal &amp;
+            Transport).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {sortedAssignments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Noch keine Einsätze geplant.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {sortedAssignments.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
+                >
+                  <Link
+                    href={`/projects/${a.projectId}`}
+                    className="font-medium hover:underline"
+                  >
+                    {a.projectName}
+                  </Link>
+                  <span className="text-muted-foreground">{a.serviceName}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {a.timed
+                      ? `${formatDateTime(a.start)} – ${formatDateTime(a.end)}`
+                      : `ganztägig, ${formatDate(a.start)} – ${formatDate(a.end)}`}
+                  </span>
+                  {a.end >= now && <Badge variant="secondary">geplant</Badge>}
+                  {a.agreedRate != null && (
+                    <span className="ml-auto flex items-center gap-2">
+                      <span className="font-mono">{formatCurrency(a.agreedRate)}</span>
+                      <Badge
+                        variant={a.invoiceReceived ? "success" : "warning"}
+                        className="gap-1"
+                      >
+                        <Receipt className="h-3 w-3" />
+                        {a.invoiceReceived ? "Rechnung erhalten" : "Rechnung offen"}
+                      </Badge>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <TimeEntriesSection
+        personId={person.id}
+        employmentType={person.employmentType}
+        hourlyWage={personVM.hourlyWage}
+        entries={timeEntries.map((e) => ({
+          id: e.id,
+          projectId: e.projectId,
+          projectName: e.project.name,
+          workDate: e.workDate.toISOString(),
+          startMinute: e.startMinute,
+          endMinute: e.endMinute,
+          breakMinutes: e.breakMinutes,
+          hourlyWageSnapshot:
+            e.hourlyWageSnapshot != null ? Number(e.hourlyWageSnapshot) : null,
+          notes: e.notes,
+        }))}
+        projects={projects}
+      />
+    </div>
+  );
+}

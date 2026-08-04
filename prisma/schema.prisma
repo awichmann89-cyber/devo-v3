@@ -382,6 +382,10 @@ model Project {
   subhires        ProjectSubhire[]
   // Sonstige / personaltechnische Extrakosten (rein intern)
   extraCosts      ProjectExtraCost[]
+  // Personaleinsätze (denormalisiert; primär an ProjectService)
+  personAssignments PersonAssignment[]
+  // Erfasste Ist-Arbeitszeiten (Lohn-Belege, Restrict — siehe TimeEntry)
+  timeEntries     TimeEntry[]
 
   @@index([status])
   @@index([customerId])
@@ -738,9 +742,123 @@ model ProjectService {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  // Konkrete Personen an dieser Position (Einsatzplan)
+  personAssignments PersonAssignment[]
+
   @@index([projectId])
   @@index([serviceItemId])
   @@index([groupId])
+}
+
+// ---------- Personalplanung ----------
+
+// Beschäftigungsart einer Person — steuert Kostenlogik und sichtbare Felder:
+// MINIJOBBER  → Stundenlohn, Ist-Zeiten fließen als Kosten in die Gewinnrechnung
+// FREELANCER  → vereinbarter Satz pro Einsatz (agreedRate) zählt als Kosten
+// GESELLSCHAFTER / MITARBEITER → nur Planung/Kalender, keine Projektkosten
+enum EmploymentType {
+  GESELLSCHAFTER
+  MITARBEITER
+  FREELANCER
+  MINIJOBBER
+}
+
+// Personalstamm: echte Personen, die auf Projekte eingeplant werden.
+// KEINE User-Accounts — Zugriff auf Kalender-Feed und Zeiterfassung läuft
+// ausschließlich über den personalToken (Public-URLs, wie Project.packToken).
+model Person {
+  id             String         @id @default(cuid())
+  name           String         @unique
+  employmentType EmploymentType @default(FREELANCER)
+  email          String?
+  phone          String?
+  address        String?
+  notes          String?
+  active         Boolean        @default(true)
+  // Stundenlohn (Minijobber) — wird beim Anlegen eines TimeEntry gesnapshottet,
+  // damit spätere Lohnänderungen alte Einträge nicht verändern.
+  hourlyWage     Decimal?       @db.Decimal(10, 2)
+  // Standard-Tagessatz (Freelancer) — Vorbefüllung für PersonAssignment.agreedRate.
+  defaultDayRate Decimal?       @db.Decimal(10, 2)
+  // EIN Token für beides: persönlicher ICS-Feed (/api/calendar/person.ics)
+  // und Self-Service-Zeiterfassung (/einsatz/[token]). Lazy generiert.
+  personalToken  String?        @unique
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  assignments PersonAssignment[]
+  timeEntries TimeEntry[]
+
+  @@index([active])
+  @@index([employmentType])
+}
+
+// Einsatz: konkrete Person an einer Personal-&-Transport-Position.
+// Hängt per Cascade an der Preiszeile — Zeile löschen entfernt die Einsätze.
+// Erfasste Arbeitszeiten (TimeEntry) überleben das bewusst (siehe dort).
+model PersonAssignment {
+  id               String         @id @default(cuid())
+  projectServiceId String
+  projectService   ProjectService @relation(fields: [projectServiceId], references: [id], onDelete: Cascade)
+  // Denormalisiert für direkte Projekt-Queries (Muster PackingScan/GroupComment).
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  personId         String
+  person           Person         @relation(fields: [personId], references: [id], onDelete: Restrict)
+  // Geplantes Zeitfenster (Call-Time). Null = ganztägig über den
+  // Projekt-Planungszeitraum (so auch im Kalender-Feed).
+  plannedStart     DateTime?
+  plannedEnd       DateTime?
+  // Freelancer: vereinbarter Gesamtsatz für DIESEN Einsatz (netto).
+  // Snapshot beim Buchen (Vorbefüllung aus Person.defaultDayRate) —
+  // zählt automatisch als Projektkosten. Null bei allen anderen Arten.
+  agreedRate       Decimal?       @db.Decimal(10, 2)
+  // Freelancer: Rechnung für diesen Einsatz eingegangen.
+  invoiceReceived  Boolean        @default(false)
+  notes            String?
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  timeEntries TimeEntry[]
+
+  // Kein Unique auf (projectServiceId, personId) — dieselbe Person kann
+  // bewusst mehrfach an einer Zeile stehen (z.B. zwei Schichten).
+  @@index([projectServiceId])
+  @@index([projectId])
+  @@index([personId])
+}
+
+// Ist-Arbeitszeit — Lohn-Beleg. Hängt bewusst an Person + Projekt (Restrict)
+// und nur optional am Einsatz (SetNull): das Löschen einer Preiszeile oder
+// eines Einsatzes darf erfasste Zeiten NICHT vernichten. Beim bewussten
+// Projekt-Löschen räumt deleteProject sie explizit mit ab (Muster Invoice).
+model TimeEntry {
+  id                 String            @id @default(cuid())
+  personId           String
+  person             Person            @relation(fields: [personId], references: [id], onDelete: Restrict)
+  projectId          String
+  project            Project           @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  assignmentId       String?
+  assignment         PersonAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  // Arbeitstag (tagesgenau). Zeiten als Wanduhr-Minuten seit Mitternacht —
+  // DST-immun und exakt das, was auf dem Stundenzettel steht.
+  workDate           DateTime
+  startMinute        Int
+  // endMinute < startMinute ⇒ Schicht über Mitternacht (+1440 Minuten).
+  endMinute          Int
+  breakMinutes       Int               @default(0)
+  // Stundenlohn zum Erfassungszeitpunkt — nur bei MINIJOBBER gesetzt,
+  // sonst null (kein Kosteneffekt). Siehe Person.hourlyWage.
+  hourlyWageSnapshot Decimal?          @db.Decimal(10, 2)
+  notes              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  // Stundenzettel-Abfrage: pro Person und Monat
+  @@index([personId, workDate])
+  @@index([projectId])
+  @@index([assignmentId])
 }
 
 // Freie, mit Markdown formatierbare Notizen am Projekt (z.B. Anfahrt, Briefing).

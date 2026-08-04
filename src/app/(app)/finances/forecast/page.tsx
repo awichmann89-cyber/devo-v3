@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth-helpers";
 import { ForecastView, ForecastRowVM } from "./forecast-view";
 import { calculateProjectTotal } from "@/lib/project-pricing";
 import { getSettings, parseDayFactorMap } from "@/lib/settings";
+import { personnelCostForProject } from "@/lib/personnel-costs";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -55,6 +56,16 @@ export default async function ForecastPage(props: {
       // Interne Zusatzkosten für die Gewinn-Berechnung (nicht kundenrelevant).
       subhires: { select: { quantity: true, unitCost: true } },
       extraCosts: { select: { amount: true } },
+      // Personalkosten aus dem Einsatzplan (Freelancer-Sätze + Ist-Stunden).
+      personAssignments: { select: { agreedRate: true } },
+      timeEntries: {
+        select: {
+          startMinute: true,
+          endMinute: true,
+          breakMinutes: true,
+          hourlyWageSnapshot: true,
+        },
+      },
     },
     orderBy: { planningStart: "asc" },
   });
@@ -75,10 +86,22 @@ export default async function ForecastPage(props: {
         (s, inv) => s + Number(inv.totalNet),
         0
       );
-      // Interne Zusatzkosten (Zumietung + Extrakosten) → für den Gewinn.
+      // Interne Zusatzkosten (Zumietung + Extrakosten + Personal) → für den Gewinn.
       const costs =
         p.subhires.reduce((s, x) => s + Number(x.unitCost) * x.quantity, 0) +
-        p.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
+        p.extraCosts.reduce((s, c) => s + Number(c.amount), 0) +
+        personnelCostForProject({
+          assignments: p.personAssignments.map((a) => ({
+            agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+          })),
+          timeEntries: p.timeEntries.map((e) => ({
+            startMinute: e.startMinute,
+            endMinute: e.endMinute,
+            breakMinutes: e.breakMinutes,
+            hourlyWageSnapshot:
+              e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
+          })),
+        }).total;
       return {
         id: p.id,
         name: p.name,
@@ -100,8 +123,9 @@ export default async function ForecastPage(props: {
       <div>
         <p className="text-muted-foreground">
           Erwarteter Umsatz und Gewinn aus geplanten Projekten im gewählten
-          Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung + Extrakosten)
-          vom Projektwert ab — diese erscheinen nie auf Angeboten/Rechnungen.{" "}
+          Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung + Extrakosten
+          + Personal aus dem Einsatzplan) vom Projektwert ab — diese erscheinen
+          nie auf Angeboten/Rechnungen.{" "}
           <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).
         </p>
       </div>

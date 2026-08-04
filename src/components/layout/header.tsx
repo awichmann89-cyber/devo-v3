@@ -39,6 +39,7 @@ const TITLES: [prefix: string, title: string, sub: string][] = [
   ["/devices", "Material", "Geräte, Packeinheiten, Kabel und Lagerorte"],
   ["/pack-units", "Material", "Geräte, Packeinheiten, Kabel und Lagerorte"],
   ["/services", "Personal & Transport", "Dienstleistungen und Zusatzkosten"],
+  ["/persons", "Personalstamm", "Personen, Löhne und Einsatz-Links"],
   ["/users", "Benutzer", "Zugänge und Rollen verwalten"],
   ["/settings", "Einstellungen", "Firma, Nummernkreise und Dokumente"],
 ];

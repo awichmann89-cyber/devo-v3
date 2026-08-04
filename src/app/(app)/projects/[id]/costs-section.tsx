@@ -152,6 +152,8 @@ interface Props {
   subhireGroups: CostGroupVM[];
   extraGroups: CostGroupVM[];
   groupComments: CostGroupCommentVM[];
+  /** Personalkosten aus dem Einsatzplan (read-only, Pflege im Personal-Tab). */
+  personnelCost: number;
 }
 
 type ExtraDialogState = {
@@ -180,6 +182,7 @@ export function CostsSection({
   subhireGroups,
   extraGroups,
   groupComments,
+  personnelCost,
 }: Props) {
   const [pending, startTransition] = useTransition();
 
@@ -252,7 +255,9 @@ export function CostsSection({
   const extraOther = extraCosts
     .filter((c) => c.kind === "SONSTIGES")
     .reduce((s, c) => s + c.amount, 0);
-  const grandTotal = subhireTotal + extraPersonal + extraOther;
+  // Personalkosten aus dem Einsatzplan fließen mit in "Kosten gesamt" ein —
+  // gepflegt werden sie im Tab Personal & Transport, hier nur Anzeige.
+  const grandTotal = subhireTotal + extraPersonal + extraOther + personnelCost;
 
   const isEmpty =
     subhireGroups.length === 0 &&
@@ -955,6 +960,11 @@ export function CostsSection({
             <span>
               Sonstiges{" "}
               <span className="font-mono tabular-nums">{formatCurrency(extraOther)}</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              Personal (Einsatzplan){" "}
+              <span className="font-mono tabular-nums">{formatCurrency(personnelCost)}</span>
+              <InfoHint text="Wird automatisch aus Einsätzen (Freelancer-Sätze) und erfassten Stunden (Minijobber) berechnet — Pflege im Tab Personal & Transport. Hier nicht doppelt als Extrakosten erfassen." />
             </span>
             <span>Kosten gesamt</span>
             <span className="font-mono text-sm font-extrabold text-primary">

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BillingUnit,
+  EmploymentType,
   ExtraCostKind,
   InspectionResult,
   ProjectGroupKind,
@@ -243,6 +244,82 @@ export const invoiceCreateSchema = z.object({
   customSequence: z.coerce.number().int().min(1).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
 });
+
+// ---------- Personalplanung ----------
+
+export const personSchema = z.object({
+  name: z.string().min(1, "Name erforderlich").max(150),
+  employmentType: z.nativeEnum(EmploymentType).default(EmploymentType.FREELANCER),
+  email: z
+    .string()
+    .max(150)
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+      message: "Ungültige Email-Adresse",
+    }),
+  phone: z.string().max(50).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  active: z.coerce.boolean().default(true),
+  hourlyWage: z.coerce.number().min(0).optional().nullable(),
+  defaultDayRate: z.coerce.number().min(0).optional().nullable(),
+});
+
+// Einsatz einer Person an einer Personal-&-Transport-Position.
+export const personAssignmentSchema = z
+  .object({
+    personId: z.string().min(1),
+    plannedStart: z.coerce.date().optional().nullable(),
+    plannedEnd: z.coerce.date().optional().nullable(),
+    agreedRate: z.coerce.number().min(0).optional().nullable(),
+    notes: z.string().max(500).optional().nullable(),
+  })
+  .refine((d) => (d.plannedStart == null) === (d.plannedEnd == null), {
+    path: ["plannedEnd"],
+    message: "Start und Ende gemeinsam angeben oder beide leer lassen",
+  })
+  .refine((d) => !d.plannedStart || !d.plannedEnd || d.plannedEnd >= d.plannedStart, {
+    path: ["plannedEnd"],
+    message: "Ende muss nach Start liegen",
+  });
+
+/** "HH:MM" → Minuten seit Mitternacht. */
+function parseClockMinutes(value: string): number {
+  const [h, m] = value.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** Netto-Arbeitsminuten mit Mitternachtsregel: Ende < Start ⇒ +24 h. */
+export function computeWorkedMinutes(input: {
+  start: string;
+  end: string;
+  breakMinutes: number;
+}): number {
+  const start = parseClockMinutes(input.start);
+  let end = parseClockMinutes(input.end);
+  if (end < start) end += 1440;
+  return end - start - input.breakMinutes;
+}
+
+// Ist-Arbeitszeit. Beginn/Ende als "HH:MM"-Wanduhr-Strings — die Action
+// wandelt sie in startMinute/endMinute um (siehe TimeEntry im Schema).
+export const timeEntrySchema = z
+  .object({
+    workDate: z.coerce.date(),
+    start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format HH:MM"),
+    end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format HH:MM"),
+    breakMinutes: z.coerce.number().int().min(0).max(720).default(0),
+    notes: z.string().max(500).optional().nullable(),
+  })
+  .refine((d) => computeWorkedMinutes(d) > 0, {
+    path: ["end"],
+    message: "Arbeitszeit muss länger als die Pause sein",
+  })
+  .refine((d) => computeWorkedMinutes(d) <= 16 * 60, {
+    path: ["end"],
+    message: "Mehr als 16 Stunden — bitte prüfen",
+  });
 
 export const userSchema = z.object({
   email: z.string().email("Ungültige Email-Adresse").max(150),

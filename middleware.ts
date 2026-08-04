@@ -7,7 +7,7 @@ const { auth } = NextAuth(authConfig);
 
 // /api/cron ist hier ausgenommen, weil Vercel Cron ohne Session aufruft —
 // die Cron-Routen authentifizieren sich selbst über CRON_SECRET (Bearer).
-const PUBLIC_PATHS = ["/login", "/api/auth", "/public", "/api/calendar", "/api/cron", "/scan", "/q", "/angebot"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/public", "/api/calendar", "/api/cron", "/scan", "/q", "/angebot", "/einsatz"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

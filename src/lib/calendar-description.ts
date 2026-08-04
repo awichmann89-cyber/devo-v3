@@ -63,6 +63,30 @@ export function aggregateDeviceCounts(
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
+/**
+ * DESCRIPTION für den persönlichen Einsatz-Feed (person.ics): Kunde,
+ * gebuchte Position, geplantes Zeitfenster und Einsatz-Notiz als Klartext.
+ */
+export function buildAssignmentCalendarDescription(opts: {
+  customerName?: string | null;
+  serviceName: string;
+  timeLabel: string;
+  notes?: string | null;
+}): string | undefined {
+  const blocks: string[] = [];
+
+  if (opts.customerName) {
+    blocks.push(opts.customerName);
+  }
+  blocks.push(`👷 ${opts.serviceName}`);
+  blocks.push(`🕒 ${opts.timeLabel}`);
+  if (opts.notes) {
+    blocks.push(`📝 ${opts.notes}`);
+  }
+
+  return blocks.length > 0 ? blocks.join("\n\n") : undefined;
+}
+
 export function buildProjectCalendarDescription(opts: {
   customerName?: string | null;
   devices: DeviceCount[];

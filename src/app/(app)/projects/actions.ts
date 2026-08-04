@@ -89,14 +89,16 @@ export async function updateProject(id: string, input: unknown) {
 export async function deleteProject(id: string) {
   await requireRole(CAN_WRITE);
 
-  // Quote + Invoice hängen mit onDelete: Restrict am Projekt — die DB
-  // verhindert also ein stilles Kaskadieren der Finanz-Dokumente. Beim
-  // bewussten Löschen des Projekts (Confirm-Dialog warnt explizit) räumen
-  // wir sie daher in derselben Transaktion mit ab. Mahnungen hängen per
-  // Cascade an ihrer Rechnung bzw. tragen selbst die projectId.
+  // Quote + Invoice + TimeEntry hängen mit onDelete: Restrict am Projekt —
+  // die DB verhindert also ein stilles Kaskadieren der Finanz-Dokumente und
+  // Lohn-Belege. Beim bewussten Löschen des Projekts (Confirm-Dialog warnt
+  // explizit) räumen wir sie daher in derselben Transaktion mit ab. Mahnungen
+  // hängen per Cascade an ihrer Rechnung bzw. tragen selbst die projectId;
+  // PersonAssignments kaskadieren über die projectId automatisch.
   const [deletedQuotes, deletedInvoices] = await prisma.$transaction([
     prisma.quote.deleteMany({ where: { projectId: id } }),
     prisma.invoice.deleteMany({ where: { projectId: id } }),
+    prisma.timeEntry.deleteMany({ where: { projectId: id } }),
     prisma.project.delete({ where: { id } }),
   ]);
 

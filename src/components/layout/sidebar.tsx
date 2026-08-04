@@ -17,6 +17,7 @@ import {
   TrendingUp,
   AlertCircle,
   FileText,
+  UserRound,
   X,
 } from "lucide-react";
 import { useMobileNav } from "@/components/layout/mobile-nav-context";
@@ -58,6 +59,7 @@ const SECTIONS: NavSection[] = [
       { href: "/customers", label: "Kunden", icon: Building2 },
       { href: "/material", label: "Material", icon: Boxes },
       { href: "/services", label: "Personal & Transport", icon: Truck },
+      { href: "/persons", label: "Personalstamm", icon: UserRound },
     ],
   },
   {

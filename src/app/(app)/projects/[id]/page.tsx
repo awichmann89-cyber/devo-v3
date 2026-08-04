@@ -26,6 +26,7 @@ import { DeleteProjectButton } from "./delete-button";
 import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { buildPackList } from "@/lib/packlist";
+import { personnelCostForProject, workedMinutes } from "@/lib/personnel-costs";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
 
@@ -43,8 +44,29 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         invoices: { orderBy: { date: "desc" } },
         quotes: { orderBy: { date: "desc" } },
         services: {
-          include: { serviceItem: true },
+          include: {
+            serviceItem: true,
+            // Einsatzplan: Personen an dieser Position inkl. Ist-Minuten
+            personAssignments: {
+              include: {
+                person: { select: { name: true, employmentType: true } },
+                timeEntries: {
+                  select: { startMinute: true, endMinute: true, breakMinutes: true },
+                },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
           orderBy: { sortOrder: "asc" },
+        },
+        // Ist-Arbeitszeiten (für Personalkosten in der Gewinnrechnung)
+        timeEntries: {
+          select: {
+            startMinute: true,
+            endMinute: true,
+            breakMinutes: true,
+            hourlyWageSnapshot: true,
+          },
         },
         assignments: {
           include: {
@@ -88,7 +110,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   if (!project) notFound();
   const canWrite = hasRole(session?.user.role, CAN_WRITE);
 
-  const [allDevices, allCables, allCategories, customers, users] = await Promise.all([
+  const [allDevices, allCables, allCategories, customers, users, activePersons] = await Promise.all([
     prisma.device.findMany({
       include: { category: true },
       orderBy: { name: "asc" },
@@ -101,6 +123,17 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.user.findMany({
       select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.person.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        name: true,
+        employmentType: true,
+        hourlyWage: true,
+        defaultDayRate: true,
+      },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -364,6 +397,21 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const extraOther = project.extraCosts
     .filter((c) => c.kind === "SONSTIGES")
     .reduce((s, c) => s + Number(c.amount), 0);
+  // Personalkosten aus dem Einsatzplan: Freelancer-Sätze + Minijobber-Stunden.
+  const personnelCost = personnelCostForProject({
+    assignments: project.services.flatMap((s) =>
+      s.personAssignments.map((a) => ({
+        agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+      }))
+    ),
+    timeEntries: project.timeEntries.map((e) => ({
+      startMinute: e.startMinute,
+      endMinute: e.endMinute,
+      breakMinutes: e.breakMinutes,
+      hourlyWageSnapshot:
+        e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
+    })),
+  }).total;
 
   const deviceCount = project.assignments.reduce(
     (s, a) => s + a.quantity,
@@ -676,10 +724,52 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <TabsContent value="services">
           <ServicesSection
             projectId={project.id}
-            projectServices={serialize(project.services) as never}
+            projectServices={project.services.map((s) => ({
+              id: s.id,
+              serviceItemId: s.serviceItemId,
+              groupId: s.groupId,
+              quantity: Number(s.quantity),
+              unitPriceOverride:
+                s.unitPriceOverride !== null ? Number(s.unitPriceOverride) : null,
+              notes: s.notes,
+              sortOrder: s.sortOrder,
+              serviceItem: {
+                id: s.serviceItem.id,
+                name: s.serviceItem.name,
+                kind: s.serviceItem.kind,
+                unit: s.serviceItem.unit,
+                unitPrice: Number(s.serviceItem.unitPrice),
+                active: s.serviceItem.active,
+              },
+              personAssignments: s.personAssignments.map((a) => ({
+                id: a.id,
+                personId: a.personId,
+                personName: a.person.name,
+                employmentType: a.person.employmentType,
+                plannedStart: a.plannedStart?.toISOString() ?? null,
+                plannedEnd: a.plannedEnd?.toISOString() ?? null,
+                agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+                invoiceReceived: a.invoiceReceived,
+                notes: a.notes,
+                loggedMinutes: a.timeEntries.reduce(
+                  (sum, e) => sum + workedMinutes(e),
+                  0
+                ),
+              })),
+            }))}
             catalog={serialize(serviceCatalog) as never}
             groups={serialize(project.groups.filter((g) => g.kind === "SERVICE"))}
             groupComments={serialize(project.groupComments)}
+            persons={activePersons.map((p) => ({
+              id: p.id,
+              name: p.name,
+              employmentType: p.employmentType,
+              hourlyWage: p.hourlyWage !== null ? Number(p.hourlyWage) : null,
+              defaultDayRate:
+                p.defaultDayRate !== null ? Number(p.defaultDayRate) : null,
+            }))}
+            planningStartIso={project.planningStart.toISOString()}
+            planningEndIso={project.planningEnd.toISOString()}
           />
         </TabsContent>
 
@@ -733,6 +823,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               text: c.text,
               sortOrder: c.sortOrder,
             }))}
+            personnelCost={personnelCost}
           />
         </TabsContent>
 
@@ -786,6 +877,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             subhireTotal={subhireTotal}
             extraPersonal={extraPersonal}
             extraOther={extraOther}
+            personnelCost={personnelCost}
           />
         </TabsContent>
       </Tabs>

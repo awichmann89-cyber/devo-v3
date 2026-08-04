@@ -1,4 +1,4 @@
-import { BillingUnit, ExtraCostKind, ProjectKind, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
+import { BillingUnit, EmploymentType, ExtraCostKind, ProjectKind, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
 
 export function projectKindLabel(kind: ProjectKind): string {
   return {
@@ -71,6 +71,26 @@ export function roleLabel(role: Role): string {
     DISPONENT: "Disponent",
     READER: "Leser",
   }[role];
+}
+
+export function employmentTypeLabel(type: EmploymentType): string {
+  return {
+    GESELLSCHAFTER: "Gesellschafter",
+    MITARBEITER: "Mitarbeiter",
+    FREELANCER: "Freelancer",
+    MINIJOBBER: "Minijobber",
+  }[type];
+}
+
+export function employmentTypeVariant(
+  type: EmploymentType
+): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" {
+  return {
+    GESELLSCHAFTER: "default" as const,
+    MITARBEITER: "secondary" as const,
+    FREELANCER: "warning" as const,
+    MINIJOBBER: "outline" as const,
+  }[type];
 }
 
 export function serviceItemKindLabel(kind: ServiceItemKind): string {
