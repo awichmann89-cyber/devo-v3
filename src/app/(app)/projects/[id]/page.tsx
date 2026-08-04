@@ -27,6 +27,7 @@ import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { buildPackList } from "@/lib/packlist";
 import { personnelCostForProject, workedMinutes } from "@/lib/personnel-costs";
+import { assignmentEffectiveRange, rangesOverlap } from "@/lib/personnel-schedule";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
 
@@ -40,7 +41,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         customer: true,
         billingPeriods: { orderBy: { start: "asc" } },
         projectNotes: { orderBy: { updatedAt: "desc" } },
-        groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
+        groups: {
+          // billingPeriods der Gruppe: Tagesfaktor pro Materialgruppe bzw.
+          // Planungsgrundlage für Personal-Einsätze (SERVICE).
+          include: { billingPeriods: { select: { id: true, start: true, end: true } } },
+          orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
+        },
         invoices: { orderBy: { date: "desc" } },
         quotes: { orderBy: { date: "desc" } },
         services: {
@@ -50,6 +56,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             personAssignments: {
               include: {
                 person: { select: { name: true, employmentType: true } },
+                billingPeriod: {
+                  select: { id: true, start: true, end: true, notes: true },
+                },
                 timeEntries: {
                   select: { startMinute: true, endMinute: true, breakMinutes: true },
                 },
@@ -312,12 +321,28 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const isSale = project.kind === "VERKAUF";
   const billingFactor = isSale ? 1 : getDayFactor(billingDays, factorMap);
 
+  // Tagesfaktor pro Gruppe: Gruppen mit eigener Zeitraum-Auswahl rechnen nur
+  // über deren Tage (Migration 25); ohne Auswahl gilt der globale Wert.
+  const groupDays: Record<string, number> = {};
+  const groupFactors: Record<string, number> = {};
+  const groupPeriodIds: Record<string, string[]> = {};
+  for (const g of project.groups) {
+    const periods =
+      g.billingPeriods.length > 0 ? g.billingPeriods : project.billingPeriods;
+    const d = periods.reduce((sum, p) => sum + daysBetween(p.start, p.end), 0);
+    groupDays[g.id] = d;
+    groupFactors[g.id] = isSale ? 1 : getDayFactor(d, factorMap);
+    groupPeriodIds[g.id] = g.billingPeriods.map((p) => p.id);
+  }
+  const factorForGroup = (groupId: string) => groupFactors[groupId] ?? billingFactor;
+
   const materialSubtotal =
     project.assignments.reduce((sum, a) => {
-      return sum + Number(a.device.dailyRate) * a.quantity * billingFactor;
+      return sum + Number(a.device.dailyRate) * a.quantity * factorForGroup(a.groupId);
     }, 0) +
     project.adHocItems.reduce(
-      (sum, it) => sum + Number(it.unitPrice) * it.quantity * billingFactor,
+      (sum, it) =>
+        sum + Number(it.unitPrice) * it.quantity * factorForGroup(it.groupId),
       0
     );
 
@@ -332,15 +357,17 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   function groupGross(groupId: string, kind: "MATERIAL" | "SERVICE"): number {
     let sub = 0;
     if (kind === "MATERIAL") {
+      // Tagesfaktor der Gruppe (eigene Zeitraum-Auswahl oder global).
+      const factor = factorForGroup(groupId);
       for (const a of project!.assignments) {
         if (a.groupId !== groupId) continue;
-        sub += Number(a.device.dailyRate) * a.quantity * billingFactor;
+        sub += Number(a.device.dailyRate) * a.quantity * factor;
       }
       // Ad-hoc-Positionen: Stückpreis × Anzahl × Tagesfaktor (wie Geräte).
-      // Bei Verkauf-Projekten ist billingFactor = 1.
+      // Bei Verkauf-Projekten ist der Faktor = 1.
       for (const it of project!.adHocItems) {
         if (it.groupId !== groupId) continue;
-        sub += Number(it.unitPrice) * it.quantity * billingFactor;
+        sub += Number(it.unitPrice) * it.quantity * factor;
       }
     } else {
       for (const s of project!.services) {
@@ -397,6 +424,70 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const extraOther = project.extraCosts
     .filter((c) => c.kind === "SONSTIGES")
     .reduce((s, c) => s + Number(c.amount), 0);
+  // ----- Überbuchungs-Prüfung: Einsätze derselben Personen in ANDEREN Projekten -----
+  const projectPersonIds = [
+    ...new Set(project.services.flatMap((s) => s.personAssignments.map((a) => a.personId))),
+  ];
+  const foreignAssignments =
+    projectPersonIds.length > 0
+      ? await prisma.personAssignment.findMany({
+          where: {
+            personId: { in: projectPersonIds },
+            projectId: { not: id },
+            // Stornierte Projekte blockieren niemanden.
+            project: { is: { status: { not: "CANCELLED" } } },
+          },
+          select: {
+            personId: true,
+            plannedStart: true,
+            plannedEnd: true,
+            billingPeriod: { select: { start: true, end: true } },
+            project: {
+              select: { name: true, planningStart: true, planningEnd: true },
+            },
+          },
+        })
+      : [];
+  // Fremd-Einsätze pro Person als effektive Zeitfenster (für Badge + Dialog).
+  const personBusy: Record<
+    string,
+    { projectName: string; start: string; end: string; timed: boolean }[]
+  > = {};
+  for (const f of foreignAssignments) {
+    const r = assignmentEffectiveRange({
+      plannedStart: f.plannedStart,
+      plannedEnd: f.plannedEnd,
+      billingPeriod: f.billingPeriod,
+      projectPlanningStart: f.project.planningStart,
+      projectPlanningEnd: f.project.planningEnd,
+    });
+    (personBusy[f.personId] ??= []).push({
+      projectName: f.project.name,
+      start: r.start.toISOString(),
+      end: r.end.toISOString(),
+      timed: r.timed,
+    });
+  }
+  // Konflikte je Einsatz dieses Projekts (Projektnamen der Überlappungen).
+  const assignmentConflicts: Record<string, string[]> = {};
+  for (const s of project.services) {
+    for (const a of s.personAssignments) {
+      const r = assignmentEffectiveRange({
+        plannedStart: a.plannedStart,
+        plannedEnd: a.plannedEnd,
+        billingPeriod: a.billingPeriod,
+        projectPlanningStart: project.planningStart,
+        projectPlanningEnd: project.planningEnd,
+      });
+      const names = (personBusy[a.personId] ?? [])
+        .filter((b) =>
+          rangesOverlap(r.start, r.end, new Date(b.start), new Date(b.end))
+        )
+        .map((b) => b.projectName);
+      if (names.length > 0) assignmentConflicts[a.id] = [...new Set(names)];
+    }
+  }
+
   // Personalkosten aus dem Einsatzplan: Freelancer-Sätze + Minijobber-Stunden.
   const personnelCost = personnelCostForProject({
     assignments: project.services.flatMap((s) =>
@@ -697,6 +788,15 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             reservedDeviceIds={Array.from(reservedDeviceIds)}
             billingDays={billingDays}
             billingFactor={billingFactor}
+            groupDays={groupDays}
+            groupFactors={groupFactors}
+            billingPeriods={project.billingPeriods.map((p) => ({
+              id: p.id,
+              start: p.start.toISOString(),
+              end: p.end.toISOString(),
+              notes: p.notes,
+            }))}
+            groupPeriodIds={groupPeriodIds}
             subtotal={materialSubtotal}
             discount={materialSubtotal - materialBereichNet}
             total={materialBereichNet}
@@ -746,6 +846,10 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 personId: a.personId,
                 personName: a.person.name,
                 employmentType: a.person.employmentType,
+                billingPeriodId: a.billingPeriodId,
+                periodStart: a.billingPeriod?.start.toISOString() ?? null,
+                periodEnd: a.billingPeriod?.end.toISOString() ?? null,
+                periodNotes: a.billingPeriod?.notes ?? null,
                 plannedStart: a.plannedStart?.toISOString() ?? null,
                 plannedEnd: a.plannedEnd?.toISOString() ?? null,
                 agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
@@ -755,6 +859,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                   (sum, e) => sum + workedMinutes(e),
                   0
                 ),
+                conflicts: assignmentConflicts[a.id] ?? [],
               })),
             }))}
             catalog={serialize(serviceCatalog) as never}
@@ -768,6 +873,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               defaultDayRate:
                 p.defaultDayRate !== null ? Number(p.defaultDayRate) : null,
             }))}
+            billingPeriods={project.billingPeriods.map((p) => ({
+              id: p.id,
+              start: p.start.toISOString(),
+              end: p.end.toISOString(),
+              notes: p.notes,
+            }))}
+            groupPeriodIds={groupPeriodIds}
+            personBusy={personBusy}
             planningStartIso={project.planningStart.toISOString()}
             planningEndIso={project.planningEnd.toISOString()}
           />

@@ -18,7 +18,10 @@ async function loadProjectForSnapshot(projectId: string) {
     include: {
       customer: true,
       billingPeriods: { orderBy: { start: "asc" } },
-      groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
+      groups: {
+        include: { billingPeriods: true },
+        orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
+      },
       assignments: { include: { device: true } },
       services: { include: { serviceItem: true } },
       adHocItems: { orderBy: { sortOrder: "asc" } },

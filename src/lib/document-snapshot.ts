@@ -65,6 +65,12 @@ export interface DocumentSnapshot {
     kind: "MATERIAL" | "SERVICE";
     discountPercent: number;
     sortOrder: number;
+    /**
+     * Tagesfaktor der Gruppe (Migration 25: Zeiträume pro Materialgruppe).
+     * Fehlt bei Alt-Snapshots — dann gilt der globale `factor`/`days`.
+     */
+    days?: number;
+    factor?: number;
     materialRows: Array<{
       name: string;
       manufacturer: string | null;
@@ -118,7 +124,7 @@ export type ProjectForSnapshot = Prisma.ProjectGetPayload<{
   include: {
     customer: true;
     billingPeriods: true;
-    groups: true;
+    groups: { include: { billingPeriods: true } };
     assignments: { include: { device: true } };
     services: { include: { serviceItem: true } };
     adHocItems: true;
@@ -153,9 +159,24 @@ export function buildSnapshotFromProject(
     0,
   );
   const isSale = project.kind === "VERKAUF";
-  const factor = isSale
-    ? 1
-    : getDayFactor(days, parseDayFactorMap(settings.dayFactorMap));
+  const factorMap = parseDayFactorMap(settings.dayFactorMap);
+  const factor = isSale ? 1 : getDayFactor(days, factorMap);
+
+  // Tagesfaktor pro Gruppe: Materialgruppen mit eigener Zeitraum-Auswahl
+  // rechnen nur über deren Tage; ohne Auswahl gilt der globale Wert.
+  const groupPeriodInfo = new Map<string, { days: number; factor: number }>();
+  for (const g of project.groups) {
+    const periods =
+      g.billingPeriods.length > 0 ? g.billingPeriods : project.billingPeriods;
+    const gDays = periods.reduce(
+      (sum, p) => sum + daysBetween(p.start, p.end),
+      0,
+    );
+    groupPeriodInfo.set(g.id, {
+      days: gDays,
+      factor: isSale ? 1 : getDayFactor(gDays, factorMap),
+    });
+  }
 
   // Aggregierte Material-Zeilen pro Gruppe — gleicher Algorithmus wie früher
   // in den PDF-Routen, hier zentral.
@@ -259,6 +280,8 @@ export function buildSnapshotFromProject(
       kind: g.kind as "MATERIAL" | "SERVICE",
       discountPercent: Number(g.discountPercent),
       sortOrder: g.sortOrder ?? 0,
+      days: groupPeriodInfo.get(g.id)?.days ?? days,
+      factor: groupPeriodInfo.get(g.id)?.factor ?? factor,
       materialRows: materialByGroup.get(g.id) ?? [],
       adHocRows: adHocByGroup.get(g.id) ?? [],
       serviceRows: servicesByGroup.get(g.id) ?? [],
@@ -277,12 +300,13 @@ export function buildSnapshotFromProject(
   let servicesBereichSub = 0;
   for (const g of groups) {
     if (g.kind === "MATERIAL") {
+      const gFactor = g.factor ?? factor;
       const subDevices = g.materialRows.reduce(
-        (s, r) => s + r.dailyRate * r.quantity * factor,
+        (s, r) => s + r.dailyRate * r.quantity * gFactor,
         0,
       );
       const subAdHoc = g.adHocRows.reduce(
-        (s, r) => s + r.unitPrice * r.quantity * factor,
+        (s, r) => s + r.unitPrice * r.quantity * gFactor,
         0,
       );
       const sub = subDevices + subAdHoc;

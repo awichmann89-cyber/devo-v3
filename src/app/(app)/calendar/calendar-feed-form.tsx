@@ -8,7 +8,15 @@ import { Copy, RefreshCw, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { regenerateCalendarToken } from "../settings/settings-actions";
 
-export function CalendarFeedForm({ initialToken }: { initialToken: string }) {
+export function CalendarFeedForm({
+  initialToken,
+  personalToken,
+}: {
+  initialToken: string;
+  /** Token der mit dem eingeloggten Account verknüpften Person — speist das
+   *  persönliche Personalplanungs-Abo. Null, wenn keine Person verknüpft ist. */
+  personalToken?: string | null;
+}) {
   const [token, setToken] = useState(initialToken);
   const [origin, setOrigin] = useState("");
   const [pending, startTransition] = useTransition();
@@ -23,6 +31,10 @@ export function CalendarFeedForm({ initialToken }: { initialToken: string }) {
     : "";
   const billingUrl = origin && token
     ? `${origin}/api/calendar/billing.ics?token=${token}`
+    : "";
+  // Persönlicher Feed läuft über den Personen-Token, nicht den globalen Token.
+  const personalUrl = origin && personalToken
+    ? `${origin}/api/calendar/person.ics?token=${personalToken}`
     : "";
 
   function copy(url: string, kind: string) {
@@ -105,6 +117,47 @@ export function CalendarFeedForm({ initialToken }: { initialToken: string }) {
             )}
           </Button>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Personalplanung (persönlich)</Label>
+        {personalUrl ? (
+          <>
+            <div className="flex gap-2">
+              <Input
+                value={personalUrl}
+                readOnly
+                className="font-mono text-xs"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => copy(personalUrl, "personal")}
+                title="URL kopieren"
+              >
+                {copied === "personal" ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Zeigt nur deine eigenen Einsätze. Der Link läuft über deinen
+              persönlichen Token — neu generieren auf deiner Seite im
+              Personalstamm.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Dein Account ist mit keiner Person im Personalstamm verknüpft.
+            Sobald die Verknüpfung gesetzt ist (Personalstamm → Person
+            bearbeiten → Cratel-Account), erscheint hier dein persönliches
+            Einsatz-Abo.
+          </p>
+        )}
       </div>
 
       <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-2">

@@ -8,12 +8,15 @@ export const dynamic = "force-dynamic";
 
 const APP_TZ = "Europe/Berlin";
 
-/** Menschlich lesbares Zeitfenster für die DESCRIPTION. */
+/**
+ * Menschlich lesbares Zeitfenster für die DESCRIPTION — Fallback-Kette:
+ * Uhrzeiten → gewählter Berechnungszeitraum → Projekt-Planungszeitraum.
+ */
 function timeLabel(
   plannedStart: Date | null,
   plannedEnd: Date | null,
-  planningStart: Date,
-  planningEnd: Date
+  allDayStart: Date,
+  allDayEnd: Date
 ): string {
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("de-DE", {
@@ -34,7 +37,7 @@ function timeLabel(
     }
     return `${fmtDate(plannedStart)} ${fmtTime(plannedStart)} – ${fmtDate(plannedEnd)} ${fmtTime(plannedEnd)}`;
   }
-  return `ganztägig, ${fmtDate(planningStart)} – ${fmtDate(planningEnd)}`;
+  return `ganztägig, ${fmtDate(allDayStart)} – ${fmtDate(allDayEnd)}`;
 }
 
 /**
@@ -62,6 +65,7 @@ export async function GET(req: Request) {
       projectService: {
         select: { serviceItem: { select: { name: true } } },
       },
+      billingPeriod: { select: { start: true, end: true } },
       project: {
         select: {
           name: true,
@@ -78,21 +82,21 @@ export async function GET(req: Request) {
   const events: IcsEvent[] = assignments.map((a) => {
     const timed = a.plannedStart !== null && a.plannedEnd !== null;
     const serviceName = a.projectService.serviceItem.name;
+    // Ganztägig-Basis: gewählter Berechnungszeitraum, sonst Planungszeitraum.
+    const allDay = a.billingPeriod ?? {
+      start: a.project.planningStart,
+      end: a.project.planningEnd,
+    };
     return {
       uid: `person-assignment-${a.id}@cratel`,
-      start: timed ? a.plannedStart! : a.project.planningStart,
-      end: timed ? a.plannedEnd! : a.project.planningEnd,
+      start: timed ? a.plannedStart! : allDay.start,
+      end: timed ? a.plannedEnd! : allDay.end,
       timed,
       summary: `${projectStatusEmoji(a.project.status)} ${a.project.name} — ${serviceName}`,
       description: buildAssignmentCalendarDescription({
         customerName: a.project.customer?.name,
         serviceName,
-        timeLabel: timeLabel(
-          a.plannedStart,
-          a.plannedEnd,
-          a.project.planningStart,
-          a.project.planningEnd
-        ),
+        timeLabel: timeLabel(a.plannedStart, a.plannedEnd, allDay.start, allDay.end),
         notes: a.notes,
       }),
     };

@@ -109,6 +109,9 @@ import {
 } from "./person-assignments-actions";
 import {
   PersonAssignmentDialog,
+  periodLabel,
+  type BusyIntervalVM,
+  type PeriodOptionVM,
   type PersonAssignmentVM,
   type PersonOptionVM,
 } from "./person-assignment-dialog";
@@ -157,9 +160,21 @@ export interface ProjectServiceVM {
   personAssignments: PersonAssignmentVM[];
 }
 
-/** Kompakte Anzeige des geplanten Zeitfensters eines Einsatzes. */
+/**
+ * Kompakte Anzeige des Einsatz-Zeitfensters — Fallback-Kette:
+ * Uhrzeiten → gewählter Berechnungszeitraum → ganztägig (Planungszeitraum).
+ */
 function assignmentTimeLabel(a: PersonAssignmentVM): string {
-  if (!a.plannedStart || !a.plannedEnd) return "ganztägig";
+  if (!a.plannedStart || !a.plannedEnd) {
+    if (a.periodStart && a.periodEnd) {
+      return periodLabel({
+        start: a.periodStart,
+        end: a.periodEnd,
+        notes: a.periodNotes,
+      });
+    }
+    return "ganztägig (Planungszeitraum)";
+  }
   const s = new Date(a.plannedStart);
   const e = new Date(a.plannedEnd);
   const time = (d: Date) =>
@@ -177,6 +192,9 @@ export function ServicesSection({
   groups,
   groupComments,
   persons,
+  billingPeriods,
+  groupPeriodIds,
+  personBusy,
   planningStartIso,
   planningEndIso,
 }: {
@@ -186,6 +204,11 @@ export function ServicesSection({
   groups: ProjectGroup[];
   groupComments: ProjectGroupComment[];
   persons: PersonOptionVM[];
+  billingPeriods: PeriodOptionVM[];
+  /** Zeitraum-Auswahl je Gruppe (leer = alle Zeiträume). */
+  groupPeriodIds: Record<string, string[]>;
+  /** Fremd-Einsätze pro Person (andere Projekte) für die Überbuchungs-Warnung. */
+  personBusy: Record<string, BusyIntervalVM[]>;
   planningStartIso: string;
   planningEndIso: string;
 }) {
@@ -199,8 +222,19 @@ export function ServicesSection({
   const [assignDialog, setAssignDialog] = useState<{
     projectServiceId: string;
     serviceName: string;
+    groupId: string;
     assignment: PersonAssignmentVM | null;
   } | null>(null);
+  // Personalplan ein-/ausklappen
+  const [planOpen, setPlanOpen] = useState(true);
+
+  // Zeiträume für den Einsatz-Dialog: Auswahl der Gruppe, sonst alle.
+  const dialogPeriods = useMemo(() => {
+    if (!assignDialog) return billingPeriods;
+    const ids = groupPeriodIds[assignDialog.groupId] ?? [];
+    if (ids.length === 0) return billingPeriods;
+    return billingPeriods.filter((p) => ids.includes(p.id));
+  }, [assignDialog, billingPeriods, groupPeriodIds]);
 
   // Aktive Gruppe
   const [activeGroupId, setActiveGroupId] = useState<string | null>(
@@ -219,6 +253,8 @@ export function ServicesSection({
     id?: string;
     name: string;
     billable: boolean;
+    // Zugeordnete Berechnungszeiträume (leer = alle)
+    billingPeriodIds: string[];
   } | null>(null);
   const [deleteGroupPrompt, setDeleteGroupPrompt] = useState<ProjectGroup | null>(null);
 
@@ -492,6 +528,7 @@ export function ServicesSection({
             name,
             kind: "SERVICE",
             billable: groupDialog.billable,
+            billingPeriodIds: groupDialog.billingPeriodIds,
           });
           setActiveGroupId(res.id);
           toast.success("Gruppe angelegt");
@@ -499,6 +536,7 @@ export function ServicesSection({
           await updateProjectGroup(groupDialog.id, {
             name,
             billable: groupDialog.billable,
+            billingPeriodIds: groupDialog.billingPeriodIds,
           });
           toast.success("Gruppe gespeichert");
         }
@@ -534,6 +572,29 @@ export function ServicesSection({
     arr.push(ps);
     servicesByGroup.set(ps.groupId, arr);
   }
+
+  // Personalplan: alle Einsätze chronologisch (nach effektivem Beginn).
+  const planEntries = useMemo(() => {
+    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+    const out: {
+      a: PersonAssignmentVM;
+      serviceName: string;
+      groupName: string;
+      sortKey: number;
+    }[] = [];
+    for (const ps of projectServices) {
+      for (const a of ps.personAssignments) {
+        const start = a.plannedStart ?? a.periodStart ?? planningStartIso;
+        out.push({
+          a,
+          serviceName: ps.serviceItem.name,
+          groupName: groupNameById.get(ps.groupId) ?? "",
+          sortKey: +new Date(start),
+        });
+      }
+    }
+    return out.sort((x, y) => x.sortKey - y.sortKey);
+  }, [projectServices, groups, planningStartIso]);
 
   const subtotal = projectServices.reduce(
     (sum, p) =>
@@ -571,6 +632,16 @@ export function ServicesSection({
               <Badge variant="outline" className="gap-1 font-mono">
                 <Clock className="h-3 w-3" />
                 {formatMinutes(a.loggedMinutes)} h erfasst
+              </Badge>
+            )}
+            {a.conflicts.length > 0 && (
+              <Badge
+                variant="destructive"
+                className="gap-1"
+                title={`Zeitgleich eingeplant in: ${a.conflicts.join(", ")}`}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Überbucht
               </Badge>
             )}
           </div>
@@ -629,6 +700,7 @@ export function ServicesSection({
                 setAssignDialog({
                   projectServiceId: ps.id,
                   serviceName: ps.serviceItem.name,
+                  groupId: ps.groupId,
                   assignment: a,
                 })
               }
@@ -731,6 +803,7 @@ export function ServicesSection({
                 setAssignDialog({
                   projectServiceId: ps.id,
                   serviceName: ps.serviceItem.name,
+                  groupId: ps.groupId,
                   assignment: null,
                 })
               }
@@ -779,6 +852,83 @@ export function ServicesSection({
 
   return (
     <>
+      {/* Personalplan: chronologische Übersicht aller Einsätze des Projekts. */}
+      {planEntries.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader
+            className="cursor-pointer py-3"
+            onClick={() => setPlanOpen((o) => !o)}
+          >
+            <CardTitle className="flex items-center gap-2 text-base">
+              {planOpen ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              <Users className="h-4 w-4" /> Personalplan
+              <span className="font-normal text-muted-foreground">
+                ({planEntries.length} Einsätze)
+              </span>
+              {planEntries.some((e) => e.a.conflicts.length > 0) && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Überbuchungen
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          {planOpen && (
+            <CardContent className="p-0">
+              <Table className="[&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Zeit</TableHead>
+                    <TableHead>Person</TableHead>
+                    <TableHead>Position</TableHead>
+                    <TableHead>Gruppe</TableHead>
+                    <TableHead>Hinweise</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {planEntries.map(({ a, serviceName, groupName }) => (
+                    <TableRow key={`plan:${a.id}`}>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {assignmentTimeLabel(a)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium">{a.personName}</span>
+                          <Badge variant={employmentTypeVariant(a.employmentType)}>
+                            {employmentTypeLabel(a.employmentType)}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{serviceName}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {groupName}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          {a.conflicts.length > 0 && (
+                            <Badge
+                              variant="destructive"
+                              className="gap-1"
+                              title={`Zeitgleich eingeplant in: ${a.conflicts.join(", ")}`}
+                            >
+                              <AlertTriangle className="h-3 w-3" /> Überbucht
+                            </Badge>
+                          )}
+                          {a.notes && <span>📝 {a.notes}</span>}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
           52px-Headers + Abstände) und clippt intern. So kann die Seite nicht
           so weit scrollen, dass die Katalog-Suche hinter dem App-Header
@@ -1043,6 +1193,7 @@ export function ServicesSection({
                                   id: group.id,
                                   name: group.name,
                                   billable: group.billable,
+                                  billingPeriodIds: groupPeriodIds[group.id] ?? [],
                                 })
                               }
                               onDelete={() => setDeleteGroupPrompt(group)}
@@ -1095,7 +1246,12 @@ export function ServicesSection({
               </div>
               <GroupTableFooter
                 onAddGroup={() =>
-                  setGroupDialog({ mode: "create", name: "", billable: true })
+                  setGroupDialog({
+                    mode: "create",
+                    name: "",
+                    billable: true,
+                    billingPeriodIds: [],
+                  })
                 }
                 pending={pending}
               >
@@ -1126,6 +1282,8 @@ export function ServicesSection({
         serviceName={assignDialog?.serviceName ?? ""}
         assignment={assignDialog?.assignment ?? null}
         persons={persons}
+        periods={dialogPeriods}
+        personBusy={personBusy}
         planningStartIso={planningStartIso}
         planningEndIso={planningEndIso}
       />
@@ -1238,6 +1396,41 @@ export function ServicesSection({
                 </span>
               </span>
             </label>
+            {billingPeriods.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Berechnungszeiträume</Label>
+                <div className="space-y-1 rounded-md border p-2">
+                  {billingPeriods.map((p) => {
+                    const checked =
+                      groupDialog?.billingPeriodIds.includes(p.id) ?? false;
+                    return (
+                      <label key={p.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            setGroupDialog((g) => {
+                              if (!g) return g;
+                              const ids = e.target.checked
+                                ? [...g.billingPeriodIds, p.id]
+                                : g.billingPeriodIds.filter((x) => x !== p.id);
+                              return { ...g, billingPeriodIds: ids };
+                            })
+                          }
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        {periodLabel(p)}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Planungsgrundlage für Personal-Einsätze dieser Gruppe — die
+                  Zeitraum-Auswahl wird im Einplanen-Dialog vorgeschlagen.
+                  Keine Auswahl = alle Zeiträume.
+                </p>
+              </div>
+            )}
             <DialogFooter>
               <Button
                 type="button"

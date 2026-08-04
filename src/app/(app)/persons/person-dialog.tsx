@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -38,15 +39,25 @@ export interface PersonVM {
   active: boolean;
   hourlyWage: number | null;
   defaultDayRate: number | null;
+  /** Verknüpfter Cratel-Account (User.id) */
+  userId: string | null;
+}
+
+/** Cratel-Account für die Verknüpfungs-Auswahl. */
+export interface UserOptionVM {
+  id: string;
+  name: string | null;
+  email: string;
 }
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   person?: PersonVM | null;
+  users: UserOptionVM[];
 }
 
-export function PersonDialog({ open, onOpenChange, person }: Props) {
+export function PersonDialog({ open, onOpenChange, person, users }: Props) {
   const [name, setName] = useState("");
   const [employmentType, setEmploymentType] = useState<EmploymentType>("FREELANCER");
   const [email, setEmail] = useState("");
@@ -56,6 +67,7 @@ export function PersonDialog({ open, onOpenChange, person }: Props) {
   const [active, setActive] = useState(true);
   const [hourlyWage, setHourlyWage] = useState("");
   const [defaultDayRate, setDefaultDayRate] = useState("");
+  const [userId, setUserId] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -69,6 +81,7 @@ export function PersonDialog({ open, onOpenChange, person }: Props) {
       setActive(person?.active ?? true);
       setHourlyWage(person?.hourlyWage != null ? String(person.hourlyWage) : "");
       setDefaultDayRate(person?.defaultDayRate != null ? String(person.defaultDayRate) : "");
+      setUserId(person?.userId ?? "");
     }
   }, [open, person]);
 
@@ -91,6 +104,7 @@ export function PersonDialog({ open, onOpenChange, person }: Props) {
       active,
       hourlyWage: hourlyWage !== "" ? Number(hourlyWage) : null,
       defaultDayRate: defaultDayRate !== "" ? Number(defaultDayRate) : null,
+      userId: userId || null,
     };
 
     startTransition(async () => {
@@ -233,6 +247,26 @@ export function PersonDialog({ open, onOpenChange, person }: Props) {
               maxLength={2000}
               placeholder="Interne Hinweise, z.B. Führerschein Klasse C1"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Cratel-Account (optional)</Label>
+            <Combobox
+              value={userId}
+              onValueChange={setUserId}
+              options={users.map((u) => ({
+                value: u.id,
+                label: u.name ?? u.email,
+                hint: u.name ? u.email : undefined,
+              }))}
+              emptyLabel="— kein Account verknüpft —"
+              placeholder="Account suchen…"
+              clearable
+            />
+            <p className="text-xs text-muted-foreground">
+              Verknüpfte Accounts sehen ihre Einsätze auf der Kalender-Seite
+              und bekommen dort das persönliche Personalplanungs-Abo.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">

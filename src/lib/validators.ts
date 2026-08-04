@@ -264,12 +264,16 @@ export const personSchema = z.object({
   active: z.coerce.boolean().default(true),
   hourlyWage: z.coerce.number().min(0).optional().nullable(),
   defaultDayRate: z.coerce.number().min(0).optional().nullable(),
+  // Optionale Verknüpfung zu einem Cratel-Login (User.id)
+  userId: z.string().optional().nullable(),
 });
 
 // Einsatz einer Person an einer Personal-&-Transport-Position.
 export const personAssignmentSchema = z
   .object({
     personId: z.string().min(1),
+    // Gewählter Berechnungszeitraum (null = Projekt-Planungszeitraum)
+    billingPeriodId: z.string().optional().nullable(),
     plannedStart: z.coerce.date().optional().nullable(),
     plannedEnd: z.coerce.date().optional().nullable(),
     agreedRate: z.coerce.number().min(0).optional().nullable(),

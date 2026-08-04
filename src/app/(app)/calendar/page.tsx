@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -6,9 +7,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CalendarClock } from "lucide-react";
 import { Timeline } from "./timeline";
 import { CalendarFeedForm } from "./calendar-feed-form";
 import { getOrCreateCalendarToken } from "@/lib/settings";
+import { auth } from "@/auth";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 
 export default async function CalendarPage(props: { searchParams: Promise<{ month?: string }> }) {
   const sp = await props.searchParams;
@@ -47,6 +53,64 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
 
   const calendarToken = await getOrCreateCalendarToken();
 
+  // Mit dem eingeloggten Account verknüpfte Person (Personalstamm) — speist
+  // die "Meine Einsätze"-Card und das persönliche Personalplanungs-Abo.
+  const session = await auth();
+  const linkedPerson = session?.user.id
+    ? await prisma.person.findFirst({
+        where: { userId: session.user.id, active: true },
+        select: { id: true, name: true, personalToken: true },
+      })
+    : null;
+
+  // Token lazy anlegen (Muster Personen-Detailseite) — das Abo soll direkt
+  // beim ersten Besuch der Kalender-Seite funktionieren.
+  let personalToken = linkedPerson?.personalToken ?? null;
+  if (linkedPerson && !personalToken) {
+    personalToken = crypto.randomUUID().replace(/-/g, "");
+    await prisma.person.update({
+      where: { id: linkedPerson.id },
+      data: { personalToken },
+    });
+  }
+
+  const myAssignments = linkedPerson
+    ? await prisma.personAssignment.findMany({
+        where: { personId: linkedPerson.id },
+        include: {
+          projectService: {
+            select: { serviceItem: { select: { name: true } } },
+          },
+          billingPeriod: { select: { start: true, end: true } },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              planningStart: true,
+              planningEnd: true,
+            },
+          },
+        },
+      })
+    : [];
+  // Nur anstehende Einsätze, nach effektivem Start sortiert. Fallback-Kette:
+  // Uhrzeiten → gewählter Berechnungszeitraum → Planungszeitraum.
+  const upcoming = myAssignments
+    .map((a) => ({
+      id: a.id,
+      projectId: a.project.id,
+      projectName: a.project.name,
+      status: a.project.status,
+      serviceName: a.projectService.serviceItem.name,
+      start: a.plannedStart ?? a.billingPeriod?.start ?? a.project.planningStart,
+      end: a.plannedEnd ?? a.billingPeriod?.end ?? a.project.planningEnd,
+      timed: a.plannedStart !== null,
+      notes: a.notes,
+    }))
+    .filter((a) => a.end >= now)
+    .sort((a, b) => +a.start - +b.start);
+
   return (
     <div className="space-y-6">
 
@@ -67,17 +131,71 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
         </CardContent>
       </Card>
 
+      {linkedPerson && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarClock className="h-4 w-4" /> Meine Einsätze
+            </CardTitle>
+            <CardDescription>
+              Anstehende Einsätze von {linkedPerson.name} — geplant wird im
+              Projekt (Tab Personal &amp; Transport).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {upcoming.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Keine anstehenden Einsätze.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {upcoming.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
+                  >
+                    <span className="font-medium text-foreground">
+                      {a.timed
+                        ? `${formatDateTime(a.start)} – ${formatDateTime(a.end)}`
+                        : `${formatDate(a.start)} – ${formatDate(a.end)} (ganztägig)`}
+                    </span>
+                    <Link
+                      href={`/projects/${a.projectId}`}
+                      className="font-medium hover:underline"
+                    >
+                      {a.projectName}
+                    </Link>
+                    <span className="text-muted-foreground">{a.serviceName}</span>
+                    <Badge variant={projectStatusVariant(a.status)}>
+                      {projectStatusLabel(a.status)}
+                    </Badge>
+                    {a.notes && (
+                      <span className="text-xs text-muted-foreground">
+                        📝 {a.notes}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Kalender-Feeds zum Abonnieren</CardTitle>
           <CardDescription>
-            ICS-URLs für Google Kalender, Apple Kalender oder Outlook. Zwei
-            separate Feeds für Planungs- und Berechnungszeiträume —
-            Aktualisierung erfolgt automatisch.
+            ICS-URLs für Google Kalender, Apple Kalender oder Outlook: Planungs-
+            und Berechnungszeiträume (alle Projekte) sowie deine persönliche
+            Personalplanung — Aktualisierung erfolgt automatisch.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CalendarFeedForm initialToken={calendarToken} />
+          <CalendarFeedForm
+            initialToken={calendarToken}
+            personalToken={personalToken}
+          />
         </CardContent>
       </Card>
     </div>

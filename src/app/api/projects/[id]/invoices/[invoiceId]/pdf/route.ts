@@ -46,7 +46,10 @@ export async function GET(
         include: {
           customer: true,
           billingPeriods: { orderBy: { start: "asc" } },
-          groups: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
+          groups: {
+            include: { billingPeriods: true },
+            orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
+          },
           assignments: {
             include: { device: true },
           },
@@ -126,12 +129,15 @@ export async function GET(
   // damit Zeilenbetrag und Zwischensumme zusammenpassen.
   const groupNetMap = new Map<string, { sub: number; disc: number; net: number }>();
   for (const g of materialGroups) {
+    // Tagesfaktor pro Gruppe (Migration 25) — Alt-Snapshots ohne g.factor
+    // fallen auf den globalen Faktor zurück.
+    const gFactor = g.factor ?? factor;
     const subDevices = g.materialRows.reduce(
-      (s, r) => s + r.dailyRate * r.quantity * factor,
+      (s, r) => s + r.dailyRate * r.quantity * gFactor,
       0,
     );
     const subAdHoc = g.adHocRows.reduce(
-      (s, r) => s + r.unitPrice * r.quantity * factor,
+      (s, r) => s + r.unitPrice * r.quantity * gFactor,
       0,
     );
     const sub = subDevices + subAdHoc;
@@ -423,6 +429,12 @@ export async function GET(
       const comments = commentsByGroup.get(group.id) ?? [];
       if (rows.length === 0 && adHoc.length === 0 && comments.length === 0) continue;
       const info = groupNetMap.get(group.id)!;
+      // Tagesfaktor/Label pro Gruppe — Alt-Snapshots nutzen den globalen Wert.
+      const gFactor = group.factor ?? factor;
+      const gDays = group.days ?? days;
+      const gFactorLabel = isSale
+        ? ""
+        : `${gDays} (${String(gFactor).replace(".", ",")})`;
 
       body.push(groupHeaderRow(group.name));
 
@@ -456,14 +468,14 @@ export async function GET(
         }
         if (item.kind === "DEVICE") {
           const r = item.row;
-          const line = r.dailyRate * r.quantity * factor;
+          const line = r.dailyRate * r.quantity * gFactor;
           const make = [r.manufacturer, r.model].filter(Boolean).join(" ");
           const label =
             make && make.toLowerCase() !== r.name.toLowerCase()
               ? `${INDENT_2}${r.name}\n${INDENT_2}${make}`
               : `${INDENT_2}${r.name}`;
           body.push(
-            row(label, String(r.quantity), fmt(r.dailyRate), factorLabel, fmt(line))
+            row(label, String(r.quantity), fmt(r.dailyRate), gFactorLabel, fmt(line))
           );
           if (r.description && r.description.trim()) {
             body.push([
@@ -482,13 +494,13 @@ export async function GET(
         }
         // ADHOC — wie Geräte mit Tagesfaktor (bei Verkauf = 1).
         const r = item.row;
-        const line = r.unitPrice * r.quantity * factor;
+        const line = r.unitPrice * r.quantity * gFactor;
         body.push(
           row(
             `${INDENT_2}${r.name}`,
             String(r.quantity),
             fmt(r.unitPrice),
-            factorLabel,
+            gFactorLabel,
             fmt(line)
           )
         );

@@ -22,6 +22,7 @@ export default async function PublicEinsatzPage(props: {
         projectService: {
           select: { serviceItem: { select: { name: true } } },
         },
+        billingPeriod: { select: { start: true, end: true, notes: true } },
         project: {
           select: {
             name: true,
@@ -48,6 +49,9 @@ export default async function PublicEinsatzPage(props: {
     serviceName: a.projectService.serviceItem.name,
     plannedStart: a.plannedStart?.toISOString() ?? null,
     plannedEnd: a.plannedEnd?.toISOString() ?? null,
+    periodStart: a.billingPeriod?.start.toISOString() ?? null,
+    periodEnd: a.billingPeriod?.end.toISOString() ?? null,
+    periodNotes: a.billingPeriod?.notes ?? null,
     planningStart: a.project.planningStart.toISOString(),
     planningEnd: a.project.planningEnd.toISOString(),
     notes: a.notes,

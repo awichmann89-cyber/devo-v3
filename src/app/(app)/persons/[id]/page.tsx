@@ -22,7 +22,10 @@ export default async function PersonDetailPage(props: {
 }) {
   const { id } = await props.params;
 
-  const person = await prisma.person.findUnique({ where: { id } });
+  const person = await prisma.person.findUnique({
+    where: { id },
+    include: { user: { select: { name: true, email: true } } },
+  });
   if (!person) notFound();
 
   // Token lazy anlegen (Muster /calendar mit getOrCreateCalendarToken) —
@@ -36,13 +39,14 @@ export default async function PersonDetailPage(props: {
     });
   }
 
-  const [assignments, timeEntries, projects] = await Promise.all([
+  const [assignments, timeEntries, projects, users] = await Promise.all([
     prisma.personAssignment.findMany({
       where: { personId: id },
       include: {
         projectService: {
           select: { serviceItem: { select: { name: true } } },
         },
+        billingPeriod: { select: { start: true, end: true } },
         project: {
           select: {
             id: true,
@@ -64,6 +68,10 @@ export default async function PersonDetailPage(props: {
       orderBy: { planningStart: "desc" },
       take: 200,
     }),
+    prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const personVM = {
@@ -78,6 +86,7 @@ export default async function PersonDetailPage(props: {
     hourlyWage: person.hourlyWage != null ? Number(person.hourlyWage) : null,
     defaultDayRate:
       person.defaultDayRate != null ? Number(person.defaultDayRate) : null,
+    userId: person.userId,
   };
 
   const now = new Date();
@@ -87,8 +96,9 @@ export default async function PersonDetailPage(props: {
       projectId: a.project.id,
       projectName: a.project.name,
       serviceName: a.projectService.serviceItem.name,
-      start: a.plannedStart ?? a.project.planningStart,
-      end: a.plannedEnd ?? a.project.planningEnd,
+      // Fallback-Kette: Uhrzeiten → Berechnungszeitraum → Planungszeitraum
+      start: a.plannedStart ?? a.billingPeriod?.start ?? a.project.planningStart,
+      end: a.plannedEnd ?? a.billingPeriod?.end ?? a.project.planningEnd,
       timed: a.plannedStart !== null,
       agreedRate: a.agreedRate != null ? Number(a.agreedRate) : null,
       invoiceReceived: a.invoiceReceived,
@@ -114,7 +124,7 @@ export default async function PersonDetailPage(props: {
           </Badge>
           {!person.active && <Badge variant="outline">Inaktiv</Badge>}
         </div>
-        <PersonEditButton person={personVM} />
+        <PersonEditButton person={personVM} users={users} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -130,6 +140,8 @@ export default async function PersonDetailPage(props: {
               <dd>{person.phone ?? "—"}</dd>
               <dt className="text-muted-foreground">Adresse</dt>
               <dd className="whitespace-pre-line">{person.address ?? "—"}</dd>
+              <dt className="text-muted-foreground">Cratel-Account</dt>
+              <dd>{person.user ? (person.user.name ?? person.user.email) : "—"}</dd>
               {person.employmentType === "MINIJOBBER" && (
                 <>
                   <dt className="text-muted-foreground">Stundenlohn</dt>

@@ -15,10 +15,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
-import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { EmploymentType } from "@prisma/client";
 import { employmentTypeLabel } from "@/lib/labels";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import {
   addPersonAssignment,
   updatePersonAssignment,
@@ -33,12 +41,32 @@ export interface PersonOptionVM {
   defaultDayRate: number | null;
 }
 
+/** Berechnungszeitraum des Projekts (ISO-Strings). */
+export interface PeriodOptionVM {
+  id: string;
+  start: string;
+  end: string;
+  notes: string | null;
+}
+
+/** Fremd-Einsatz einer Person (anderes Projekt) für die Überbuchungs-Warnung. */
+export interface BusyIntervalVM {
+  projectName: string;
+  start: string; // ISO, halboffenes Intervall [start, end)
+  end: string;
+  timed: boolean;
+}
+
 /** Einsatz einer Person an einer Service-Position (Client-VM). */
 export interface PersonAssignmentVM {
   id: string;
   personId: string;
   personName: string;
   employmentType: EmploymentType;
+  billingPeriodId: string | null;
+  periodStart: string | null; // ISO des gewählten Zeitraums
+  periodEnd: string | null;
+  periodNotes: string | null;
   plannedStart: string | null; // ISO
   plannedEnd: string | null; // ISO
   agreedRate: number | null;
@@ -46,6 +74,17 @@ export interface PersonAssignmentVM {
   notes: string | null;
   // Summe der erfassten Ist-Minuten (read-only Anzeige)
   loggedMinutes: number;
+  // Überbuchungs-Konflikte (Projektnamen + Zeitfenster-Label)
+  conflicts: string[];
+}
+
+/** Anzeige-Label eines Berechnungszeitraums: "01.09.–03.09.2026 (Aufbau)". */
+export function periodLabel(p: { start: string; end: string; notes: string | null }): string {
+  const range =
+    formatDate(p.start) === formatDate(p.end)
+      ? formatDate(p.start)
+      : `${formatDate(p.start)} – ${formatDate(p.end)}`;
+  return p.notes ? `${range} (${p.notes})` : range;
 }
 
 /** ISO-Instant → Wert für <input type="datetime-local"> (Browser-Lokalzeit). */
@@ -65,6 +104,8 @@ function dateWithTime(iso: string, time: string): string {
   return `${isoToLocalInput(iso).slice(0, 10)}T${time}`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,6 +115,10 @@ interface Props {
   /** Bestehender Einsatz → Edit-Modus. */
   assignment?: PersonAssignmentVM | null;
   persons: PersonOptionVM[];
+  /** Zeiträume zur Auswahl — bereits auf die Gruppe der Position gefiltert. */
+  periods: PeriodOptionVM[];
+  /** Fremd-Einsätze pro Person (andere Projekte) für die Überbuchungs-Warnung. */
+  personBusy: Record<string, BusyIntervalVM[]>;
   planningStartIso: string;
   planningEndIso: string;
 }
@@ -85,10 +130,14 @@ export function PersonAssignmentDialog({
   serviceName,
   assignment,
   persons,
+  periods,
+  personBusy,
   planningStartIso,
   planningEndIso,
 }: Props) {
   const [personId, setPersonId] = useState("");
+  // "" = kein Zeitraum → Fallback Projekt-Planungszeitraum
+  const [billingPeriodId, setBillingPeriodId] = useState("");
   const [withTimes, setWithTimes] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -101,24 +150,36 @@ export function PersonAssignmentDialog({
     [persons, personId]
   );
   const employmentType = assignment?.employmentType ?? selectedPerson?.employmentType;
+  const selectedPeriod = useMemo(
+    () => periods.find((p) => p.id === billingPeriodId) ?? null,
+    [periods, billingPeriodId]
+  );
 
   useEffect(() => {
     if (!open) return;
     setPersonId(assignment?.personId ?? "");
+    // Default beim Anlegen: erster Zeitraum der Gruppe/des Projekts.
+    setBillingPeriodId(assignment ? (assignment.billingPeriodId ?? "") : (periods[0]?.id ?? ""));
     setWithTimes(assignment?.plannedStart != null);
-    setStart(
-      assignment?.plannedStart
-        ? isoToLocalInput(assignment.plannedStart)
-        : dateWithTime(planningStartIso, "08:00")
-    );
-    setEnd(
-      assignment?.plannedEnd
-        ? isoToLocalInput(assignment.plannedEnd)
-        : dateWithTime(planningEndIso, "18:00")
-    );
     setAgreedRate(assignment?.agreedRate != null ? String(assignment.agreedRate) : "");
     setNotes(assignment?.notes ?? "");
-  }, [open, assignment, planningStartIso, planningEndIso]);
+    if (assignment?.plannedStart && assignment.plannedEnd) {
+      setStart(isoToLocalInput(assignment.plannedStart));
+      setEnd(isoToLocalInput(assignment.plannedEnd));
+    } else {
+      setStart("");
+      setEnd("");
+    }
+  }, [open, assignment, periods]);
+
+  // Uhrzeiten-Vorbelegung folgt dem gewählten Zeitraum (08:00–18:00).
+  useEffect(() => {
+    if (!open || assignment?.plannedStart) return;
+    const baseStart = selectedPeriod?.start ?? planningStartIso;
+    const baseEnd = selectedPeriod?.end ?? planningEndIso;
+    setStart(dateWithTime(baseStart, "08:00"));
+    setEnd(dateWithTime(baseEnd, "18:00"));
+  }, [open, assignment, selectedPeriod, planningStartIso, planningEndIso]);
 
   // Beim Wechsel der Person: Freelancer-Satz mit Standard-Tagessatz vorbelegen.
   function handlePersonChange(id: string) {
@@ -136,6 +197,29 @@ export function PersonAssignmentDialog({
     label: p.name,
     hint: employmentTypeLabel(p.employmentType),
   }));
+
+  // ----- Überbuchungs-Warnung: Kandidaten-Zeitfenster vs. Fremd-Einsätze -----
+  const candidateRange = useMemo((): { start: Date; end: Date } | null => {
+    if (withTimes) {
+      if (!start || !end) return null;
+      return { start: new Date(start), end: new Date(end) };
+    }
+    const base = selectedPeriod ?? { start: planningStartIso, end: planningEndIso };
+    return {
+      start: new Date(base.start),
+      end: new Date(new Date(base.end).getTime() + DAY_MS),
+    };
+  }, [withTimes, start, end, selectedPeriod, planningStartIso, planningEndIso]);
+
+  const overlaps = useMemo((): BusyIntervalVM[] => {
+    const pid = assignment?.personId ?? personId;
+    if (!pid || !candidateRange) return [];
+    return (personBusy[pid] ?? []).filter(
+      (b) =>
+        candidateRange.start < new Date(b.end) &&
+        new Date(b.start) < candidateRange.end
+    );
+  }, [assignment, personId, candidateRange, personBusy]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -156,6 +240,7 @@ export function PersonAssignmentDialog({
 
     const payload = {
       personId: assignment?.personId ?? personId,
+      billingPeriodId: billingPeriodId || null,
       plannedStart: withTimes ? localInputToIso(start) : null,
       plannedEnd: withTimes ? localInputToIso(end) : null,
       agreedRate:
@@ -225,6 +310,33 @@ export function PersonAssignmentDialog({
           )}
 
           <div className="space-y-2">
+            <Label>Berechnungszeitraum</Label>
+            <Select
+              value={billingPeriodId || "__none__"}
+              onValueChange={(v) => setBillingPeriodId(v === "__none__" ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {periodLabel(p)}
+                  </SelectItem>
+                ))}
+                <SelectItem value="__none__">
+                  Gesamter Planungszeitraum ({formatDate(planningStartIso)} –{" "}
+                  {formatDate(planningEndIso)})
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Ohne Uhrzeiten gilt der Einsatz ganztägig über den gewählten
+              Zeitraum.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="pa-times"
@@ -232,8 +344,7 @@ export function PersonAssignmentDialog({
                 onCheckedChange={(v) => setWithTimes(v === true)}
               />
               <Label htmlFor="pa-times" className="cursor-pointer font-normal">
-                Geplante Zeiten angeben (sonst ganztägig über den
-                Planungszeitraum)
+                Uhrzeiten angeben (Call-Time)
               </Label>
             </div>
             {withTimes && (
@@ -259,6 +370,28 @@ export function PersonAssignmentDialog({
               </div>
             )}
           </div>
+
+          {overlaps.length > 0 && (
+            <div className="space-y-1 rounded-md border border-destructive/40 bg-destructive-subtle/50 p-3 text-sm">
+              <p className="flex items-center gap-2 font-medium text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Überbuchung: bereits eingeplant in
+              </p>
+              <ul className="ml-6 list-disc text-xs text-destructive/90">
+                {overlaps.map((b, i) => (
+                  <li key={i}>
+                    {b.projectName} —{" "}
+                    {b.timed
+                      ? `${formatDateTime(b.start)} – ${formatDateTime(b.end)}`
+                      : `${formatDate(b.start)} – ${formatDate(new Date(new Date(b.end).getTime() - DAY_MS))} (ganztägig)`}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Einplanen ist trotzdem möglich — bitte Zeiten prüfen.
+              </p>
+            </div>
+          )}
 
           {employmentType === "FREELANCER" && (
             <div className="space-y-2">

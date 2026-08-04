@@ -6,6 +6,18 @@ import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { personSchema } from "@/lib/validators";
 import { Prisma } from "@prisma/client";
 
+/** P2002 nach betroffenem Unique-Constraint in eine deutsche Meldung übersetzen. */
+function personUniqueError(err: unknown): Error | null {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== "P2002") {
+    return null;
+  }
+  const target = String(err.meta?.target ?? "");
+  if (target.includes("userId")) {
+    return new Error("Dieser Cratel-Account ist bereits mit einer anderen Person verknüpft.");
+  }
+  return new Error("Eine Person mit diesem Namen existiert bereits.");
+}
+
 export async function createPerson(input: unknown) {
   await requireRole(CAN_WRITE);
   const data = personSchema.parse(input);
@@ -21,16 +33,14 @@ export async function createPerson(input: unknown) {
         active: data.active,
         hourlyWage: data.hourlyWage ?? null,
         defaultDayRate: data.defaultDayRate ?? null,
+        userId: data.userId || null,
       },
       select: { id: true },
     });
     revalidatePath("/persons");
     return created;
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      throw new Error("Eine Person mit diesem Namen existiert bereits.");
-    }
-    throw err;
+    throw personUniqueError(err) ?? err;
   }
 }
 
@@ -50,16 +60,15 @@ export async function updatePerson(id: string, input: unknown) {
         active: data.active,
         hourlyWage: data.hourlyWage ?? null,
         defaultDayRate: data.defaultDayRate ?? null,
+        userId: data.userId || null,
       },
       select: { id: true },
     });
     revalidatePath("/persons");
     revalidatePath(`/persons/${id}`);
+    revalidatePath("/calendar");
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      throw new Error("Eine Person mit diesem Namen existiert bereits.");
-    }
-    throw err;
+    throw personUniqueError(err) ?? err;
   }
 }
 

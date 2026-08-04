@@ -66,7 +66,7 @@ import {
 } from "@/components/project/group-table";
 import { ScanDialog } from "./scan-dialog";
 import { toast } from "sonner";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { cableSpecLabel } from "@/lib/labels";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -171,6 +171,13 @@ interface Props {
   reservedDeviceIds: string[];
   billingDays: number;
   billingFactor: number;
+  /** Berechnungstage/Tagesfaktor pro Gruppe (eigene Zeitraum-Auswahl, Migration 25). */
+  groupDays: Record<string, number>;
+  groupFactors: Record<string, number>;
+  /** Berechnungszeiträume des Projekts (für die Gruppen-Zeitraum-Auswahl). */
+  billingPeriods: { id: string; start: string; end: string; notes: string | null }[];
+  /** Zeitraum-Auswahl je Gruppe (leer = alle Zeiträume). */
+  groupPeriodIds: Record<string, string[]>;
   subtotal: number;
   discount: number;
   total: number;
@@ -220,6 +227,10 @@ export function AssignmentsSection({
   reservedDeviceIds,
   billingDays,
   billingFactor,
+  groupDays,
+  groupFactors,
+  billingPeriods,
+  groupPeriodIds,
   subtotal,
   discount,
   total,
@@ -233,6 +244,18 @@ export function AssignmentsSection({
 }: Props) {
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
+
+  // Tagesfaktor/-tage einer Gruppe — Fallback auf die globalen Werte.
+  const factorFor = (groupId: string) => groupFactors[groupId] ?? billingFactor;
+  const daysFor = (groupId: string) => groupDays[groupId] ?? billingDays;
+  /** Label eines Berechnungszeitraums für die Gruppen-Zeitraum-Auswahl. */
+  function periodLabel(p: { start: string; end: string; notes: string | null }): string {
+    const range =
+      formatDate(p.start) === formatDate(p.end)
+        ? formatDate(p.start)
+        : `${formatDate(p.start)} – ${formatDate(p.end)}`;
+    return p.notes ? `${range} (${p.notes})` : range;
+  }
 
   // ----- Zumietungen -----
   // Verknüpfte Zumietungen: Menge je Gerät (markiert die Geräte-Zeile blau).
@@ -301,6 +324,8 @@ export function AssignmentsSection({
     id?: string;
     name: string;
     billable: boolean;
+    // Zugeordnete Berechnungszeiträume (leer = alle)
+    billingPeriodIds: string[];
   } | null>(null);
   const [deleteGroup, setDeleteGroup] = useState<ProjectGroup | null>(null);
 
@@ -521,11 +546,13 @@ export function AssignmentsSection({
             name,
             kind: "MATERIAL",
             billable: groupDialog.billable,
+            billingPeriodIds: groupDialog.billingPeriodIds,
           });
         } else if (groupDialog.id) {
           await updateProjectGroup(groupDialog.id, {
             name,
             billable: groupDialog.billable,
+            billingPeriodIds: groupDialog.billingPeriodIds,
           });
         }
         setGroupDialog(null);
@@ -757,7 +784,7 @@ export function AssignmentsSection({
    *  Zumietung blau hinterlegt). */
   function renderAdHocRow(it: ProjectAdHocItem, sortId: string) {
     const unit = Number(it.unitPrice);
-    const line = unit * it.quantity * billingFactor;
+    const line = unit * it.quantity * factorFor(it.groupId);
     const subhiredQty = subhireQtyByAdHoc.get(it.id) ?? 0;
     const hasSubhire = subhiredQty > 0;
     return (
@@ -811,7 +838,7 @@ export function AssignmentsSection({
         </TableCell>
         {!isSale && (
           <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-            {billingDays} ({String(billingFactor).replace(".", ",")})
+            {daysFor(it.groupId)} ({String(factorFor(it.groupId)).replace(".", ",")})
           </TableCell>
         )}
         <TableCell className="text-right tabular-nums font-mono text-sm">
@@ -894,7 +921,7 @@ export function AssignmentsSection({
     const uncoveredOver = Math.max(0, shortfall - subhiredQty);
     const showOverWarning = isOver && uncoveredOver > 0;
     const rate = Number(a.device.dailyRate);
-    const lineTotal = rate * a.quantity * billingFactor;
+    const lineTotal = rate * a.quantity * factorFor(a.groupId);
     return (
       <Fragment key={sortId}>
         <SortableRow
@@ -957,7 +984,7 @@ export function AssignmentsSection({
           </TableCell>
           {!isSale && (
             <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-              {billingDays} ({String(billingFactor).replace(".", ",")})
+              {daysFor(a.groupId)} ({String(factorFor(a.groupId)).replace(".", ",")})
             </TableCell>
           )}
           <TableCell className="text-right tabular-nums font-mono text-sm">
@@ -1595,11 +1622,11 @@ export function AssignmentsSection({
                       const colSpanAll = isSale ? 6 : 8;
                       const groupSum =
                         groupAssignments.reduce(
-                          (s, a) => s + Number(a.device.dailyRate) * a.quantity * billingFactor,
+                          (s, a) => s + Number(a.device.dailyRate) * a.quantity * factorFor(g.id),
                           0
                         ) +
                         (adHocByGroup.get(g.id) ?? []).reduce(
-                          (s, it) => s + Number(it.unitPrice) * it.quantity * billingFactor,
+                          (s, it) => s + Number(it.unitPrice) * it.quantity * factorFor(g.id),
                           0
                         );
                       return (
@@ -1629,6 +1656,7 @@ export function AssignmentsSection({
                                   id: g.id,
                                   name: g.name,
                                   billable: g.billable,
+                                  billingPeriodIds: groupPeriodIds[g.id] ?? [],
                                 })
                               }
                               onDelete={() => setDeleteGroup(g)}
@@ -1683,7 +1711,12 @@ export function AssignmentsSection({
               </div>
               <GroupTableFooter
                 onAddGroup={() =>
-                  setGroupDialog({ mode: "create", name: "", billable: true })
+                  setGroupDialog({
+                    mode: "create",
+                    name: "",
+                    billable: true,
+                    billingPeriodIds: [],
+                  })
                 }
                 pending={pending}
               >
@@ -1761,6 +1794,42 @@ export function AssignmentsSection({
                 </span>
               </span>
             </label>
+            {billingPeriods.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Berechnungszeiträume</label>
+                <div className="space-y-1 rounded-md border p-2">
+                  {billingPeriods.map((p) => {
+                    const checked =
+                      groupDialog?.billingPeriodIds.includes(p.id) ?? false;
+                    return (
+                      <label key={p.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            setGroupDialog((g) => {
+                              if (!g) return g;
+                              const ids = e.target.checked
+                                ? [...g.billingPeriodIds, p.id]
+                                : g.billingPeriodIds.filter((x) => x !== p.id);
+                              return { ...g, billingPeriodIds: ids };
+                            })
+                          }
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        {periodLabel(p)}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Der Mietpreis dieser Gruppe wird nur über die gewählten
+                  Zeiträume berechnet (Tagesfaktor). Keine Auswahl = alle
+                  Zeiträume. So lässt sich z.B. ein Aufbautag von der
+                  Materialberechnung ausnehmen.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Gebuchte Kabel erscheinen nie auf Angeboten oder Rechnungen — nur auf
               der Packliste.

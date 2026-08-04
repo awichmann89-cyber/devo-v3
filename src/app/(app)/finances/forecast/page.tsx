@@ -44,7 +44,8 @@ export default async function ForecastPage(props: {
     include: {
       customer: { select: { name: true } },
       billingPeriods: { orderBy: { start: "asc" } },
-      groups: true,
+      // billingPeriods der Gruppen: Tagesfaktor pro Materialgruppe
+      groups: { include: { billingPeriods: true } },
       assignments: {
         include: {
           device: true,

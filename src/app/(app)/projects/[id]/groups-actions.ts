@@ -33,13 +33,35 @@ export async function ensureDefaultGroup(
   return created.id;
 }
 
+/**
+ * Prüft, dass alle Zeitraum-IDs zu Berechnungszeiträumen DIESES Projekts
+ * gehören — sonst könnte eine manipulierte Anfrage fremde Zeiträume verknüpfen.
+ */
+async function validatePeriodIds(projectId: string, periodIds: string[]) {
+  if (periodIds.length === 0) return;
+  const count = await prisma.billingPeriod.count({
+    where: { id: { in: periodIds }, projectId },
+  });
+  if (count !== periodIds.length) {
+    throw new Error("Ungültiger Berechnungszeitraum");
+  }
+}
+
 export async function createProjectGroup(
   projectId: string,
-  input: { name: string; kind: ProjectGroupKind; billable?: boolean }
+  input: {
+    name: string;
+    kind: ProjectGroupKind;
+    billable?: boolean;
+    // Zugeordnete Berechnungszeiträume (leer/undefined = alle, Altverhalten)
+    billingPeriodIds?: string[];
+  }
 ) {
   await requireRole(CAN_WRITE);
   const name = input.name.trim();
   if (!name) throw new Error("Name darf nicht leer sein");
+  const periodIds = input.billingPeriodIds ?? [];
+  await validatePeriodIds(projectId, periodIds);
 
   // Höchste sortOrder ermitteln
   const last = await prisma.projectGroup.findFirst({
@@ -56,6 +78,7 @@ export async function createProjectGroup(
       name,
       sortOrder,
       billable: input.billable ?? true,
+      billingPeriods: { connect: periodIds.map((id) => ({ id })) },
     },
     select: { id: true },
   });
@@ -66,10 +89,20 @@ export async function createProjectGroup(
 
 export async function updateProjectGroup(
   id: string,
-  input: { name?: string; billable?: boolean }
+  input: { name?: string; billable?: boolean; billingPeriodIds?: string[] }
 ) {
   await requireRole(CAN_WRITE);
-  const data: { name?: string; billable?: boolean } = {};
+  const existing = await prisma.projectGroup.findUnique({
+    where: { id },
+    select: { projectId: true },
+  });
+  if (!existing) throw new Error("Gruppe nicht gefunden");
+
+  const data: {
+    name?: string;
+    billable?: boolean;
+    billingPeriods?: { set: { id: string }[] };
+  } = {};
   if (input.name !== undefined) {
     const t = input.name.trim();
     if (!t) throw new Error("Name darf nicht leer sein");
@@ -78,12 +111,16 @@ export async function updateProjectGroup(
   if (input.billable !== undefined) {
     data.billable = input.billable;
   }
-  const g = await prisma.projectGroup.update({
+  if (input.billingPeriodIds !== undefined) {
+    await validatePeriodIds(existing.projectId, input.billingPeriodIds);
+    data.billingPeriods = { set: input.billingPeriodIds.map((pid) => ({ id: pid })) };
+  }
+  await prisma.projectGroup.update({
     where: { id },
     data,
-    select: { projectId: true },
+    select: { id: true },
   });
-  revalidatePath(`/projects/${g.projectId}`);
+  revalidatePath(`/projects/${existing.projectId}`);
 }
 
 // Beibehalten für Rückwärtskompatibilität — leitet nur an updateProjectGroup weiter.

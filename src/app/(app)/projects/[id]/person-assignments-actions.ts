@@ -6,10 +6,27 @@ import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { personAssignmentSchema } from "@/lib/validators";
 import { Prisma } from "@prisma/client";
 
-/** Revalidiert Projekt-Seite + Public-Zeiterfassungsseite der Person. */
+/** Revalidiert Projekt-Seite, Kalender ("Meine Einsätze") + Public-Zeiterfassungsseite. */
 function revalidateAssignment(projectId: string, personalToken: string | null) {
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/calendar");
   if (personalToken) revalidatePath(`/einsatz/${personalToken}`);
+}
+
+/** Prüft, dass der Berechnungszeitraum zum Projekt gehört. */
+async function validateAssignmentPeriod(
+  projectId: string,
+  billingPeriodId: string | null | undefined
+): Promise<string | null> {
+  if (!billingPeriodId) return null;
+  const period = await prisma.billingPeriod.findUnique({
+    where: { id: billingPeriodId },
+    select: { projectId: true },
+  });
+  if (!period || period.projectId !== projectId) {
+    throw new Error("Ungültiger Berechnungszeitraum");
+  }
+  return billingPeriodId;
 }
 
 export async function addPersonAssignment(projectServiceId: string, input: unknown) {
@@ -28,6 +45,11 @@ export async function addPersonAssignment(projectServiceId: string, input: unkno
   });
   if (!person) throw new Error("Person nicht gefunden");
 
+  const billingPeriodId = await validateAssignmentPeriod(
+    service.projectId,
+    data.billingPeriodId
+  );
+
   // Vereinbarter Satz ist ein Freelancer-Konzept — für alle anderen Arten
   // serverseitig verwerfen, damit keine versehentlichen Kosten entstehen.
   const agreedRate =
@@ -40,6 +62,7 @@ export async function addPersonAssignment(projectServiceId: string, input: unkno
       projectServiceId,
       projectId: service.projectId,
       personId: data.personId,
+      billingPeriodId,
       plannedStart: data.plannedStart ?? null,
       plannedEnd: data.plannedEnd ?? null,
       agreedRate,
@@ -70,9 +93,15 @@ export async function updatePersonAssignment(id: string, input: unknown) {
     select: { employmentType: true, personalToken: true },
   });
 
+  const billingPeriodId = await validateAssignmentPeriod(
+    existing.projectId,
+    data.billingPeriodId
+  );
+
   await prisma.personAssignment.update({
     where: { id },
     data: {
+      billingPeriodId,
       plannedStart: data.plannedStart ?? null,
       plannedEnd: data.plannedEnd ?? null,
       agreedRate:

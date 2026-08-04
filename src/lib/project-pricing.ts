@@ -7,30 +7,60 @@ import { DayFactorMap, getDayFactor } from "@/lib/settings";
  * aller Gruppen-, Bereichs- und projektweiten Rabatte.
  *
  * Buchungen sind seit dem Refactor direkt Geräte (Device), keine Pack-Einheiten mehr.
+ *
+ * Tagesfaktor pro Gruppe: MATERIAL-Gruppen können eigene Berechnungszeiträume
+ * auswählen (Migration 25) — dann zählt nur deren Tagessumme für den Faktor.
+ * Ohne Auswahl gelten wie bisher alle Zeiträume des Projekts.
  */
 type ProjectForPricing = Prisma.ProjectGetPayload<{
   include: {
     billingPeriods: true;
-    groups: true;
+    groups: { include: { billingPeriods: true } };
     assignments: { include: { device: true } };
     services: { include: { serviceItem: true } };
     adHocItems: true;
   };
 }>;
 
+interface PeriodLike {
+  start: Date;
+  end: Date;
+}
+
+/** Summe der Berechnungstage über eine Liste von Zeiträumen. */
+export function totalBillingDays(periods: PeriodLike[]): number {
+  return periods.reduce((sum, p) => sum + daysBetween(p.start, p.end), 0);
+}
+
+/**
+ * Berechnungstage einer Gruppe: die ihr zugeordneten Zeiträume,
+ * ohne Zuordnung alle Zeiträume des Projekts (Altverhalten).
+ */
+export function groupBillingDays(
+  groupPeriods: PeriodLike[] | undefined,
+  allPeriods: PeriodLike[]
+): number {
+  const periods =
+    groupPeriods && groupPeriods.length > 0 ? groupPeriods : allPeriods;
+  return totalBillingDays(periods);
+}
+
+/** Tagesfaktor einer Gruppe (Verkauf-Projekte immer 1). */
+export function groupDayFactor(
+  groupPeriods: PeriodLike[] | undefined,
+  allPeriods: PeriodLike[],
+  isSale: boolean,
+  factorMap: DayFactorMap
+): number {
+  if (isSale) return 1;
+  return getDayFactor(groupBillingDays(groupPeriods, allPeriods), factorMap);
+}
+
 export function calculateProjectTotal(
   project: ProjectForPricing,
   factorMap: DayFactorMap
 ): number {
-  const days = project.billingPeriods.reduce(
-    (sum, p) => sum + daysBetween(p.start, p.end),
-    0
-  );
-  // Bei Verkauf-Projekten gilt kein Tagesfaktor.
-  const factor =
-    (project.kind as string) === "VERKAUF"
-      ? 1
-      : getDayFactor(days, factorMap);
+  const isSale = (project.kind as string) === "VERKAUF";
 
   // Pro-Gruppe-Netto sammeln. Nicht-abrechenbare Gruppen werden komplett
   // ignoriert — sie fließen nicht in Summen oder Rabatte ein und tauchen
@@ -40,6 +70,12 @@ export function calculateProjectTotal(
   for (const g of billableGroups) {
     let sub = 0;
     if (g.kind === "MATERIAL") {
+      const factor = groupDayFactor(
+        g.billingPeriods,
+        project.billingPeriods,
+        isSale,
+        factorMap
+      );
       for (const a of project.assignments) {
         if (a.groupId !== g.id) continue;
         sub += Number(a.device.dailyRate) * a.quantity * factor;

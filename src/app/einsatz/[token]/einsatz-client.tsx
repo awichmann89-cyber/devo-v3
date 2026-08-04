@@ -44,6 +44,10 @@ type AssignmentVM = {
   serviceName: string;
   plannedStart: string | null;
   plannedEnd: string | null;
+  // Gewählter Berechnungszeitraum (ganztägig-Basis vor dem Planungszeitraum)
+  periodStart: string | null;
+  periodEnd: string | null;
+  periodNotes: string | null;
   planningStart: string;
   planningEnd: string;
   notes: string | null;
@@ -60,17 +64,27 @@ type TimeEntryVM = {
   notes: string | null;
 };
 
-/** Effektiver Einsatz-Zeitraum (geplant oder Projekt-Planungszeitraum). */
+/**
+ * Effektiver Einsatz-Zeitraum — Fallback-Kette:
+ * Uhrzeiten → gewählter Berechnungszeitraum → Projekt-Planungszeitraum.
+ */
 function effectiveRange(a: AssignmentVM): { start: Date; end: Date } {
   return {
-    start: new Date(a.plannedStart ?? a.planningStart),
-    end: new Date(a.plannedEnd ?? a.planningEnd),
+    start: new Date(a.plannedStart ?? a.periodStart ?? a.planningStart),
+    end: new Date(a.plannedEnd ?? a.periodEnd ?? a.planningEnd),
   };
 }
 
 function timeLabel(a: AssignmentVM): string {
   if (!a.plannedStart || !a.plannedEnd) {
-    return `ganztägig, ${formatDate(a.planningStart)} – ${formatDate(a.planningEnd)}`;
+    const start = a.periodStart ?? a.planningStart;
+    const end = a.periodEnd ?? a.planningEnd;
+    const range =
+      formatDate(start) === formatDate(end)
+        ? formatDate(start)
+        : `${formatDate(start)} – ${formatDate(end)}`;
+    const label = a.periodNotes ? `${range} (${a.periodNotes})` : range;
+    return `ganztägig, ${label}`;
   }
   const s = new Date(a.plannedStart);
   const e = new Date(a.plannedEnd);
@@ -247,7 +261,7 @@ export function EinsatzClient({
       : "";
 
   function defaultForm(a: AssignmentVM): FormState {
-    const start = new Date(a.plannedStart ?? a.planningStart);
+    const start = new Date(a.plannedStart ?? a.periodStart ?? a.planningStart);
     const pad = (n: number) => String(n).padStart(2, "0");
     return {
       entryId: null,

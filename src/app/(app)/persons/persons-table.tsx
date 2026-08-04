@@ -26,14 +26,17 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PersonDialog, PersonVM } from "./person-dialog";
+import { PersonDialog, PersonVM, UserOptionVM } from "./person-dialog";
 import { deletePerson } from "./actions";
 import { toast } from "sonner";
 import { employmentTypeLabel } from "@/lib/labels";
 import { formatCurrency } from "@/lib/utils";
 import { EmploymentType } from "@prisma/client";
 
-type Row = PersonVM & { _count: { assignments: number; timeEntries: number } };
+type Row = PersonVM & {
+  userLabel: string | null;
+  _count: { assignments: number; timeEntries: number };
+};
 
 // Reihenfolge der Beschäftigungsarten in der Anzeige
 const TYPE_ORDER: EmploymentType[] = [
@@ -54,7 +57,13 @@ function rateLabel(p: PersonVM): string {
   return "—";
 }
 
-export function PersonsTable({ persons }: { persons: Row[] }) {
+export function PersonsTable({
+  persons,
+  users,
+}: {
+  persons: Row[];
+  users: UserOptionVM[];
+}) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PersonVM | null>(null);
   const [deleting, setDeleting] = useState<Row | null>(null);
@@ -199,6 +208,11 @@ export function PersonsTable({ persons }: { persons: Row[] }) {
                             {p.name}
                           </Link>
                           {!p.active && <Badge variant="outline">Inaktiv</Badge>}
+                          {p.userLabel && (
+                            <Badge variant="secondary" title="Verknüpfter Cratel-Account">
+                              {p.userLabel}
+                            </Badge>
+                          )}
                         </div>
                         {p.notes && (
                           <div className="text-xs text-muted-foreground line-clamp-1">
@@ -262,7 +276,12 @@ export function PersonsTable({ persons }: { persons: Row[] }) {
         </TableBody>
       </Table>
 
-      <PersonDialog open={dialogOpen} onOpenChange={setDialogOpen} person={editing} />
+      <PersonDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        person={editing}
+        users={users}
+      />
 
       <ConfirmDialog
         open={deleting !== null}
