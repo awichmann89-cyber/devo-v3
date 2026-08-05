@@ -166,16 +166,6 @@ export default async function ForecastPage(props: {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-muted-foreground">
-          Erwarteter Umsatz und Gewinn aus geplanten Projekten im gewählten
-          Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung + Extrakosten
-          + Personal aus dem Einsatzplan) vom Projektwert ab — diese erscheinen
-          nie auf Angeboten/Rechnungen.{" "}
-          <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).
-        </p>
-      </div>
-
       <ForecastView
         rows={rows}
         initialFrom={isoDate(from)}

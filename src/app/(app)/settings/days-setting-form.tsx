@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,7 +51,10 @@ export function DaysSettingForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2 max-w-[200px]">
-        <Label htmlFor="days-setting">{label}</Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="days-setting">{label}</Label>
+          <InfoHint text={description} />
+        </div>
         <QuantityInput
           id="days-setting"
           min={0}
@@ -58,7 +62,6 @@ export function DaysSettingForm({
           value={days}
           onChange={(v) => setDays(v)}
         />
-        <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>

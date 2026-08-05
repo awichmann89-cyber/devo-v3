@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveCompanyAddress } from "./settings-actions";
@@ -74,7 +75,10 @@ export function CompanyAddressForm({
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="vatPercent">Mehrwertsteuersatz (%)</Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="vatPercent">Mehrwertsteuersatz (%)</Label>
+          <InfoHint text="Wird auf Rechnungen als MwSt. aus dem Nettobetrag berechnet. Deutschland Regel: 19 %." />
+        </div>
         <QuantityInput
           id="vatPercent"
           step={0.1}
@@ -85,9 +89,6 @@ export function CompanyAddressForm({
           onChange={(v) => setVat(v)}
           className="max-w-[140px]"
         />
-        <p className="text-xs text-muted-foreground">
-          Wird auf Rechnungen als MwSt. aus dem Nettobetrag berechnet. Deutschland Regel: 19 %.
-        </p>
       </div>
 
       <div className="rounded-md border bg-muted/30 p-3 text-sm">

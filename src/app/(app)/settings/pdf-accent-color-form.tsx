@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { savePdfAccentColor } from "./settings-actions";
@@ -42,7 +43,10 @@ export function PdfAccentColorForm({ initialColor }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="pdfAccentColor">Akzentfarbe</Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="pdfAccentColor">Akzentfarbe</Label>
+          <InfoHint text="Wird im Angebots- und Rechnungs-PDF für die Gruppen-Überschriften (Hintergrundfarbe) und den Trennstrich über der Gruppen-Zwischensumme verwendet." />
+        </div>
         <div className="flex items-center gap-3">
           <input
             id="pdfAccentColor"
@@ -59,11 +63,6 @@ export function PdfAccentColorForm({ initialColor }: Props) {
             className="w-32 font-mono"
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          Wird im Angebots- und Rechnungs-PDF für die Gruppen-Überschriften
-          (Hintergrundfarbe) und den Trennstrich über der Gruppen-Zwischensumme
-          verwendet.
-        </p>
       </div>
 
       {/* Mini-Vorschau, damit man direkt sieht wie der Farbton im PDF wirkt */}

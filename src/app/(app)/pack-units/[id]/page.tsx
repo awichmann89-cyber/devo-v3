@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -158,12 +159,14 @@ export default async function PackUnitDetailPage(props: {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              QR-Code
+              <InfoHint text="Scannt zur öffentlichen Inhaltsübersicht." />
+            </CardTitle>
+          </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <PackUnitQr shortId={packUnit.shortId} name={packUnit.name} />
-            <p className="text-xs text-muted-foreground text-center">
-              Scannt zur öffentlichen Inhaltsübersicht
-            </p>
           </CardContent>
         </Card>
       </div>

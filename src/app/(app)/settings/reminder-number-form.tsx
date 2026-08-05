@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveReminderNumberSettings } from "./settings-actions";
@@ -57,7 +58,10 @@ export function ReminderNumberForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="rprefix">Prefix (optional)</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="rprefix">Prefix (optional)</Label>
+            <InfoHint text="Großbuchstaben, Zahlen, Bindestriche." />
+          </div>
           <Input
             id="rprefix"
             value={prefix}
@@ -65,12 +69,12 @@ export function ReminderNumberForm({
             placeholder="z.B. M"
             maxLength={10}
           />
-          <p className="text-xs text-muted-foreground">
-            Großbuchstaben, Zahlen, Bindestriche.
-          </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="rpadding">Stellen für Sequenz</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="rpadding">Stellen für Sequenz</Label>
+            <InfoHint text="3 → 001, 4 → 0001." />
+          </div>
           <QuantityInput
             id="rpadding"
             min={1}
@@ -78,21 +82,18 @@ export function ReminderNumberForm({
             value={padding}
             onChange={(v) => setPadding(v)}
           />
-          <p className="text-xs text-muted-foreground">
-            3 → 001, 4 → 0001.
-          </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="rnextSeq">Nächste Nummer</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="rnextSeq">Nächste Nummer</Label>
+            <InfoHint text="Sequenz, mit der die nächste Mahnung erstellt wird." />
+          </div>
           <QuantityInput
             id="rnextSeq"
             min={1}
             value={nextSeq}
             onChange={(v) => setNextSeq(v)}
           />
-          <p className="text-xs text-muted-foreground">
-            Sequenz, mit der die nächste Mahnung erstellt wird.
-          </p>
         </div>
       </div>
 

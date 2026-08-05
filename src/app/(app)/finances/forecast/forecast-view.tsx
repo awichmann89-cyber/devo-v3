@@ -6,10 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Table,
   TableBody,
@@ -216,10 +216,21 @@ export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
       {/* Forecast-Card: Überschrift → Filterleiste → Tabelle */}
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Forecast</CardTitle>
-          <span className="text-[11px] text-muted-foreground">
-            Sortiert nach Berechnungs-Start · alle Beträge Netto
-          </span>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Forecast
+            <InfoHint
+              text={
+                <>
+                  Erwarteter Umsatz und Gewinn aus geplanten Projekten im
+                  gewählten Zeitraum. Der Gewinn zieht interne Zusatzkosten
+                  (Zumietung + Extrakosten + Personal aus dem Einsatzplan) vom
+                  Projektwert ab — diese erscheinen nie auf
+                  Angeboten/Rechnungen. Sortiert nach Berechnungs-Start.{" "}
+                  <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).
+                </>
+              }
+            />
+          </CardTitle>
         </CardHeader>
 
         {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}

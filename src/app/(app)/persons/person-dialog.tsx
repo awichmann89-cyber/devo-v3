@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
@@ -168,7 +169,10 @@ export function PersonDialog({ open, onOpenChange, person, users }: Props) {
 
           {employmentType === "MINIJOBBER" && (
             <div className="space-y-2">
-              <Label htmlFor="p-wage">Stundenlohn (€)</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="p-wage">Stundenlohn (€)</Label>
+                <InfoHint text="Wird beim Erfassen von Arbeitszeiten festgeschrieben — spätere Änderungen wirken nur auf neue Einträge." />
+              </div>
               <Input
                 id="p-wage"
                 type="number"
@@ -178,10 +182,6 @@ export function PersonDialog({ open, onOpenChange, person, users }: Props) {
                 onChange={(e) => setHourlyWage(e.target.value)}
                 placeholder="z.B. 14,00"
               />
-              <p className="text-xs text-muted-foreground">
-                Wird beim Erfassen von Arbeitszeiten festgeschrieben — spätere
-                Änderungen wirken nur auf neue Einträge.
-              </p>
             </div>
           )}
 
@@ -264,7 +264,10 @@ export function PersonDialog({ open, onOpenChange, person, users }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Cratel-Account (optional)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Cratel-Account (optional)</Label>
+              <InfoHint text="Verknüpfte Accounts sehen ihre Einsätze auf der Kalender-Seite und bekommen dort das persönliche Personalplanungs-Abo." />
+            </div>
             <Combobox
               value={userId}
               onValueChange={setUserId}
@@ -277,10 +280,6 @@ export function PersonDialog({ open, onOpenChange, person, users }: Props) {
               placeholder="Account suchen…"
               clearable
             />
-            <p className="text-xs text-muted-foreground">
-              Verknüpfte Accounts sehen ihre Einsätze auf der Kalender-Seite
-              und bekommen dort das persönliche Personalplanungs-Abo.
-            </p>
           </div>
 
           <div className="flex items-center gap-2">

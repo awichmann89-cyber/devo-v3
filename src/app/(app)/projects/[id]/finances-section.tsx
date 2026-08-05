@@ -1236,7 +1236,10 @@ function QuoteDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="quote-notes">Hinweis (optional)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="quote-notes">Hinweis (optional)</Label>
+              <InfoHint text="Wird im PDF direkt nach der Positionstabelle ausgegeben, vor dem AGB-Hinweis." />
+            </div>
             <Textarea
               id="quote-notes"
               value={notes}
@@ -1244,10 +1247,6 @@ function QuoteDialog({
               placeholder="Z.B. besondere Konditionen, Auf-/Abbau-Zeiten, individuelle Vereinbarungen…"
               rows={4}
             />
-            <p className="text-xs text-muted-foreground">
-              Wird im PDF direkt nach der Positionstabelle ausgegeben, vor
-              dem AGB-Hinweis.
-            </p>
           </div>
           <DialogFooter>
             <Button

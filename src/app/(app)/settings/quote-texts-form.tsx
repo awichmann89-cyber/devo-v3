@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveQuoteTexts } from "./settings-actions";
@@ -33,7 +34,10 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="quoteIntro">Text vor der Positionstabelle</Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="quoteIntro">Text vor der Positionstabelle</Label>
+          <InfoHint text="Wird im Angebots-PDF zwischen den Meta-Daten (Datum, Projekt) und der Positionstabelle ausgegeben." />
+        </div>
         <Textarea
           id="quoteIntro"
           value={intro}
@@ -41,14 +45,13 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
           rows={6}
           placeholder="Sehr geehrte Damen und Herren, …"
         />
-        <p className="text-xs text-muted-foreground">
-          Wird im Angebots-PDF zwischen den Meta-Daten (Datum, Projekt) und
-          der Positionstabelle ausgegeben.
-        </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="quoteOutro">Text nach der Positionstabelle</Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="quoteOutro">Text nach der Positionstabelle</Label>
+          <InfoHint text={'Wird im Angebots-PDF nach der Tabelle ausgegeben (und nach einem optionalen Hinweistext aus dem Angebots-Dialog), gefolgt von „Mit freundlichen Grüßen" und der Signatur.'} />
+        </div>
         <Textarea
           id="quoteOutro"
           value={outro}
@@ -56,11 +59,6 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
           rows={6}
           placeholder="Grundlage dieses Angebots sind unsere AGB …"
         />
-        <p className="text-xs text-muted-foreground">
-          Wird im Angebots-PDF nach der Tabelle ausgegeben (und nach einem
-          optionalen Hinweistext aus dem Angebots-Dialog), gefolgt von „Mit
-          freundlichen Grüßen" und der Signatur.
-        </p>
       </div>
 
       <div className="flex justify-end">

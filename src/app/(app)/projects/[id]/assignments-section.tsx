@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { InfoHint } from "@/components/ui/info-hint";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -1764,8 +1765,9 @@ export function AssignmentsSection({
             <DialogTitle>
               {groupDialog?.mode === "create" ? "Gruppe anlegen" : "Gruppe bearbeiten"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="flex items-center gap-1.5">
               Gruppen sind nur für dieses Projekt — z.B. „Ton", „Licht", „Bühne".
+              <InfoHint text="Gebuchte Kabel erscheinen nie auf Angeboten oder Rechnungen — nur auf der Packliste." />
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1788,28 +1790,28 @@ export function AssignmentsSection({
                 required
               />
             </div>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={groupDialog?.billable ?? true}
-                onChange={(e) =>
-                  setGroupDialog((g) =>
-                    g ? { ...g, billable: e.target.checked } : g
-                  )
-                }
-                className="mt-0.5 h-4 w-4 rounded border-input"
-              />
-              <span>
+            <div className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={groupDialog?.billable ?? true}
+                  onChange={(e) =>
+                    setGroupDialog((g) =>
+                      g ? { ...g, billable: e.target.checked } : g
+                    )
+                  }
+                  className="h-4 w-4 rounded border-input"
+                />
                 <span className="font-medium">Abrechenbar</span>
-                <span className="block text-xs text-muted-foreground">
-                  Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder
-                  Rechnungen auf und fließt nicht in Gesamtsummen ein.
-                </span>
-              </span>
-            </label>
+              </label>
+              <InfoHint text="Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder Rechnungen auf und fließt nicht in Gesamtsummen ein." />
+            </div>
             {billingPeriods.length > 0 && (
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Berechnungszeiträume</label>
+                <div className="flex items-center gap-1.5">
+                  <label className="text-sm font-medium">Berechnungszeiträume</label>
+                  <InfoHint text="Der Mietpreis dieser Gruppe wird nur über die gewählten Zeiträume berechnet (Tagesfaktor). Keine Auswahl = alle Zeiträume. So lässt sich z.B. ein Aufbautag von der Materialberechnung ausnehmen." />
+                </div>
                 <div className="space-y-1 rounded-md border p-2">
                   {billingPeriods.map((p) => {
                     const checked =
@@ -1835,18 +1837,8 @@ export function AssignmentsSection({
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Der Mietpreis dieser Gruppe wird nur über die gewählten
-                  Zeiträume berechnet (Tagesfaktor). Keine Auswahl = alle
-                  Zeiträume. So lässt sich z.B. ein Aufbautag von der
-                  Materialberechnung ausnehmen.
-                </p>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              Gebuchte Kabel erscheinen nie auf Angeboten oder Rechnungen — nur auf
-              der Packliste.
-            </p>
             <DialogFooter>
               <Button
                 type="button"

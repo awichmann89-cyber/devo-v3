@@ -6,8 +6,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Table,
   TableBody,
@@ -228,11 +228,8 @@ export function TimeEntriesSection({
         <div className="space-y-1.5">
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-4 w-4" /> Arbeitszeiten
+            <InfoHint text="Erfasste Ist-Zeiten — selbst eingetragen über den persönlichen Link oder hier vom Büro gepflegt." />
           </CardTitle>
-          <CardDescription>
-            Erfasste Ist-Zeiten — selbst eingetragen über den persönlichen Link
-            oder hier vom Büro gepflegt.
-          </CardDescription>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={month} onValueChange={setMonth}>

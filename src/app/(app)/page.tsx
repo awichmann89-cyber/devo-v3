@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Package, FolderKanban, Boxes } from "lucide-react";
 import { ProjectStatus } from "@prisma/client";
 import Link from "next/link";
@@ -42,8 +43,10 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Anstehende Projekte</CardTitle>
-            <CardDescription>Geplant oder bestätigt</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Anstehende Projekte
+              <InfoHint text="Projekte mit Status geplant oder bestätigt, deren Planungszeitraum in der Zukunft liegt." />
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {upcomingProjects.length === 0 && (
@@ -69,8 +72,10 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Aktive Projekte</CardTitle>
-            <CardDescription>Laufen aktuell</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Aktive Projekte
+              <InfoHint text="Projekte mit Status aktiv — laufen aktuell." />
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {activeProjects.length === 0 && (

@@ -5,10 +5,10 @@ import { requireAuth } from "@/lib/auth-helpers";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Hash, ShieldOff } from "lucide-react";
@@ -158,13 +158,13 @@ export default async function CableDetailPage(props: {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">QR-Code</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              QR-Code
+              <InfoHint text="Scannt direkt zum Kabel." />
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <QrCodeDisplay text={cable.id} label={cable.name} />
-            <p className="text-xs text-muted-foreground text-center">
-              Scannt direkt zum Kabel
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -173,12 +173,14 @@ export default async function CableDetailPage(props: {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Hash className="h-4 w-4" /> Einzel-Einheiten ({withBarcode} / {unitsVM.length})
+            <InfoHint
+              text={
+                cable.inspectionExempt
+                  ? "Für dieses Kabel ist keine DGUV V3 Prüfung erforderlich. Barcodes können optional zur Identifikation gepflegt werden."
+                  : "Pflege pro Kabel den eindeutigen Barcode für die DGUV V3 Prüfung nach. Beim Verlassen des Feldes wird automatisch gespeichert."
+              }
+            />
           </CardTitle>
-          <CardDescription>
-            {cable.inspectionExempt
-              ? "Für dieses Kabel ist keine DGUV V3 Prüfung erforderlich. Barcodes können optional zur Identifikation gepflegt werden."
-              : "Pflege pro Kabel den eindeutigen Barcode für die DGUV V3 Prüfung nach. Beim Verlassen des Feldes wird automatisch gespeichert."}
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <CableUnitsEditor units={unitsVM} />

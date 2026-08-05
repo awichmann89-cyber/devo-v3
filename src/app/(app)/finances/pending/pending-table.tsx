@@ -16,10 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Search, X } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import {
@@ -58,11 +58,10 @@ export function PendingTable({ rows }: { rows: PendingRow[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Zu fakturieren</CardTitle>
-        <CardDescription>
-          Abgeschlossene Projekte ohne Rechnung — sortiert nach Planungsende
-          aufsteigend, also „am längsten überfällig" zuerst.
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2 text-base">
+          Zu fakturieren
+          <InfoHint text={'Abgeschlossene Projekte ohne Rechnung — sortiert nach Planungsende aufsteigend, also „am längsten überfällig" zuerst.'} />
+        </CardTitle>
         <div className="flex flex-wrap items-center gap-2 pt-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -252,21 +253,16 @@ export function CableDialog({ open, onOpenChange, cable, categories }: Props) {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+          <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3">
             <Checkbox
               id="c-exempt"
               checked={inspectionExempt}
               onCheckedChange={(v) => setInspectionExempt(v === true)}
-              className="mt-0.5"
             />
-            <div className="space-y-1 leading-tight">
-              <Label htmlFor="c-exempt" className="cursor-pointer">
-                Muss nicht geprüft werden
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Dieses Kabel ist nicht prüfpflichtig (DGUV V3 entfällt). Im Prüfungsmodus wird es als nicht erforderlich gekennzeichnet.
-              </p>
-            </div>
+            <Label htmlFor="c-exempt" className="cursor-pointer">
+              Muss nicht geprüft werden
+            </Label>
+            <InfoHint text="Dieses Kabel ist nicht prüfpflichtig (DGUV V3 entfällt). Im Prüfungsmodus wird es als nicht erforderlich gekennzeichnet." />
           </div>
 
           <div className="space-y-2">

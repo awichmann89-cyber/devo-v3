@@ -8,6 +8,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Table,
   TableBody,
@@ -116,19 +117,27 @@ export function SerialNumbersSection({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Hash className="h-4 w-4" /> Seriennummern ({serialNumbers.length} / {stockQuantity})
+          <InfoHint
+            text={
+              inspectionExempt
+                ? "Für dieses Gerät ist keine DGUV V3 Prüfung erforderlich. Seriennummern und Barcodes können optional zur Identifikation gepflegt werden."
+                : "Pro physisches Stück Seriennummer + optionalen Barcode für die DGUV V3 Prüfung pflegen. Beim Verlassen des Feldes wird automatisch gespeichert."
+            }
+          />
         </CardTitle>
-        <CardDescription>
-          {inspectionExempt
-            ? "Für dieses Gerät ist keine DGUV V3 Prüfung erforderlich. Seriennummern und Barcodes können optional zur Identifikation gepflegt werden."
-            : "Pro physisches Stück Seriennummer + optionalen Barcode für die DGUV V3 Prüfung pflegen. Beim Verlassen des Feldes wird automatisch gespeichert."}
-          {!inspectionExempt && remaining > 0 && ` Noch ${remaining} ohne Seriennummer.`}
-          {remaining < 0 && ` ⚠ Mehr Seriennummern als Lagerbestand!`}
-          {!inspectionExempt && serialNumbers.length > 0 && (
-            <span className="ml-2 text-foreground">
-              · {withBarcode} / {serialNumbers.length} mit Barcode · {inspected} / {serialNumbers.length} geprüft
-            </span>
-          )}
-        </CardDescription>
+        {/* Dynamische Status-Infos bleiben sichtbar — nur der statische Erklärtext wandert ins Info-Icon. */}
+        {((!inspectionExempt && (remaining > 0 || serialNumbers.length > 0)) ||
+          remaining < 0) && (
+          <CardDescription>
+            {!inspectionExempt && remaining > 0 && `Noch ${remaining} ohne Seriennummer. `}
+            {remaining < 0 && `⚠ Mehr Seriennummern als Lagerbestand! `}
+            {!inspectionExempt && serialNumbers.length > 0 && (
+              <span className="text-foreground">
+                {withBarcode} / {serialNumbers.length} mit Barcode · {inspected} / {serialNumbers.length} geprüft
+              </span>
+            )}
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {serialNumbers.length > 0 && (

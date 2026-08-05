@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -1441,28 +1442,28 @@ export function ServicesSection({
                 required
               />
             </div>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={groupDialog?.billable ?? true}
-                onChange={(e) =>
-                  setGroupDialog((g) =>
-                    g ? { ...g, billable: e.target.checked } : g
-                  )
-                }
-                className="mt-0.5 h-4 w-4 rounded border-input"
-              />
-              <span>
+            <div className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={groupDialog?.billable ?? true}
+                  onChange={(e) =>
+                    setGroupDialog((g) =>
+                      g ? { ...g, billable: e.target.checked } : g
+                    )
+                  }
+                  className="h-4 w-4 rounded border-input"
+                />
                 <span className="font-medium">Abrechenbar</span>
-                <span className="block text-xs text-muted-foreground">
-                  Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder
-                  Rechnungen auf und fließt nicht in Gesamtsummen ein.
-                </span>
-              </span>
-            </label>
+              </label>
+              <InfoHint text="Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder Rechnungen auf und fließt nicht in Gesamtsummen ein." />
+            </div>
             {billingPeriods.length > 0 && (
               <div className="space-y-1.5">
-                <Label>Berechnungszeiträume</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label>Berechnungszeiträume</Label>
+                  <InfoHint text="Planungsgrundlage für Personal-Einsätze dieser Gruppe — die Zeitraum-Auswahl wird im Einplanen-Dialog vorgeschlagen. Keine Auswahl = alle Zeiträume." />
+                </div>
                 <div className="space-y-1 rounded-md border p-2">
                   {billingPeriods.map((p) => {
                     const checked =
@@ -1488,11 +1489,6 @@ export function ServicesSection({
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Planungsgrundlage für Personal-Einsätze dieser Gruppe — die
-                  Zeitraum-Auswahl wird im Einplanen-Dialog vorgeschlagen.
-                  Keine Auswahl = alle Zeiträume.
-                </p>
               </div>
             )}
             <DialogFooter>

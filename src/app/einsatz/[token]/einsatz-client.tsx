@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -464,14 +465,11 @@ export function EinsatzClient({
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-        <header className="space-y-1">
+        <header>
           <h1 className="flex items-center gap-2 text-xl font-bold">
             <UserRound className="h-5 w-5" /> {personName}
+            <InfoHint text="Persönlicher Bereich für Einsätze und Zeiterfassung — diesen Link bitte nicht weitergeben." />
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Persönlicher Bereich für Einsätze und Zeiterfassung — diesen Link
-            bitte nicht weitergeben.
-          </p>
         </header>
 
         <section className="space-y-3">
@@ -548,12 +546,8 @@ export function EinsatzClient({
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <CalendarPlus className="h-4 w-4" /> Kalender abonnieren
+              <InfoHint text={'Abonniere deine Einsätze in Google/Apple Kalender — neue Einsätze erscheinen automatisch. In der Kalender-App „Kalender abonnieren" bzw. „Per URL hinzufügen" wählen und diesen Link einfügen.'} />
             </CardTitle>
-            <CardDescription>
-              Abonniere deine Einsätze in Google/Apple Kalender — neue Einsätze
-              erscheinen automatisch. In der Kalender-App „Kalender abonnieren"
-              bzw. „Per URL hinzufügen" wählen und diesen Link einfügen.
-            </CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2">
             <Input readOnly value={icsUrl} className="font-mono text-xs" />

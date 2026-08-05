@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { FolderTree, Receipt, FileText, Building2, CalendarClock } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
@@ -101,10 +102,18 @@ export default async function SettingsPage() {
         <TabsContent value="categories">
           <Card>
             <CardHeader>
-              <CardTitle>Kategorien & Unterkategorien</CardTitle>
-              <CardDescription>
-                Kategorien gelten für Geräte und Packeinheiten. Unterkategorien helfen bei der Strukturierung — z.B. <em>Ton → Mikrofone</em>, <em>Ton → Mischpulte</em>.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Kategorien & Unterkategorien
+                <InfoHint
+                  text={
+                    <>
+                      Kategorien gelten für Geräte und Packeinheiten.
+                      Unterkategorien helfen bei der Strukturierung — z.B.{" "}
+                      <em>Ton → Mikrofone</em>, <em>Ton → Mischpulte</em>.
+                    </>
+                  }
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <CategoriesTree categories={categories} />
@@ -115,11 +124,18 @@ export default async function SettingsPage() {
         <TabsContent value="company">
           <Card>
             <CardHeader>
-              <CardTitle>Firmenadresse (Versender)</CardTitle>
-              <CardDescription>
-                Wird auf Rechnungen und Angeboten oben im Anschriftenfeld als Versenderzeile nach Briefnorm angezeigt (z.B.{" "}
-                <em>Musterfirma GmbH · Musterstr. 1 · 12345 Berlin</em>).
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Firmenadresse (Versender)
+                <InfoHint
+                  text={
+                    <>
+                      Wird auf Rechnungen und Angeboten oben im Anschriftenfeld
+                      als Versenderzeile nach Briefnorm angezeigt (z.B.{" "}
+                      <em>Musterfirma GmbH · Musterstr. 1 · 12345 Berlin</em>).
+                    </>
+                  }
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <CompanyAddressForm
@@ -135,10 +151,10 @@ export default async function SettingsPage() {
         <TabsContent value="letterhead" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Briefpapier-Vorlagen</CardTitle>
-              <CardDescription>
-                Lade PDFs hoch, die als Hintergrund der Rechnungs-PDFs verwendet werden. Der Rechnungs-Inhalt wird darüber gelegt. Format A4 hochkant empfohlen.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Briefpapier-Vorlagen
+                <InfoHint text="Lade PDFs hoch, die als Hintergrund der Rechnungs-PDFs verwendet werden. Der Rechnungs-Inhalt wird darüber gelegt. Format A4 hochkant empfohlen." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <LetterheadForm
@@ -149,12 +165,10 @@ export default async function SettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Akzentfarbe</CardTitle>
-              <CardDescription>
-                Farbe für Gruppen-Überschriften und Trennstriche in Angebots-
-                und Rechnungs-PDFs. Bereits ausgegebene Dokumente behalten ihre
-                ursprüngliche Farbe (Snapshot), neue verwenden die hier gewählte.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Akzentfarbe
+                <InfoHint text="Farbe für Gruppen-Überschriften und Trennstriche in Angebots- und Rechnungs-PDFs. Bereits ausgegebene Dokumente behalten ihre ursprüngliche Farbe (Snapshot), neue verwenden die hier gewählte." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <PdfAccentColorForm initialColor={settings.pdfAccentColor} />
@@ -165,11 +179,19 @@ export default async function SettingsPage() {
         <TabsContent value="invoices" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Rechnungsnummer-Format</CardTitle>
-              <CardDescription>
-                Format: <code>JAHR-PREFIX-SEQUENZ</code> (z.B.{" "}
-                <code className="font-mono">2026-PA-001</code>). Die Sequenz läuft pro Jahr fortlaufend und beginnt am 1.&nbsp;Januar wieder bei&nbsp;1.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Rechnungsnummer-Format
+                <InfoHint
+                  text={
+                    <>
+                      Format: <code>JAHR-PREFIX-SEQUENZ</code> (z.B.{" "}
+                      <code className="font-mono">2026-PA-001</code>). Die
+                      Sequenz läuft pro Jahr fortlaufend und beginnt am
+                      1.&nbsp;Januar wieder bei&nbsp;1.
+                    </>
+                  }
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <InvoiceNumberForm
@@ -183,12 +205,18 @@ export default async function SettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Mahnungsnummer-Format</CardTitle>
-              <CardDescription>
-                Eigener Nummernkreis für Mahnungen — z.B.{" "}
-                <code className="font-mono">2026-M-001</code>. Läuft pro Jahr
-                getrennt von den Rechnungsnummern.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Mahnungsnummer-Format
+                <InfoHint
+                  text={
+                    <>
+                      Eigener Nummernkreis für Mahnungen — z.B.{" "}
+                      <code className="font-mono">2026-M-001</code>. Läuft pro
+                      Jahr getrennt von den Rechnungsnummern.
+                    </>
+                  }
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ReminderNumberForm
@@ -202,11 +230,10 @@ export default async function SettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Zahlungsfrist</CardTitle>
-              <CardDescription>
-                Default-Frist für neue Rechnungen — wird ab Erstellungsdatum
-                gerechnet und auf der Rechnung als „zahlbar bis …" gesetzt.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Zahlungsfrist
+                <InfoHint text={'Default-Frist für neue Rechnungen — wird ab Erstellungsdatum gerechnet und auf der Rechnung als „zahlbar bis …" gesetzt.'} />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <DaysSettingForm
@@ -223,11 +250,10 @@ export default async function SettingsPage() {
         <TabsContent value="dayfactor">
           <Card>
             <CardHeader>
-              <CardTitle>Tage-Faktor</CardTitle>
-              <CardDescription>
-                Statt mit der reinen Anzahl Tage wird das Material mit einem Faktor multipliziert.
-                Beispiel: 2 Tage = Faktor 1,5 (statt 2,0). Mapping gilt für 1 bis 10 Tage.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Tage-Faktor
+                <InfoHint text="Statt mit der reinen Anzahl Tage wird das Material mit einem Faktor multipliziert. Beispiel: 2 Tage = Faktor 1,5 (statt 2,0). Mapping gilt für 1 bis 10 Tage. Bei mehr als 10 Tagen wird linear fortgesetzt: Faktor[10] + (Tage − 10) — bei Faktor[10] = 5,5 sind 12 Tage = 7,5." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <DayFactorForm initial={parseDayFactorMap(settings.dayFactorMap)} />
@@ -238,11 +264,18 @@ export default async function SettingsPage() {
         <TabsContent value="quotes" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Angebotsnummer-Format</CardTitle>
-              <CardDescription>
-                Format: <code>JAHR-PREFIX-SEQUENZ</code> (z.B.{" "}
-                <code className="font-mono">2026-AN-001</code>). Eigener Nummernkreis, läuft pro Jahr fortlaufend.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Angebotsnummer-Format
+                <InfoHint
+                  text={
+                    <>
+                      Format: <code>JAHR-PREFIX-SEQUENZ</code> (z.B.{" "}
+                      <code className="font-mono">2026-AN-001</code>). Eigener
+                      Nummernkreis, läuft pro Jahr fortlaufend.
+                    </>
+                  }
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <QuoteNumberForm
@@ -256,11 +289,10 @@ export default async function SettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Gültigkeit</CardTitle>
-              <CardDescription>
-                Default-Gültigkeit für neue Angebote — wird ab Erstellungsdatum
-                gerechnet und auf dem Angebot als „gültig bis …" gesetzt.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Gültigkeit
+                <InfoHint text={'Default-Gültigkeit für neue Angebote — wird ab Erstellungsdatum gerechnet und auf dem Angebot als „gültig bis …" gesetzt.'} />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <DaysSettingForm
@@ -274,13 +306,10 @@ export default async function SettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Texte im Angebots-PDF</CardTitle>
-              <CardDescription>
-                Standardtexte vor und nach der Positionstabelle. Pro Angebot
-                kann zusätzlich ein individueller Hinweistext im Dialog
-                eingegeben werden — der erscheint zwischen Tabelle und
-                Schlusstext.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                Texte im Angebots-PDF
+                <InfoHint text="Standardtexte vor und nach der Positionstabelle. Pro Angebot kann zusätzlich ein individueller Hinweistext im Dialog eingegeben werden — der erscheint zwischen Tabelle und Schlusstext." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <QuoteTextsForm

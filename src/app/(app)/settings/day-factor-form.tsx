@@ -59,10 +59,6 @@ export function DayFactorForm({ initial }: { initial: Record<number, number> }) 
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Bei mehr als 10 Tagen wird linear fortgesetzt: Faktor[10] + (Tage − 10).
-        Beispiel: Bei Faktor[10] = 5,5 sind 12 Tage = 7,5.
-      </p>
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>
           {pending ? (

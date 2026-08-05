@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -96,11 +97,8 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Paperclip className="h-4 w-4" /> Dateien
+            <InfoHint text="Dokumente, Pläne, Fotos zum Projekt. Drag & Drop oder Klick zum Hochladen." />
           </CardTitle>
-          <CardDescription>
-            Dokumente, Pläne, Fotos zum Projekt. Drag & Drop oder Klick zum
-            Hochladen.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {canWrite && (

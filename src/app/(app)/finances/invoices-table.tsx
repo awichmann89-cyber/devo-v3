@@ -17,10 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Dialog,
   DialogContent,
@@ -201,10 +201,10 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Rechnungen</CardTitle>
-          <CardDescription>
-            Klicke auf eine der Kacheln oben, um nach Status zu filtern. Der Brutto-Betrag entspricht dem auf dem Konto erwarteten Eingang.
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Rechnungen
+            <InfoHint text="Klicke auf eine der Kacheln oben, um nach Status zu filtern. Der Brutto-Betrag entspricht dem auf dem Konto erwarteten Eingang." />
+          </CardTitle>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

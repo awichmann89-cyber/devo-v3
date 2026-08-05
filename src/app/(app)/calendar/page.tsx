@@ -2,10 +2,10 @@ import { prisma } from "@/lib/prisma";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Timeline } from "./timeline";
 import { CalendarFeedForm } from "./calendar-feed-form";
 import { getOrCreateCalendarToken } from "@/lib/settings";
@@ -131,12 +131,33 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Kalender-Feeds zum Abonnieren</CardTitle>
-          <CardDescription>
-            ICS-URLs für Google Kalender, Apple Kalender oder Outlook: Planungs-
-            und Berechnungszeiträume (alle Projekte) sowie deine persönliche
-            Personalplanung — Aktualisierung erfolgt automatisch.
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Kalender-Feeds zum Abonnieren
+            <InfoHint
+              text={
+                <div className="space-y-2">
+                  <p>
+                    ICS-URLs für Google Kalender, Apple Kalender oder Outlook:
+                    Planungs- und Berechnungszeiträume (alle Projekte) sowie
+                    deine persönliche Personalplanung — Aktualisierung erfolgt
+                    automatisch.
+                  </p>
+                  <p className="font-medium">So abonnierst du den Kalender in Google:</p>
+                  <ol className="ml-4 list-decimal space-y-1">
+                    <li>
+                      Google Kalender öffnen → links bei „Weitere Kalender&quot; auf das + klicken
+                    </li>
+                    <li>„Über URL&quot; auswählen, eine der URLs einfügen</li>
+                    <li>„Kalender hinzufügen&quot; — der Kalender erscheint und aktualisiert sich automatisch</li>
+                  </ol>
+                  <p>
+                    Google synchronisiert ICS-Feeds typischerweise alle paar
+                    Stunden, nicht in Echtzeit.
+                  </p>
+                </div>
+              }
+            />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <CalendarFeedForm

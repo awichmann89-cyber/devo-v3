@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveQuoteNumberSettings } from "./settings-actions";
@@ -56,7 +57,10 @@ export function QuoteNumberForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="qprefix">Prefix (optional)</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="qprefix">Prefix (optional)</Label>
+            <InfoHint text="Großbuchstaben, Zahlen, Bindestriche." />
+          </div>
           <Input
             id="qprefix"
             value={prefix}
@@ -64,12 +68,12 @@ export function QuoteNumberForm({
             placeholder="z.B. AN"
             maxLength={10}
           />
-          <p className="text-xs text-muted-foreground">
-            Großbuchstaben, Zahlen, Bindestriche.
-          </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="qpadding">Stellen für Sequenz</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="qpadding">Stellen für Sequenz</Label>
+            <InfoHint text="3 → 001, 4 → 0001." />
+          </div>
           <QuantityInput
             id="qpadding"
             min={1}
@@ -77,21 +81,18 @@ export function QuoteNumberForm({
             value={padding}
             onChange={(v) => setPadding(v)}
           />
-          <p className="text-xs text-muted-foreground">
-            3 → 001, 4 → 0001.
-          </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="qnextSeq">Nächste Nummer</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="qnextSeq">Nächste Nummer</Label>
+            <InfoHint text="Sequenz, mit der das nächste Angebot erstellt wird." />
+          </div>
           <QuantityInput
             id="qnextSeq"
             min={1}
             value={nextSeq}
             onChange={(v) => setNextSeq(v)}
           />
-          <p className="text-xs text-muted-foreground">
-            Sequenz, mit der das nächste Angebot erstellt wird.
-          </p>
         </div>
       </div>
 

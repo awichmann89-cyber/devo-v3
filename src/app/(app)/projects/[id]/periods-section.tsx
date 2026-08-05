@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,11 +98,8 @@ export function PeriodsSection({
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarRange className="h-4 w-4" /> Planungszeitraum
+            <InfoHint text="Blockt das gebuchte Material für andere Projekte. Bestimmt nicht den Mietpreis." />
           </CardTitle>
-          <CardDescription>
-            Blockt das gebuchte Material für andere Projekte. Bestimmt nicht den
-            Mietpreis.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -138,11 +136,8 @@ export function PeriodsSection({
               {periods.length}{" "}
               {periods.length === 1 ? "Zeitraum" : "Zeiträume"}
             </Badge>
+            <InfoHint text="Bestimmen den Mietpreis. Mehrere Zeiträume möglich — z.B. zwei getrennte Wochenenden, ohne die Werktage dazwischen zu berechnen." />
           </CardTitle>
-          <CardDescription>
-            Bestimmen den Mietpreis. Mehrere Zeiträume möglich — z.B. zwei
-            getrennte Wochenenden, ohne die Werktage dazwischen zu berechnen.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {periods.map((p, i) => (

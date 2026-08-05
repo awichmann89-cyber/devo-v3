@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Upload, FileText, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -86,8 +87,10 @@ function Slot({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardTitle className="flex items-center gap-2 text-base">
+          {title}
+          <InfoHint text={`${description} Nur PDF, max. 10 MB.`} />
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {info ? (
@@ -156,9 +159,6 @@ function Slot({
             )}
             {info ? "Andere Datei wählen …" : "PDF hochladen …"}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            Nur PDF, max. 10 MB
-          </p>
         </div>
       </CardContent>
 

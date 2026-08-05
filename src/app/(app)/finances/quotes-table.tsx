@@ -16,10 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { CheckCircle2, Download, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -135,10 +135,10 @@ export function QuotesTable({ rows: quotes }: { rows: QuoteVM[] }) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Angebote</CardTitle>
-          <CardDescription>
-            Filtere nach Status oder suche nach Nummer, Projekt oder Kunde.
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Angebote
+            <InfoHint text="Filtere nach Status oder suche nach Nummer, Projekt oder Kunde." />
+          </CardTitle>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

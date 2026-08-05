@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -106,12 +107,14 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">QR-Code</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              QR-Code
+              <InfoHint text="Scannt zur öffentlichen Geräteübersicht." />
+            </CardTitle>
+          </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <DeviceQr shortId={device.shortId} name={device.name} />
-            <p className="text-xs text-muted-foreground text-center">
-              Scannt zur öffentlichen Geräteübersicht
-            </p>
           </CardContent>
         </Card>
       </div>

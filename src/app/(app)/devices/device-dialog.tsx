@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -231,41 +232,28 @@ export function DeviceDialog({
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+          <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3">
             <Checkbox
               id="d-exempt"
               checked={inspectionExempt}
               onCheckedChange={(v) => setInspectionExempt(v === true)}
-              className="mt-0.5"
             />
-            <div className="space-y-1 leading-tight">
-              <Label htmlFor="d-exempt" className="cursor-pointer">
-                Muss nicht geprüft werden
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Dieses Gerät ist nicht prüfpflichtig (DGUV V3 entfällt). Im Prüfungsmodus wird es als nicht erforderlich gekennzeichnet.
-              </p>
-            </div>
+            <Label htmlFor="d-exempt" className="cursor-pointer">
+              Muss nicht geprüft werden
+            </Label>
+            <InfoHint text="Dieses Gerät ist nicht prüfpflichtig (DGUV V3 entfällt). Im Prüfungsmodus wird es als nicht erforderlich gekennzeichnet." />
           </div>
 
-          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+          <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3">
             <Checkbox
               id="d-show-docs"
               checked={showOnDocuments}
               onCheckedChange={(v) => setShowOnDocuments(v === true)}
-              className="mt-0.5"
             />
-            <div className="space-y-1 leading-tight">
-              <Label htmlFor="d-show-docs" className="cursor-pointer">
-                Auf Angeboten & Rechnungen anzeigen
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Standardmäßig aktiviert. Deaktivieren für Kleinteile wie
-                Kabelbinder, Klebeband o.ä., die zwar im Projekt verbucht
-                werden, aber nicht auf den Kunden-Dokumenten erscheinen sollen.
-                In Berechnung und Packliste bleibt das Gerät enthalten.
-              </p>
-            </div>
+            <Label htmlFor="d-show-docs" className="cursor-pointer">
+              Auf Angeboten & Rechnungen anzeigen
+            </Label>
+            <InfoHint text="Standardmäßig aktiviert. Deaktivieren für Kleinteile wie Kabelbinder, Klebeband o.ä., die zwar im Projekt verbucht werden, aber nicht auf den Kunden-Dokumenten erscheinen sollen. In Berechnung und Packliste bleibt das Gerät enthalten." />
           </div>
 
           <DialogFooter>

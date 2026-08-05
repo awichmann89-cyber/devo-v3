@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   ScanLine,
   CheckCircle2,
@@ -137,10 +138,8 @@ export function InspectionScanner() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ScanLine className="h-5 w-5" /> Scannen
+              <InfoHint text="Barcode-Scanner ins Feld richten oder manuell eingeben und Enter drücken. Kabel-Barcodes, Geräte-Barcodes und Geräte-Seriennummern funktionieren." />
             </CardTitle>
-            <CardDescription>
-              Barcode-Scanner ins Feld richten oder manuell eingeben und Enter drücken. Kabel-Barcodes, Geräte-Barcodes und Geräte-Seriennummern funktionieren.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleScanSubmit} className="flex gap-2">
@@ -327,10 +326,10 @@ export function InspectionScanner() {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Diese Sitzung</CardTitle>
-            <CardDescription>
-              Bereits geprüfte Einheiten (nur diese Browsersitzung).
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Diese Sitzung
+              <InfoHint text="Bereits geprüfte Einheiten (nur diese Browsersitzung)." />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {recent.length === 0 ? (

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { InfoHint } from "@/components/ui/info-hint";
 import { PackUnitForm } from "../pack-unit-form";
 
 export default async function NewPackUnitPage() {
@@ -21,11 +22,9 @@ export default async function NewPackUnitPage() {
         </Button>
       </div>
 
-      <div>
+      <div className="flex items-center gap-2">
         <h1 className="text-[21px] font-extrabold tracking-tight">Packeinheit anlegen</h1>
-        <p className="text-muted-foreground">
-          Erstelle ein neues Case, Rack oder Tasche. Geräte kannst du nach dem Anlegen zuordnen.
-        </p>
+        <InfoHint text="Erstelle ein neues Case, Rack oder Tasche. Geräte kannst du nach dem Anlegen zuordnen." />
       </div>
 
       <Card>

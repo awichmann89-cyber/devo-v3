@@ -6,8 +6,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CalendarClock, Receipt, UserRound } from "lucide-react";
@@ -183,11 +183,8 @@ export default async function PersonDetailPage(props: {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <CalendarClock className="h-4 w-4" /> Einsätze
+            <InfoHint text="Alle Einsätze — geplant wird im Projekt (Tab Personal & Transport)." />
           </CardTitle>
-          <CardDescription>
-            Alle Einsätze — geplant wird im Projekt (Tab Personal &amp;
-            Transport).
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {sortedAssignments.length === 0 ? (

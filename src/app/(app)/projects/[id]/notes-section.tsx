@@ -7,6 +7,7 @@ import remarkBreaks from "remark-breaks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -290,7 +291,18 @@ function NoteDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Beschreibung</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Beschreibung</Label>
+              <InfoHint
+                text={
+                  <>
+                    Markdown: <code># Überschrift</code> · <code>**fett**</code>{" "}
+                    · <code>*kursiv*</code> · <code>- Liste</code> ·{" "}
+                    <code>[Link](url)</code> · <code>`code`</code>
+                  </>
+                }
+              />
+            </div>
             <Tabs defaultValue="edit">
               <TabsList>
                 <TabsTrigger value="edit">Bearbeiten</TabsTrigger>
@@ -306,11 +318,6 @@ function NoteDialog({
                   }
                   className="font-mono text-sm"
                 />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Markdown: <code># Überschrift</code> · <code>**fett**</code> ·{" "}
-                  <code>*kursiv*</code> · <code>- Liste</code> ·{" "}
-                  <code>[Link](url)</code> · <code>`code`</code>
-                </p>
               </TabsContent>
               <TabsContent value="preview">
                 <div className="min-h-[260px] rounded-md border p-4">

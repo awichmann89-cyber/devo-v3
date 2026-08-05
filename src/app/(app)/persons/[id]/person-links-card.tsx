@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,12 +69,8 @@ export function PersonLinksCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Link2 className="h-4 w-4" /> Persönliche Links
+          <InfoHint text="Beide Links an die Person weitergeben: Kalender-Abo zeigt die Einsätze, die Zeiterfassungs-Seite dient dem Nachtragen der Ist-Stunden. Kein Login nötig — der Link ist der Zugang." />
         </CardTitle>
-        <CardDescription>
-          Beide Links an die Person weitergeben: Kalender-Abo zeigt die
-          Einsätze, die Zeiterfassungs-Seite dient dem Nachtragen der
-          Ist-Stunden. Kein Login nötig — der Link ist der Zugang.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">

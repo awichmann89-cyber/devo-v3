@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
@@ -311,9 +312,12 @@ export function PersonAssignmentDialog({
           <DialogTitle>
             {assignment ? "Einsatz bearbeiten" : "Person einplanen"}
           </DialogTitle>
-          <DialogDescription>
-            Position: <strong>{serviceName}</strong>. Eingeplante Personen sehen
-            den Einsatz in ihrem persönlichen Kalender-Abo.
+          <DialogDescription className="flex items-center gap-1.5">
+            <span>
+              Position: <strong>{serviceName}</strong>. Eingeplante Personen sehen
+              den Einsatz in ihrem persönlichen Kalender-Abo.
+            </span>
+            <InfoHint text="Tipp: Personal ohne berechnete Position? Lege eine nicht-abrechenbare Gruppe an und buche die Position dort — sie taucht dann nicht auf Angeboten/Rechnungen auf." />
           </DialogDescription>
         </DialogHeader>
 
@@ -348,7 +352,10 @@ export function PersonAssignmentDialog({
           )}
 
           <div className="space-y-2">
-            <Label>Berechnungszeitraum</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Berechnungszeitraum</Label>
+              <InfoHint text="Ohne eigene Uhrzeiten übernimmt der Einsatz die Zeiten des gewählten Zeitraums — ganztägig nur, wenn der Zeitraum keine Uhrzeiten trägt (00:00)." />
+            </div>
             <Select
               value={billingPeriodId || "__none__"}
               onValueChange={(v) => setBillingPeriodId(v === "__none__" ? "" : v)}
@@ -368,11 +375,6 @@ export function PersonAssignmentDialog({
                 </SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Ohne eigene Uhrzeiten übernimmt der Einsatz die Zeiten des
-              gewählten Zeitraums — ganztägig nur, wenn der Zeitraum keine
-              Uhrzeiten trägt (00:00).
-            </p>
           </div>
 
           <div className="space-y-2">
@@ -487,12 +489,6 @@ export function PersonAssignmentDialog({
               placeholder="z.B. Treffpunkt Lager 07:30"
             />
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            Tipp: Personal ohne berechnete Position? Lege eine
-            nicht-abrechenbare Gruppe an und buche die Position dort — sie
-            taucht dann nicht auf Angeboten/Rechnungen auf.
-          </p>
 
           <DialogFooter>
             <Button

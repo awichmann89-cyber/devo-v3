@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Copy, RefreshCw, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { regenerateCalendarToken } from "../settings/settings-actions";
@@ -120,7 +121,10 @@ export function CalendarFeedForm({
       </div>
 
       <div className="space-y-2">
-        <Label>Personalplanung (persönlich)</Label>
+        <div className="flex items-center gap-1.5">
+          <Label>Personalplanung (persönlich)</Label>
+          <InfoHint text="Zeigt nur deine eigenen Einsätze. Der Link läuft über deinen persönlichen Token — neu generieren auf deiner Seite im Personalstamm." />
+        </div>
         {personalUrl ? (
           <>
             <div className="flex gap-2">
@@ -144,11 +148,6 @@ export function CalendarFeedForm({
                 )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Zeigt nur deine eigenen Einsätze. Der Link läuft über deinen
-              persönlichen Token — neu generieren auf deiner Seite im
-              Personalstamm.
-            </p>
           </>
         ) : (
           <p className="text-xs text-muted-foreground">
@@ -158,20 +157,6 @@ export function CalendarFeedForm({
             Einsatz-Abo.
           </p>
         )}
-      </div>
-
-      <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-2">
-        <p className="font-medium">So abonnierst du den Kalender in Google:</p>
-        <ol className="ml-5 list-decimal space-y-1 text-xs text-muted-foreground">
-          <li>
-            Google Kalender öffnen → links bei „Weitere Kalender" auf das + klicken
-          </li>
-          <li>„Über URL" auswählen, eine der oberen URLs einfügen</li>
-          <li>„Kalender hinzufügen" — der Kalender erscheint und aktualisiert sich automatisch</li>
-        </ol>
-        <p className="text-xs text-muted-foreground">
-          Google synchronisiert ICS-Feeds typischerweise alle paar Stunden, nicht in Echtzeit.
-        </p>
       </div>
 
       <div className="flex justify-end">
