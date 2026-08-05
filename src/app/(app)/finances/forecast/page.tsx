@@ -3,7 +3,8 @@ import { requireAuth } from "@/lib/auth-helpers";
 import { ForecastView, ForecastRowVM } from "./forecast-view";
 import { calculateProjectTotal } from "@/lib/project-pricing";
 import { getSettings, parseDayFactorMap } from "@/lib/settings";
-import { personnelCostForProject } from "@/lib/personnel-costs";
+import { assignmentCost, timeEntryCost, workedMinutes } from "@/lib/personnel-costs";
+import { effectivePlannedMinutes } from "@/lib/personnel-schedule";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -57,10 +58,22 @@ export default async function ForecastPage(props: {
       // Interne Zusatzkosten für die Gewinn-Berechnung (nicht kundenrelevant).
       subhires: { select: { quantity: true, unitCost: true } },
       extraCosts: { select: { amount: true } },
-      // Personalkosten aus dem Einsatzplan (Freelancer-Sätze + Ist-Stunden).
-      personAssignments: { select: { agreedRate: true } },
+      // Personalkosten aus dem Einsatzplan: Pauschalen, Ist-Stunden und
+      // geplante Stunden × Satz (solange keine Zeiten erfasst sind).
+      personAssignments: {
+        select: {
+          id: true,
+          agreedRate: true,
+          hourlyRate: true,
+          plannedStart: true,
+          plannedEnd: true,
+          billingPeriod: { select: { start: true, end: true } },
+          person: { select: { employmentType: true, hourlyWage: true } },
+        },
+      },
       timeEntries: {
         select: {
+          assignmentId: true,
           startMinute: true,
           endMinute: true,
           breakMinutes: true,
@@ -88,21 +101,53 @@ export default async function ForecastPage(props: {
         0
       );
       // Interne Zusatzkosten (Zumietung + Extrakosten + Personal) → für den Gewinn.
+      // Ist-Zeiten pro Einsatz gruppieren (Zeiten ohne Einsatz zählen separat).
+      const byAssignment = new Map<string, { minutes: number; cost: number }>();
+      let orphanTimeCost = 0;
+      for (const e of p.timeEntries) {
+        const entry = {
+          startMinute: e.startMinute,
+          endMinute: e.endMinute,
+          breakMinutes: e.breakMinutes,
+          hourlyWageSnapshot:
+            e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
+        };
+        if (!e.assignmentId) {
+          orphanTimeCost += timeEntryCost(entry);
+          continue;
+        }
+        const agg = byAssignment.get(e.assignmentId) ?? { minutes: 0, cost: 0 };
+        agg.minutes += workedMinutes(entry);
+        agg.cost += timeEntryCost(entry);
+        byAssignment.set(e.assignmentId, agg);
+      }
+      const personnelCost =
+        p.personAssignments.reduce((s, a) => {
+          const logged = byAssignment.get(a.id) ?? { minutes: 0, cost: 0 };
+          return (
+            s +
+            assignmentCost({
+              agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+              hourlyRate: a.hourlyRate !== null ? Number(a.hourlyRate) : null,
+              isMinijobber: a.person.employmentType === "MINIJOBBER",
+              personHourlyWage:
+                a.person.hourlyWage !== null ? Number(a.person.hourlyWage) : null,
+              plannedMinutes: effectivePlannedMinutes({
+                plannedStart: a.plannedStart,
+                plannedEnd: a.plannedEnd,
+                billingPeriod: a.billingPeriod,
+                projectPlanningStart: p.planningStart,
+                projectPlanningEnd: p.planningEnd,
+              }),
+              loggedMinutes: logged.minutes,
+              timeCost: logged.cost,
+            }).cost
+          );
+        }, 0) + orphanTimeCost;
       const costs =
         p.subhires.reduce((s, x) => s + Number(x.unitCost) * x.quantity, 0) +
         p.extraCosts.reduce((s, c) => s + Number(c.amount), 0) +
-        personnelCostForProject({
-          assignments: p.personAssignments.map((a) => ({
-            agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
-          })),
-          timeEntries: p.timeEntries.map((e) => ({
-            startMinute: e.startMinute,
-            endMinute: e.endMinute,
-            breakMinutes: e.breakMinutes,
-            hourlyWageSnapshot:
-              e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
-          })),
-        }).total;
+        personnelCost;
       return {
         id: p.id,
         name: p.name,

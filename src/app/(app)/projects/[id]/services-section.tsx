@@ -687,11 +687,21 @@ export function ServicesSection({
             <span className="text-xs text-muted-foreground">—</span>
           )}
         </TableCell>
-        <TableCell className="text-right tabular-nums font-mono text-xs text-muted-foreground">
+        <TableCell
+          className="text-right tabular-nums font-mono text-xs text-muted-foreground"
+          title={
+            isFreelancer && a.hourlyRate !== null && a.loggedMinutes === 0
+              ? "Geplante Stunden × Satz — bis Ist-Zeiten erfasst sind"
+              : undefined
+          }
+        >
           {isFreelancer && a.agreedRate !== null
             ? formatCurrency(a.agreedRate)
             : isFreelancer && a.hourlyRate !== null
-              ? formatCurrency((a.loggedMinutes / 60) * a.hourlyRate)
+              ? formatCurrency(
+                  ((a.loggedMinutes > 0 ? a.loggedMinutes : a.plannedMinutes) / 60) *
+                    a.hourlyRate
+                )
               : ""}
         </TableCell>
         <TableCell>

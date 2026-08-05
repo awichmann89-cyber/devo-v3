@@ -175,9 +175,17 @@ export interface PersonnelEntryVM {
   agreedRate: number | null;
   /** Stundensatz — Kosten entstehen über erfasste Zeiten. */
   hourlyRate: number | null;
+  /** Stundenlohn aus dem Personalstamm (Minijobber). */
+  personHourlyWage: number | null;
   loggedMinutes: number;
   /** Ist-Kosten aus erfassten Zeiten (Stunden × Lohn-Snapshot). */
   timeCost: number;
+  /** Geplante Minuten aus dem effektiven Zeitfenster. */
+  plannedMinutes: number;
+  /** Effektive Stunden/Kosten (Pauschale > Ist > geplant); planned = Vorschau. */
+  effMinutes: number;
+  effCost: number;
+  effPlanned: boolean;
 }
 
 type ExtraDialogState = {
@@ -972,43 +980,51 @@ export function CostsSection({
                         </div>
                       </TableCell>
                     </TableRow>
-                    {personnelEntries.map((p) => {
-                      const cost = (p.agreedRate ?? 0) + p.timeCost;
-                      return (
-                        <TableRow key={`personnel:${p.id}`}>
-                          <TableCell />
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{p.personName}</span>
-                              <Badge variant={employmentTypeVariant(p.employmentType)}>
-                                {employmentTypeLabel(p.employmentType)}
+                    {personnelEntries.map((p) => (
+                      <TableRow key={`personnel:${p.id}`}>
+                        <TableCell />
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{p.personName}</span>
+                            <Badge variant={employmentTypeVariant(p.employmentType)}>
+                              {employmentTypeLabel(p.employmentType)}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {p.serviceName}
+                            </span>
+                            {p.effPlanned && (
+                              <Badge
+                                variant="outline"
+                                title="Noch keine Ist-Zeiten erfasst — Stunden und Betrag aus dem geplanten Zeitfenster"
+                              >
+                                geplant
                               </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {p.serviceName}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                            {p.loggedMinutes > 0
-                              ? `${formatMinutes(p.loggedMinutes)} h`
-                              : "—"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                            {p.agreedRate !== null
-                              ? `${formatCurrency(p.agreedRate)} pausch.`
-                              : p.hourlyRate !== null
-                                ? `${formatCurrency(p.hourlyRate)}/h`
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                          {p.effMinutes > 0
+                            ? `${formatMinutes(p.effMinutes)} h`
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                          {p.agreedRate !== null
+                            ? `${formatCurrency(p.agreedRate)} pausch.`
+                            : p.hourlyRate !== null
+                              ? `${formatCurrency(p.hourlyRate)}/h`
+                              : p.personHourlyWage !== null &&
+                                  p.employmentType === "MINIJOBBER"
+                                ? `${formatCurrency(p.personHourlyWage)}/h`
                                 : p.timeCost > 0
                                   ? "Lohn"
                                   : "—"}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
-                            {cost > 0 ? formatCurrency(cost) : "—"}
-                          </TableCell>
-                          <TableCell />
-                        </TableRow>
-                      );
-                    })}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                          {p.effCost > 0 ? formatCurrency(p.effCost) : "—"}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    ))}
                     {orphanTime.minutes > 0 && (
                       <TableRow>
                         <TableCell />

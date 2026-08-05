@@ -23,7 +23,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
 import { ProjectStatus } from "@prisma/client";
-import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
+import {
+  projectStatusEmoji,
+  projectStatusLabel,
+  projectStatusVariant,
+} from "@/lib/labels";
 
 interface ProjectVM {
   id: string;
@@ -114,13 +118,36 @@ function sameDay(a: Date, b: Date): boolean {
   );
 }
 
-function isInRange(day: Date, startISO: string, endISO: string): boolean {
-  const s = new Date(startISO);
-  s.setHours(0, 0, 0, 0);
-  const e = new Date(endISO);
-  e.setHours(0, 0, 0, 0);
-  return day >= s && day <= e;
+/** ISO-Zeitpunkt → lokale Tagesmitternacht (für die Tag-Raster-Zuordnung). */
+function dayFloor(iso: string): Date {
+  const d = new Date(iso);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Kalender-Eintrag für die Balken-Darstellung (Projekt oder eigener Einsatz). */
+type CalEvent = {
+  key: string;
+  kind: "project" | "assignment";
+  start: Date; // Tagesmitternacht inklusiv
+  end: Date; // Tagesmitternacht inklusiv
+  label: string;
+  chip: string;
+  project?: ProjectVM;
+  assignment?: MyAssignmentVM;
+};
+
+/** Balken-Segment eines Events innerhalb EINER Woche. */
+type WeekSegment = {
+  ev: CalEvent;
+  startCol: number; // 0-basiert
+  endCol: number; // 0-basiert, inklusiv
+  startsHere: boolean; // Event beginnt in dieser Woche (echte linke Kante)
+  endsHere: boolean; // Event endet in dieser Woche (echte rechte Kante)
+  lane: number;
+};
 
 export function Timeline({
   viewStart,
@@ -164,6 +191,32 @@ export function Timeline({
 
   const grid = useMemo(() => buildMonthGrid(start), [start]);
   const currentMonth = start.getMonth();
+
+  // Alle Kalender-Einträge als Balken-Events (Tag-genau normalisiert).
+  // Einsätze zuerst — sie bekommen bevorzugt die oberste Lane.
+  const events = useMemo<CalEvent[]>(() => {
+    const evts: CalEvent[] = myAssignments.map((a) => ({
+      key: `a:${a.id}`,
+      kind: "assignment" as const,
+      start: dayFloor(a.start),
+      end: dayFloor(a.end),
+      label: `${projectStatusEmoji(a.status)} ${a.projectName} — ${a.serviceName}`,
+      chip: "bg-fuchsia-600 hover:bg-fuchsia-500 text-white",
+      assignment: a,
+    }));
+    for (const p of filtered) {
+      evts.push({
+        key: `p:${p.id}`,
+        kind: "project" as const,
+        start: dayFloor(p.planningStart),
+        end: dayFloor(p.planningEnd),
+        label: `${projectStatusEmoji(p.status)} ${p.name}`,
+        chip: projectChipClass(p.status),
+        project: p,
+      });
+    }
+    return evts;
+  }, [filtered, myAssignments]);
 
   function shiftMonth(delta: number) {
     const newStart = new Date(start.getFullYear(), start.getMonth() + delta, 1);
@@ -215,93 +268,170 @@ export function Timeline({
         </div>
       </div>
 
-      {/* Wochentag-Header */}
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border bg-border">
-        {WEEKDAYS.map((wd) => (
-          <div
-            key={wd}
-            className="bg-muted/60 px-2 py-1.5 text-center text-xs font-semibold text-muted-foreground"
-          >
-            {wd}
-          </div>
-        ))}
-        {/* Day-Cells */}
-        {grid.map((day) => {
-          const isOtherMonth = day.getMonth() !== currentMonth;
-          const isToday = sameDay(day, today);
-          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-          const projectsOnDay = filtered.filter((p) =>
-            isInRange(day, p.planningStart, p.planningEnd)
-          );
-          // Eigene Einsätze zuerst — sie sind die persönlich relevanteste Info.
-          const assignmentsOnDay = myAssignments.filter((a) =>
-            isInRange(day, a.start, a.end)
-          );
-          const VISIBLE = 3;
-          const visibleAssignments = assignmentsOnDay.slice(0, VISIBLE);
-          const remaining = Math.max(0, VISIBLE - visibleAssignments.length);
-          const visibleProjects = projectsOnDay.slice(0, remaining);
-          const overflow =
-            assignmentsOnDay.length +
-            projectsOnDay.length -
-            visibleAssignments.length -
-            visibleProjects.length;
+      {/* Monatsgitter: pro Woche eine Grid-Zeile, Events als durchgehende
+          Balken über alle betroffenen Spalten (Lane-Layout wie in
+          Kalender-Apps). Balken, die über die Woche hinauslaufen, verlieren
+          an der Schnittkante ihre Rundung. */}
+      <div className="overflow-hidden rounded-md border bg-border">
+        <div className="grid grid-cols-7 gap-px">
+          {WEEKDAYS.map((wd) => (
+            <div
+              key={wd}
+              className="bg-muted/60 px-2 py-1.5 text-center text-xs font-semibold text-muted-foreground"
+            >
+              {wd}
+            </div>
+          ))}
+        </div>
+        {Array.from({ length: 6 }, (_, w) => {
+          const weekDays = grid.slice(w * 7, w * 7 + 7);
+          const weekStart = weekDays[0];
+          const weekEnd = weekDays[6];
+
+          // Segmente aller Events, die diese Woche berühren.
+          const segs: WeekSegment[] = [];
+          for (const ev of events) {
+            if (ev.end < weekStart || ev.start > weekEnd) continue;
+            const startCol =
+              ev.start <= weekStart
+                ? 0
+                : Math.round((+ev.start - +weekStart) / DAY_MS);
+            const endCol =
+              ev.end >= weekEnd ? 6 : Math.round((+ev.end - +weekStart) / DAY_MS);
+            segs.push({
+              ev,
+              startCol,
+              endCol,
+              startsHere: ev.start >= weekStart,
+              endsHere: ev.end <= weekEnd,
+              lane: -1,
+            });
+          }
+          // Lane-Zuordnung: Einsätze zuerst, dann nach Startspalte / Länge.
+          segs.sort((a, b) => {
+            if (a.ev.kind !== b.ev.kind) return a.ev.kind === "assignment" ? -1 : 1;
+            return (
+              a.startCol - b.startCol ||
+              (b.endCol - b.startCol) - (a.endCol - a.startCol)
+            );
+          });
+          const lanes: WeekSegment[][] = [];
+          for (const s of segs) {
+            const free = lanes.findIndex((lane) =>
+              lane.every((o) => o.endCol < s.startCol || o.startCol > s.endCol)
+            );
+            if (free >= 0) {
+              s.lane = free;
+              lanes[free].push(s);
+            } else {
+              s.lane = lanes.length;
+              lanes.push([s]);
+            }
+          }
+          const MAX_LANES = 4;
+          const shownLaneCount = Math.min(lanes.length, MAX_LANES);
+          // Überlauf pro Tag (Events in versteckten Lanes).
+          const hiddenPerDay = Array(7).fill(0) as number[];
+          for (const s of segs) {
+            if (s.lane < MAX_LANES) continue;
+            for (let c = s.startCol; c <= s.endCol; c++) hiddenPerDay[c]++;
+          }
+
           return (
             <div
-              key={day.toISOString()}
-              className={cn(
-                "min-h-[120px] bg-card p-1.5 flex flex-col gap-1",
-                isOtherMonth && "bg-muted/30 text-muted-foreground",
-                isWeekend && !isOtherMonth && "bg-muted/20",
-                isToday && "ring-2 ring-inset ring-primary"
-              )}
+              key={w}
+              className="mt-px grid min-h-[120px] grid-cols-7 gap-px bg-border"
+              style={{
+                gridTemplateRows: `1.5rem repeat(${shownLaneCount}, 1.5rem) minmax(0.375rem, 1fr)`,
+              }}
             >
-              <div
-                className={cn(
-                  "text-xs font-medium",
-                  isToday && "text-primary font-bold"
-                )}
-              >
-                {day.getDate()}
-                {day.getDate() === 1 && (
-                  <span className="ml-1 text-[10px] text-muted-foreground">
-                    {day.toLocaleDateString("de-DE", { month: "short" })}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-0.5">
-                {visibleAssignments.map((a) => (
-                  <button
-                    key={`assignment:${a.id}`}
-                    type="button"
-                    onClick={() => setSelected({ kind: "assignment", assignment: a })}
-                    title={`Mein Einsatz: ${a.projectName} — ${a.serviceName}`}
-                    className="flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium text-white shadow-sm bg-fuchsia-600 hover:bg-fuchsia-500"
-                  >
-                    <UserRound className="h-2.5 w-2.5 shrink-0" />
-                    <span className="truncate">{a.projectName}</span>
-                  </button>
-                ))}
-                {visibleProjects.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setSelected({ kind: "project", project: p })}
-                    title={`${p.name}${p.customer ? " · " + p.customer : ""} (${projectStatusLabel(p.status)})`}
+              {/* Hintergrund-Zellen (über alle Zeilen der Woche) */}
+              {weekDays.map((day, i) => {
+                const isOtherMonth = day.getMonth() !== currentMonth;
+                const isToday = sameDay(day, today);
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                return (
+                  <div
+                    key={`bg:${day.toISOString()}`}
+                    style={{ gridColumn: `${i + 1} / ${i + 2}`, gridRow: "1 / -1" }}
                     className={cn(
-                      "truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium shadow-sm transition-opacity",
-                      projectChipClass(p.status)
+                      "bg-card",
+                      isOtherMonth && "bg-muted/30",
+                      isWeekend && !isOtherMonth && "bg-muted/20",
+                      isToday && "ring-2 ring-inset ring-primary"
+                    )}
+                  />
+                );
+              })}
+              {/* Tages-Nummern */}
+              {weekDays.map((day, i) => {
+                const isOtherMonth = day.getMonth() !== currentMonth;
+                const isToday = sameDay(day, today);
+                return (
+                  <div
+                    key={`nr:${day.toISOString()}`}
+                    style={{ gridColumn: `${i + 1} / ${i + 2}`, gridRow: 1 }}
+                    className={cn(
+                      "z-10 px-1.5 pt-1 text-xs font-medium",
+                      isOtherMonth && "text-muted-foreground",
+                      isToday && "font-bold text-primary"
                     )}
                   >
-                    {p.name}
+                    {day.getDate()}
+                    {day.getDate() === 1 && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">
+                        {day.toLocaleDateString("de-DE", { month: "short" })}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {/* Event-Balken */}
+              {segs
+                .filter((s) => s.lane < MAX_LANES)
+                .map((s) => (
+                  <button
+                    key={`${s.ev.key}:${w}`}
+                    type="button"
+                    onClick={() =>
+                      s.ev.kind === "assignment"
+                        ? setSelected({ kind: "assignment", assignment: s.ev.assignment! })
+                        : setSelected({ kind: "project", project: s.ev.project! })
+                    }
+                    title={s.ev.label}
+                    style={{
+                      gridColumn: `${s.startCol + 1} / ${s.endCol + 2}`,
+                      gridRow: s.lane + 2,
+                    }}
+                    className={cn(
+                      "z-10 my-0.5 flex min-w-0 items-center gap-1 overflow-hidden rounded px-1.5 text-left text-[10px] font-medium shadow-sm",
+                      s.ev.chip,
+                      s.startsHere ? "ml-0.5" : "ml-0 rounded-l-none",
+                      s.endsHere ? "mr-0.5" : "mr-0 rounded-r-none"
+                    )}
+                  >
+                    {s.ev.kind === "assignment" && (
+                      <UserRound className="h-2.5 w-2.5 shrink-0" />
+                    )}
+                    <span className="truncate">{s.ev.label}</span>
                   </button>
                 ))}
-                {overflow > 0 && (
-                  <div className="px-1 text-[10px] text-muted-foreground">
-                    + {overflow} weitere
-                  </div>
-                )}
-              </div>
+              {/* Überlauf pro Tag */}
+              {hiddenPerDay.map(
+                (n, i) =>
+                  n > 0 && (
+                    <div
+                      key={`ovf:${i}`}
+                      style={{
+                        gridColumn: `${i + 1} / ${i + 2}`,
+                        gridRow: shownLaneCount + 2,
+                      }}
+                      className="z-10 px-1.5 text-[10px] text-muted-foreground"
+                    >
+                      + {n} weitere
+                    </div>
+                  )
+              )}
             </div>
           );
         })}
@@ -326,7 +456,9 @@ export function Timeline({
           {selected?.kind === "project" && (
             <>
               <DialogHeader>
-                <DialogTitle>{selected.project.name}</DialogTitle>
+                <DialogTitle>
+                  {projectStatusEmoji(selected.project.status)} {selected.project.name}
+                </DialogTitle>
                 <DialogDescription>
                   {selected.project.customer ?? "Ohne Kunde"}
                 </DialogDescription>
@@ -361,7 +493,8 @@ export function Timeline({
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <UserRound className="h-4 w-4" />
-                  Mein Einsatz — {selected.assignment.projectName}
+                  {projectStatusEmoji(selected.assignment.status)} Mein Einsatz —{" "}
+                  {selected.assignment.projectName}
                 </DialogTitle>
                 <DialogDescription>{selected.assignment.serviceName}</DialogDescription>
               </DialogHeader>

@@ -20,6 +20,9 @@ function toLocalInput(d?: Date | string | null): string {
 }
 
 interface PeriodInput {
+  // id bestehender Zeiträume — bleibt beim Speichern erhalten, damit
+  // Personal-Einsätze und Gruppen ihre Zeitraum-Verknüpfung behalten.
+  id: string | null;
   start: string;
   end: string;
   notes: string;
@@ -29,7 +32,12 @@ interface Props {
   projectId: string;
   planningStart: Date | string;
   planningEnd: Date | string;
-  billingPeriods: { start: Date | string; end: Date | string; notes: string | null }[];
+  billingPeriods: {
+    id: string;
+    start: Date | string;
+    end: Date | string;
+    notes: string | null;
+  }[];
 }
 
 export function PeriodsSection({
@@ -43,15 +51,16 @@ export function PeriodsSection({
   const [periods, setPeriods] = useState<PeriodInput[]>(() =>
     billingPeriods.length > 0
       ? billingPeriods.map((p) => ({
+          id: p.id,
           start: toLocalInput(p.start),
           end: toLocalInput(p.end),
           notes: p.notes ?? "",
         }))
-      : [{ start: "", end: "", notes: "" }]
+      : [{ id: null, start: "", end: "", notes: "" }]
   );
 
   function addPeriod() {
-    setPeriods([...periods, { start: "", end: "", notes: "" }]);
+    setPeriods([...periods, { id: null, start: "", end: "", notes: "" }]);
   }
   function removePeriod(i: number) {
     if (periods.length <= 1) return;
@@ -71,6 +80,7 @@ export function PeriodsSection({
         planningStart: new Date(planStart),
         planningEnd: new Date(planEnd),
         billingPeriods: periods.map((p) => ({
+          id: p.id,
           start: new Date(p.start),
           end: new Date(p.end),
           notes: p.notes || null,

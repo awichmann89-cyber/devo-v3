@@ -58,6 +58,17 @@ export function assignmentEffectiveRange(a: EffectiveRangeInput): {
   };
 }
 
+/**
+ * Geplante Arbeitsminuten eines Einsatzes: Länge des effektiven Zeitfensters,
+ * sofern es zeitgenau ist. Ganztägige Einsätze (Zeitraum ohne Uhrzeiten)
+ * liefern 0 — daraus lässt sich keine Stundenzahl ableiten.
+ */
+export function effectivePlannedMinutes(a: EffectiveRangeInput): number {
+  const r = assignmentEffectiveRange(a);
+  if (!r.timed) return 0;
+  return Math.max(0, Math.round((+r.end - +r.start) / 60000));
+}
+
 /** Überlappung zweier halboffener Intervalle [aStart, aEnd) und [bStart, bEnd). */
 export function rangesOverlap(
   aStart: Date,

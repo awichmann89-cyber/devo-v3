@@ -26,8 +26,12 @@ import { DeleteProjectButton } from "./delete-button";
 import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { buildPackList } from "@/lib/packlist";
-import { personnelCostForProject, timeEntryCost, workedMinutes } from "@/lib/personnel-costs";
-import { assignmentEffectiveRange, rangesOverlap } from "@/lib/personnel-schedule";
+import { assignmentCost, timeEntryCost, workedMinutes } from "@/lib/personnel-costs";
+import {
+  assignmentEffectiveRange,
+  effectivePlannedMinutes,
+  rangesOverlap,
+} from "@/lib/personnel-schedule";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
 
@@ -55,7 +59,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             // Einsatzplan: Personen an dieser Position inkl. Ist-Minuten
             personAssignments: {
               include: {
-                person: { select: { name: true, employmentType: true } },
+                person: {
+                  select: { name: true, employmentType: true, hourlyWage: true },
+                },
                 billingPeriod: {
                   select: { id: true, start: true, end: true, notes: true },
                 },
@@ -494,34 +500,15 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     }
   }
 
-  // Personalkosten aus dem Einsatzplan: Freelancer-Sätze + erfasste Stunden.
-  const personnelCost = personnelCostForProject({
-    assignments: project.services.flatMap((s) =>
-      s.personAssignments.map((a) => ({
-        agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
-      }))
-    ),
-    timeEntries: project.timeEntries.map((e) => ({
-      startMinute: e.startMinute,
-      endMinute: e.endMinute,
-      breakMinutes: e.breakMinutes,
-      hourlyWageSnapshot:
-        e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
-    })),
-  }).total;
-
-  // Einsatzplan-Zeilen für den Kosten-Tab (read-only Anzeige):
-  // pro Einsatz Person, Position, Vergütung und Ist-Kosten aus Zeiten.
+  // Einsatzplan-Zeilen für den Kosten-Tab: pro Einsatz Person, Position,
+  // Vergütung und Stunden/Kosten — Ist-Zeiten, sonst geplante Stunden × Satz.
   const personnelEntries = project.services.flatMap((s) =>
-    s.personAssignments.map((a) => ({
-      id: a.id,
-      personName: a.person.name,
-      employmentType: a.person.employmentType,
-      serviceName: s.serviceItem.name,
-      agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
-      hourlyRate: a.hourlyRate !== null ? Number(a.hourlyRate) : null,
-      loggedMinutes: a.timeEntries.reduce((sum, e) => sum + workedMinutes(e), 0),
-      timeCost: a.timeEntries.reduce(
+    s.personAssignments.map((a) => {
+      const loggedMinutes = a.timeEntries.reduce(
+        (sum, e) => sum + workedMinutes(e),
+        0
+      );
+      const timeCost = a.timeEntries.reduce(
         (sum, e) =>
           sum +
           timeEntryCost({
@@ -532,8 +519,41 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
           }),
         0
-      ),
-    }))
+      );
+      const plannedMinutes = effectivePlannedMinutes({
+        plannedStart: a.plannedStart,
+        plannedEnd: a.plannedEnd,
+        billingPeriod: a.billingPeriod,
+        projectPlanningStart: project.planningStart,
+        projectPlanningEnd: project.planningEnd,
+      });
+      const personHourlyWage =
+        a.person.hourlyWage !== null ? Number(a.person.hourlyWage) : null;
+      const eff = assignmentCost({
+        agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+        hourlyRate: a.hourlyRate !== null ? Number(a.hourlyRate) : null,
+        isMinijobber: a.person.employmentType === "MINIJOBBER",
+        personHourlyWage,
+        plannedMinutes,
+        loggedMinutes,
+        timeCost,
+      });
+      return {
+        id: a.id,
+        personName: a.person.name,
+        employmentType: a.person.employmentType,
+        serviceName: s.serviceItem.name,
+        agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+        hourlyRate: a.hourlyRate !== null ? Number(a.hourlyRate) : null,
+        personHourlyWage,
+        loggedMinutes,
+        timeCost,
+        plannedMinutes,
+        effMinutes: eff.minutes,
+        effCost: eff.cost,
+        effPlanned: eff.planned,
+      };
+    })
   );
   // Zeiten ohne Einsatz (z.B. nach Positions-Löschung oder Office-Erfassung).
   const orphanEntries = project.timeEntries.filter((e) => e.assignmentId === null);
@@ -550,6 +570,10 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       }),
     0
   );
+  // Personalkosten gesamt: pro Einsatz (Pauschale > Ist > geplant) + Zeiten
+  // ohne Einsatz. Fließt in Gewinnrechnung, Kosten-Tab und Forecast.
+  const personnelCost =
+    personnelEntries.reduce((s, e) => s + e.effCost, 0) + orphanTimeCost;
 
   const deviceCount = project.assignments.reduce(
     (s, a) => s + a.quantity,
@@ -786,6 +810,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             planningStart={project.planningStart.toISOString()}
             planningEnd={project.planningEnd.toISOString()}
             billingPeriods={project.billingPeriods.map((p) => ({
+              id: p.id,
               start: p.start.toISOString(),
               end: p.end.toISOString(),
               notes: p.notes,
@@ -907,6 +932,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                   (sum, e) => sum + workedMinutes(e),
                   0
                 ),
+                plannedMinutes: effectivePlannedMinutes({
+                  plannedStart: a.plannedStart,
+                  plannedEnd: a.plannedEnd,
+                  billingPeriod: a.billingPeriod,
+                  projectPlanningStart: project.planningStart,
+                  projectPlanningEnd: project.planningEnd,
+                }),
                 conflicts: assignmentConflicts[a.id] ?? [],
               })),
             }))}

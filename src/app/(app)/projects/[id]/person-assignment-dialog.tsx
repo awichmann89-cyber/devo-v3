@@ -75,6 +75,8 @@ export interface PersonAssignmentVM {
   notes: string | null;
   // Summe der erfassten Ist-Minuten (read-only Anzeige)
   loggedMinutes: number;
+  // Geplante Minuten aus dem effektiven Zeitfenster (0 = ganztägig/unbekannt)
+  plannedMinutes: number;
   // Überbuchungs-Konflikte (Projektnamen + Zeitfenster-Label)
   conflicts: string[];
 }

@@ -29,25 +29,47 @@ export function timeEntryCost(entry: {
   return (workedMinutes(entry) / 60) * entry.hourlyWageSnapshot;
 }
 
-/** Personalkosten eines Projekts aus Einsatzplan (Freelancer) + Ist-Zeiten (Minijobber). */
-export function personnelCostForProject(input: {
-  assignments: { agreedRate: number | null }[];
-  timeEntries: {
-    startMinute: number;
-    endMinute: number;
-    breakMinutes: number;
-    hourlyWageSnapshot: number | null;
-  }[];
-}): { freelancerCost: number; timeCost: number; total: number } {
-  const freelancerCost = input.assignments.reduce(
-    (sum, a) => sum + (a.agreedRate ?? 0),
-    0
-  );
-  const timeCost = input.timeEntries.reduce(
-    (sum, e) => sum + timeEntryCost(e),
-    0
-  );
-  return { freelancerCost, timeCost, total: freelancerCost + timeCost };
+export interface AssignmentCostInput {
+  /** Pauschale/Tagessatz (gesamt) — direkt kostenwirksam. */
+  agreedRate: number | null;
+  /** Stundensatz des Einsatzes (Freelancer nach Stunden). */
+  hourlyRate: number | null;
+  isMinijobber: boolean;
+  /** Stundenlohn aus dem Personalstamm (Minijobber). */
+  personHourlyWage: number | null;
+  /** Geplante Minuten aus dem effektiven Zeitfenster (0 = unbekannt). */
+  plannedMinutes: number;
+  /** Ist-Minuten aus erfassten Zeiten. */
+  loggedMinutes: number;
+  /** Ist-Kosten aus erfassten Zeiten (Stunden × Lohn-Snapshot). */
+  timeCost: number;
+}
+
+/**
+ * Kosten und Stunden eines Einsatzes:
+ * Pauschale > Ist-Zeiten > geplante Stunden × Satz (Vorschau, solange keine
+ * Zeiten erfasst sind). `planned` markiert die Plan-Vorschau.
+ */
+export function assignmentCost(a: AssignmentCostInput): {
+  minutes: number;
+  cost: number;
+  planned: boolean;
+} {
+  if (a.agreedRate != null) {
+    return { minutes: a.loggedMinutes, cost: a.agreedRate, planned: false };
+  }
+  if (a.loggedMinutes > 0) {
+    return { minutes: a.loggedMinutes, cost: a.timeCost, planned: false };
+  }
+  const rate = a.hourlyRate ?? (a.isMinijobber ? a.personHourlyWage : null);
+  if (rate != null && a.plannedMinutes > 0) {
+    return {
+      minutes: a.plannedMinutes,
+      cost: (a.plannedMinutes / 60) * rate,
+      planned: true,
+    };
+  }
+  return { minutes: 0, cost: 0, planned: false };
 }
 
 /** Minuten → "7:30"-Anzeige (für Stunden-Badges, Summen, Stundenzettel). */

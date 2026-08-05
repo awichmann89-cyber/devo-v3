@@ -117,6 +117,9 @@ export const customerSchema = z.object({
 
 export const billingPeriodSchema = z
   .object({
+    // Bestehende Zeiträume werden per id aktualisiert statt neu angelegt —
+    // sonst verlieren Personal-Einsätze und Gruppen ihre Zeitraum-Verknüpfung.
+    id: z.string().optional().nullable(),
     start: z.coerce.date(),
     end: z.coerce.date(),
     notes: z.string().max(200).optional().nullable(),
