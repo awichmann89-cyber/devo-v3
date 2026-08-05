@@ -79,12 +79,30 @@ export interface PersonAssignmentVM {
   conflicts: string[];
 }
 
-/** Anzeige-Label eines Berechnungszeitraums: "01.09.–03.09.2026 (Aufbau)". */
+/** Trägt der ISO-Zeitpunkt eine echte Uhrzeit (lokale Wanduhr ≠ 00:00)? */
+export function hasClockTimeIso(iso: string): boolean {
+  const d = new Date(iso);
+  return d.getHours() !== 0 || d.getMinutes() !== 0;
+}
+
+/**
+ * Anzeige-Label eines Berechnungszeitraums — inkl. Uhrzeiten, wenn der
+ * Zeitraum welche trägt: "08.08.2026, 10:00–23:00 Uhr (Veranstaltungstag 1)".
+ */
 export function periodLabel(p: { start: string; end: string; notes: string | null }): string {
-  const range =
-    formatDate(p.start) === formatDate(p.end)
-      ? formatDate(p.start)
+  const withTimes = hasClockTimeIso(p.start) || hasClockTimeIso(p.end);
+  const time = (iso: string) =>
+    new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  let range: string;
+  if (formatDate(p.start) === formatDate(p.end)) {
+    range = withTimes
+      ? `${formatDate(p.start)}, ${time(p.start)}–${time(p.end)} Uhr`
+      : formatDate(p.start);
+  } else {
+    range = withTimes
+      ? `${formatDate(p.start)} ${time(p.start)} – ${formatDate(p.end)} ${time(p.end)}`
       : `${formatDate(p.start)} – ${formatDate(p.end)}`;
+  }
   return p.notes ? `${range} (${p.notes})` : range;
 }
 
@@ -178,13 +196,15 @@ export function PersonAssignmentDialog({
     }
   }, [open, assignment, periods]);
 
-  // Uhrzeiten-Vorbelegung folgt dem gewählten Zeitraum (08:00–18:00).
+  // Uhrzeiten-Vorbelegung folgt dem gewählten Zeitraum: trägt er eigene
+  // Uhrzeiten, werden GENAU DIESE übernommen; sonst 08:00–18:00 als Default.
   useEffect(() => {
     if (!open || assignment?.plannedStart) return;
     const baseStart = selectedPeriod?.start ?? planningStartIso;
     const baseEnd = selectedPeriod?.end ?? planningEndIso;
-    setStart(dateWithTime(baseStart, "08:00"));
-    setEnd(dateWithTime(baseEnd, "18:00"));
+    const hasTimes = hasClockTimeIso(baseStart) || hasClockTimeIso(baseEnd);
+    setStart(hasTimes ? isoToLocalInput(baseStart) : dateWithTime(baseStart, "08:00"));
+    setEnd(hasTimes ? isoToLocalInput(baseEnd) : dateWithTime(baseEnd, "18:00"));
   }, [open, assignment, selectedPeriod, planningStartIso, planningEndIso]);
 
   // Beim Wechsel der Person: Freelancer-Sätze aus dem Stamm vorbelegen.
@@ -213,6 +233,10 @@ export function PersonAssignmentDialog({
       return { start: new Date(start), end: new Date(end) };
     }
     const base = selectedPeriod ?? { start: planningStartIso, end: planningEndIso };
+    // Zeitraum mit eigenen Uhrzeiten → exakt; sonst ganztägig (+1 Tag).
+    if (hasClockTimeIso(base.start) || hasClockTimeIso(base.end)) {
+      return { start: new Date(base.start), end: new Date(base.end) };
+    }
     return {
       start: new Date(base.start),
       end: new Date(new Date(base.end).getTime() + DAY_MS),
@@ -343,8 +367,9 @@ export function PersonAssignmentDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Ohne Uhrzeiten gilt der Einsatz ganztägig über den gewählten
-              Zeitraum.
+              Ohne eigene Uhrzeiten übernimmt der Einsatz die Zeiten des
+              gewählten Zeitraums — ganztägig nur, wenn der Zeitraum keine
+              Uhrzeiten trägt (00:00).
             </p>
           </div>
 

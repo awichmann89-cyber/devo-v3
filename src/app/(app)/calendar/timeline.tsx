@@ -2,6 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -9,12 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Boxes, ChevronLeft, ChevronRight, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { ProjectStatus } from "@prisma/client";
-import { projectStatusLabel } from "@/lib/labels";
+import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 
 interface ProjectVM {
   id: string;
@@ -24,6 +33,35 @@ interface ProjectVM {
   planningStart: string;
   planningEnd: string;
   deviceCount: number;
+}
+
+/** Eigener Einsatz des eingeloggten Nutzers — als Chip im Kalender-Grid. */
+export interface MyAssignmentVM {
+  id: string;
+  projectId: string;
+  projectName: string;
+  status: ProjectStatus;
+  serviceName: string;
+  start: string; // ISO
+  end: string; // ISO
+  timed: boolean;
+  notes: string | null;
+}
+
+/** Zeitfenster-Label eines Einsatzes für das Info-Popup. */
+function assignmentTimeLabel(a: MyAssignmentVM): string {
+  const s = new Date(a.start);
+  const e = new Date(a.end);
+  const time = (d: Date) =>
+    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (!a.timed) {
+    return formatDate(s) === formatDate(e)
+      ? `${formatDate(s)} (ganztägig)`
+      : `${formatDate(s)} – ${formatDate(e)} (ganztägig)`;
+  }
+  return s.toDateString() === e.toDateString()
+    ? `${formatDate(s)}, ${time(s)}–${time(e)} Uhr`
+    : `${formatDate(s)} ${time(s)} – ${formatDate(e)} ${time(e)}`;
 }
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -87,17 +125,26 @@ function isInRange(day: Date, startISO: string, endISO: string): boolean {
 export function Timeline({
   viewStart,
   projects,
+  myAssignments = [],
 }: {
   viewStart: string;
   /** kept for API compat — wird ignoriert, der MonthCalendar leitet alles aus viewStart ab */
   viewEnd?: string;
   projects: ProjectVM[];
+  /** Einsätze des eingeloggten Nutzers (verknüpfte Person) — eigene Chips. */
+  myAssignments?: MyAssignmentVM[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
   const start = useMemo(() => new Date(viewStart), [viewStart]);
 
   const [statusFilter, setStatusFilter] = useState<string>("active");
+  // Info-Popup: angeklickter Kalendereintrag (Projekt oder eigener Einsatz)
+  const [selected, setSelected] = useState<
+    | { kind: "project"; project: ProjectVM }
+    | { kind: "assignment"; assignment: MyAssignmentVM }
+    | null
+  >(null);
 
   const filtered = useMemo(
     () =>
@@ -186,9 +233,19 @@ export function Timeline({
           const projectsOnDay = filtered.filter((p) =>
             isInRange(day, p.planningStart, p.planningEnd)
           );
+          // Eigene Einsätze zuerst — sie sind die persönlich relevanteste Info.
+          const assignmentsOnDay = myAssignments.filter((a) =>
+            isInRange(day, a.start, a.end)
+          );
           const VISIBLE = 3;
-          const visible = projectsOnDay.slice(0, VISIBLE);
-          const overflow = projectsOnDay.length - VISIBLE;
+          const visibleAssignments = assignmentsOnDay.slice(0, VISIBLE);
+          const remaining = Math.max(0, VISIBLE - visibleAssignments.length);
+          const visibleProjects = projectsOnDay.slice(0, remaining);
+          const overflow =
+            assignmentsOnDay.length +
+            projectsOnDay.length -
+            visibleAssignments.length -
+            visibleProjects.length;
           return (
             <div
               key={day.toISOString()}
@@ -213,18 +270,31 @@ export function Timeline({
                 )}
               </div>
               <div className="flex flex-col gap-0.5">
-                {visible.map((p) => (
-                  <Link
+                {visibleAssignments.map((a) => (
+                  <button
+                    key={`assignment:${a.id}`}
+                    type="button"
+                    onClick={() => setSelected({ kind: "assignment", assignment: a })}
+                    title={`Mein Einsatz: ${a.projectName} — ${a.serviceName}`}
+                    className="flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium text-white shadow-sm bg-fuchsia-600 hover:bg-fuchsia-500"
+                  >
+                    <UserRound className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate">{a.projectName}</span>
+                  </button>
+                ))}
+                {visibleProjects.map((p) => (
+                  <button
                     key={p.id}
-                    href={`/projects/${p.id}`}
+                    type="button"
+                    onClick={() => setSelected({ kind: "project", project: p })}
                     title={`${p.name}${p.customer ? " · " + p.customer : ""} (${projectStatusLabel(p.status)})`}
                     className={cn(
-                      "truncate rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm transition-opacity",
+                      "truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium shadow-sm transition-opacity",
                       projectChipClass(p.status)
                     )}
                   >
                     {p.name}
-                  </Link>
+                  </button>
                 ))}
                 {overflow > 0 && (
                   <div className="px-1 text-[10px] text-muted-foreground">
@@ -244,7 +314,84 @@ export function Timeline({
         <LegendItem color="bg-info" label="Aktiv" />
         <LegendItem color="bg-faint" label="Abgeschlossen" />
         <LegendItem color="bg-destructive/60" label="Storniert" />
+        {myAssignments.length > 0 && (
+          <LegendItem color="bg-fuchsia-600" label="Meine Einsätze" />
+        )}
       </div>
+
+      {/* Info-Popup: gebündelte Infos + Button zum Projekt (wie im ICS-Kalender,
+          nur mit Absprung ins Projekt). */}
+      <Dialog open={selected !== null} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent className="max-w-md">
+          {selected?.kind === "project" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selected.project.name}</DialogTitle>
+                <DialogDescription>
+                  {selected.project.customer ?? "Ohne Kunde"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant={projectStatusVariant(selected.project.status)}>
+                    {projectStatusLabel(selected.project.status)}
+                  </Badge>
+                </div>
+                <p>
+                  <span className="text-muted-foreground">Planungszeitraum: </span>
+                  {formatDate(selected.project.planningStart)} –{" "}
+                  {formatDate(selected.project.planningEnd)}
+                </p>
+                <p className="flex items-center gap-1.5 text-muted-foreground">
+                  <Boxes className="h-4 w-4" />
+                  {selected.project.deviceCount} Geräte gebucht
+                </p>
+              </div>
+              <DialogFooter>
+                <Button asChild>
+                  <Link href={`/projects/${selected.project.id}`}>
+                    Zum Projekt <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+          {selected?.kind === "assignment" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <UserRound className="h-4 w-4" />
+                  Mein Einsatz — {selected.assignment.projectName}
+                </DialogTitle>
+                <DialogDescription>{selected.assignment.serviceName}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant={projectStatusVariant(selected.assignment.status)}>
+                    {projectStatusLabel(selected.assignment.status)}
+                  </Badge>
+                </div>
+                <p>
+                  <span className="text-muted-foreground">Zeit: </span>
+                  {assignmentTimeLabel(selected.assignment)}
+                </p>
+                {selected.assignment.notes && (
+                  <p className="text-muted-foreground">
+                    📝 {selected.assignment.notes}
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button asChild>
+                  <Link href={`/projects/${selected.assignment.projectId}`}>
+                    Zum Projekt <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

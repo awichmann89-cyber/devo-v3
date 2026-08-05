@@ -248,12 +248,25 @@ export function AssignmentsSection({
   // Tagesfaktor/-tage einer Gruppe — Fallback auf die globalen Werte.
   const factorFor = (groupId: string) => groupFactors[groupId] ?? billingFactor;
   const daysFor = (groupId: string) => groupDays[groupId] ?? billingDays;
-  /** Label eines Berechnungszeitraums für die Gruppen-Zeitraum-Auswahl. */
+  /** Label eines Berechnungszeitraums für die Gruppen-Zeitraum-Auswahl —
+   *  inkl. Uhrzeiten, wenn der Zeitraum welche trägt. */
   function periodLabel(p: { start: string; end: string; notes: string | null }): string {
-    const range =
-      formatDate(p.start) === formatDate(p.end)
-        ? formatDate(p.start)
+    const time = (iso: string) =>
+      new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const hasTimes = [p.start, p.end].some((iso) => {
+      const d = new Date(iso);
+      return d.getHours() !== 0 || d.getMinutes() !== 0;
+    });
+    let range: string;
+    if (formatDate(p.start) === formatDate(p.end)) {
+      range = hasTimes
+        ? `${formatDate(p.start)}, ${time(p.start)}–${time(p.end)} Uhr`
+        : formatDate(p.start);
+    } else {
+      range = hasTimes
+        ? `${formatDate(p.start)} ${time(p.start)} – ${formatDate(p.end)} ${time(p.end)}`
         : `${formatDate(p.start)} – ${formatDate(p.end)}`;
+    }
     return p.notes ? `${range} (${p.notes})` : range;
   }
 

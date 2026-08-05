@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -7,14 +6,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CalendarClock } from "lucide-react";
 import { Timeline } from "./timeline";
 import { CalendarFeedForm } from "./calendar-feed-form";
 import { getOrCreateCalendarToken } from "@/lib/settings";
 import { auth } from "@/auth";
-import { formatDate, formatDateTime } from "@/lib/utils";
-import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
+import { hasClockTime } from "@/lib/personnel-schedule";
 
 export default async function CalendarPage(props: { searchParams: Promise<{ month?: string }> }) {
   const sp = await props.searchParams;
@@ -94,22 +90,23 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
         },
       })
     : [];
-  // Nur anstehende Einsätze, nach effektivem Start sortiert. Fallback-Kette:
+  // Eigene Einsätze als Kalender-Chips. Fallback-Kette:
   // Uhrzeiten → gewählter Berechnungszeitraum → Planungszeitraum.
-  const upcoming = myAssignments
-    .map((a) => ({
-      id: a.id,
-      projectId: a.project.id,
-      projectName: a.project.name,
-      status: a.project.status,
-      serviceName: a.projectService.serviceItem.name,
-      start: a.plannedStart ?? a.billingPeriod?.start ?? a.project.planningStart,
-      end: a.plannedEnd ?? a.billingPeriod?.end ?? a.project.planningEnd,
-      timed: a.plannedStart !== null,
-      notes: a.notes,
-    }))
-    .filter((a) => a.end >= now)
-    .sort((a, b) => +a.start - +b.start);
+  const myAssignmentChips = myAssignments.map((a) => ({
+    id: a.id,
+    projectId: a.project.id,
+    projectName: a.project.name,
+    status: a.project.status,
+    serviceName: a.projectService.serviceItem.name,
+    start: (a.plannedStart ?? a.billingPeriod?.start ?? a.project.planningStart).toISOString(),
+    end: (a.plannedEnd ?? a.billingPeriod?.end ?? a.project.planningEnd).toISOString(),
+    // Zeitgenau auch, wenn der zugrunde liegende Zeitraum Uhrzeiten trägt.
+    timed:
+      a.plannedStart !== null ||
+      hasClockTime(a.billingPeriod?.start ?? a.project.planningStart) ||
+      hasClockTime(a.billingPeriod?.end ?? a.project.planningEnd),
+    notes: a.notes,
+  }));
 
   return (
     <div className="space-y-6">
@@ -127,60 +124,10 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
               planningEnd: p.planningEnd.toISOString(),
               deviceCount: p._count.assignments,
             }))}
+            myAssignments={myAssignmentChips}
           />
         </CardContent>
       </Card>
-
-      {linkedPerson && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarClock className="h-4 w-4" /> Meine Einsätze
-            </CardTitle>
-            <CardDescription>
-              Anstehende Einsätze von {linkedPerson.name} — geplant wird im
-              Projekt (Tab Personal &amp; Transport).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {upcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Keine anstehenden Einsätze.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {upcoming.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
-                  >
-                    <span className="font-medium text-foreground">
-                      {a.timed
-                        ? `${formatDateTime(a.start)} – ${formatDateTime(a.end)}`
-                        : `${formatDate(a.start)} – ${formatDate(a.end)} (ganztägig)`}
-                    </span>
-                    <Link
-                      href={`/projects/${a.projectId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {a.projectName}
-                    </Link>
-                    <span className="text-muted-foreground">{a.serviceName}</span>
-                    <Badge variant={projectStatusVariant(a.status)}>
-                      {projectStatusLabel(a.status)}
-                    </Badge>
-                    {a.notes && (
-                      <span className="text-xs text-muted-foreground">
-                        📝 {a.notes}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>

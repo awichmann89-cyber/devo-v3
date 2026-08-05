@@ -75,10 +75,28 @@ function effectiveRange(a: AssignmentVM): { start: Date; end: Date } {
   };
 }
 
+/** Trägt der ISO-Zeitpunkt eine echte Uhrzeit (lokale Wanduhr ≠ 00:00)? */
+function hasClockTimeIso(iso: string): boolean {
+  const d = new Date(iso);
+  return d.getHours() !== 0 || d.getMinutes() !== 0;
+}
+
 function timeLabel(a: AssignmentVM): string {
+  const time = (d: Date) =>
+    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   if (!a.plannedStart || !a.plannedEnd) {
     const start = a.periodStart ?? a.planningStart;
     const end = a.periodEnd ?? a.planningEnd;
+    // Zeitraum mit eigenen Uhrzeiten → diese anzeigen, sonst ganztägig.
+    if (hasClockTimeIso(start) || hasClockTimeIso(end)) {
+      const s = new Date(start);
+      const e = new Date(end);
+      const range =
+        s.toDateString() === e.toDateString()
+          ? `${formatDate(s)}, ${time(s)}–${time(e)} Uhr`
+          : `${formatDate(s)} ${time(s)} – ${formatDate(e)} ${time(e)}`;
+      return a.periodNotes ? `${range} (${a.periodNotes})` : range;
+    }
     const range =
       formatDate(start) === formatDate(end)
         ? formatDate(start)
@@ -88,8 +106,6 @@ function timeLabel(a: AssignmentVM): string {
   }
   const s = new Date(a.plannedStart);
   const e = new Date(a.plannedEnd);
-  const time = (d: Date) =>
-    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   if (s.toDateString() === e.toDateString()) {
     return `${formatDate(s)}, ${time(s)}–${time(e)} Uhr`;
   }
@@ -261,15 +277,23 @@ export function EinsatzClient({
       : "";
 
   function defaultForm(a: AssignmentVM): FormState {
-    const start = new Date(a.plannedStart ?? a.periodStart ?? a.planningStart);
+    const startIso = a.plannedStart ?? a.periodStart ?? a.planningStart;
+    const endIso = a.plannedEnd ?? a.periodEnd ?? a.planningEnd;
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    // Uhrzeiten aus Einsatz bzw. Zeitraum übernehmen; sonst 08:00–18:00.
+    const hasTimes =
+      a.plannedStart != null || hasClockTimeIso(startIso) || hasClockTimeIso(endIso);
     const pad = (n: number) => String(n).padStart(2, "0");
     return {
       entryId: null,
       workDate: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
-      start: a.plannedStart
+      start: hasTimes
         ? minutesToClock(start.getHours() * 60 + start.getMinutes())
         : "08:00",
-      end: "18:00",
+      end: hasTimes
+        ? minutesToClock(end.getHours() * 60 + end.getMinutes())
+        : "18:00",
       breakMinutes: "0",
       notes: "",
     };

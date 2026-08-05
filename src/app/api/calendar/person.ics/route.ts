@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildIcs, IcsEvent } from "@/lib/ics";
 import { projectStatusEmoji } from "@/lib/labels";
 import { buildAssignmentCalendarDescription } from "@/lib/calendar-description";
+import { hasClockTime } from "@/lib/personnel-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -80,23 +81,34 @@ export async function GET(req: Request) {
   });
 
   const events: IcsEvent[] = assignments.map((a) => {
-    const timed = a.plannedStart !== null && a.plannedEnd !== null;
     const serviceName = a.projectService.serviceItem.name;
-    // Ganztägig-Basis: gewählter Berechnungszeitraum, sonst Planungszeitraum.
-    const allDay = a.billingPeriod ?? {
+    // Fallback-Kette: Uhrzeiten → Zeitraum (inkl. dessen Uhrzeiten) →
+    // Planungszeitraum. Nur 00:00-Zeiträume werden ganztägig ausgegeben.
+    const base = a.billingPeriod ?? {
       start: a.project.planningStart,
       end: a.project.planningEnd,
     };
+    const timed =
+      (a.plannedStart !== null && a.plannedEnd !== null) ||
+      hasClockTime(base.start) ||
+      hasClockTime(base.end);
+    const start = a.plannedStart ?? base.start;
+    const end = a.plannedEnd ?? base.end;
     return {
       uid: `person-assignment-${a.id}@cratel`,
-      start: timed ? a.plannedStart! : allDay.start,
-      end: timed ? a.plannedEnd! : allDay.end,
+      start,
+      end,
       timed,
       summary: `${projectStatusEmoji(a.project.status)} ${a.project.name} — ${serviceName}`,
       description: buildAssignmentCalendarDescription({
         customerName: a.project.customer?.name,
         serviceName,
-        timeLabel: timeLabel(a.plannedStart, a.plannedEnd, allDay.start, allDay.end),
+        timeLabel: timeLabel(
+          timed ? start : null,
+          timed ? end : null,
+          base.start,
+          base.end
+        ),
         notes: a.notes,
       }),
     };

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, CalendarClock, Receipt, UserRound } from "lucide-react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { employmentTypeLabel, employmentTypeVariant } from "@/lib/labels";
+import { hasClockTime } from "@/lib/personnel-schedule";
 import { PersonLinksCard } from "./person-links-card";
 import { PersonEditButton } from "./person-edit-button";
 import { TimeEntriesSection } from "./time-entries-section";
@@ -99,7 +100,11 @@ export default async function PersonDetailPage(props: {
       // Fallback-Kette: Uhrzeiten → Berechnungszeitraum → Planungszeitraum
       start: a.plannedStart ?? a.billingPeriod?.start ?? a.project.planningStart,
       end: a.plannedEnd ?? a.billingPeriod?.end ?? a.project.planningEnd,
-      timed: a.plannedStart !== null,
+      // Zeitgenau auch, wenn der zugrunde liegende Zeitraum Uhrzeiten trägt.
+      timed:
+        a.plannedStart !== null ||
+        hasClockTime(a.billingPeriod?.start ?? a.project.planningStart) ||
+        hasClockTime(a.billingPeriod?.end ?? a.project.planningEnd),
       agreedRate: a.agreedRate != null ? Number(a.agreedRate) : null,
       invoiceReceived: a.invoiceReceived,
       notes: a.notes,
