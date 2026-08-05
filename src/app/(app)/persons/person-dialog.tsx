@@ -186,20 +186,34 @@ export function PersonDialog({ open, onOpenChange, person, users }: Props) {
           )}
 
           {employmentType === "FREELANCER" && (
-            <div className="space-y-2">
-              <Label htmlFor="p-dayrate">Standard-Tagessatz (€)</Label>
-              <Input
-                id="p-dayrate"
-                type="number"
-                step="0.01"
-                min="0"
-                value={defaultDayRate}
-                onChange={(e) => setDefaultDayRate(e.target.value)}
-                placeholder="z.B. 450,00"
-              />
-              <p className="text-xs text-muted-foreground">
-                Vorbelegung für den vereinbarten Satz beim Einplanen — pro
-                Einsatz anpassbar.
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="p-dayrate">Standard-Tagessatz (€)</Label>
+                <Input
+                  id="p-dayrate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={defaultDayRate}
+                  onChange={(e) => setDefaultDayRate(e.target.value)}
+                  placeholder="z.B. 450,00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-hourrate">Standard-Stundensatz (€)</Label>
+                <Input
+                  id="p-hourrate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={hourlyWage}
+                  onChange={(e) => setHourlyWage(e.target.value)}
+                  placeholder="z.B. 45,00"
+                />
+              </div>
+              <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
+                Vorbelegung für die Vergütung beim Einplanen (Tagessatz/Pauschale
+                oder nach Stunden) — pro Einsatz anpassbar.
               </p>
             </div>
           )}

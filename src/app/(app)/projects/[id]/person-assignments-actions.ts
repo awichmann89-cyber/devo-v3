@@ -50,11 +50,16 @@ export async function addPersonAssignment(projectServiceId: string, input: unkno
     data.billingPeriodId
   );
 
-  // Vereinbarter Satz ist ein Freelancer-Konzept — für alle anderen Arten
+  // Vergütung ist ein Freelancer-Konzept — für alle anderen Arten
   // serverseitig verwerfen, damit keine versehentlichen Kosten entstehen.
+  const isFreelancer = person.employmentType === "FREELANCER";
   const agreedRate =
-    person.employmentType === "FREELANCER" && data.agreedRate != null
+    isFreelancer && data.agreedRate != null
       ? new Prisma.Decimal(data.agreedRate)
+      : null;
+  const hourlyRate =
+    isFreelancer && data.hourlyRate != null
+      ? new Prisma.Decimal(data.hourlyRate)
       : null;
 
   await prisma.personAssignment.create({
@@ -66,6 +71,7 @@ export async function addPersonAssignment(projectServiceId: string, input: unkno
       plannedStart: data.plannedStart ?? null,
       plannedEnd: data.plannedEnd ?? null,
       agreedRate,
+      hourlyRate,
       notes: data.notes || null,
     },
     select: { id: true },
@@ -98,6 +104,7 @@ export async function updatePersonAssignment(id: string, input: unknown) {
     data.billingPeriodId
   );
 
+  const isFreelancer = person?.employmentType === "FREELANCER";
   await prisma.personAssignment.update({
     where: { id },
     data: {
@@ -105,8 +112,12 @@ export async function updatePersonAssignment(id: string, input: unknown) {
       plannedStart: data.plannedStart ?? null,
       plannedEnd: data.plannedEnd ?? null,
       agreedRate:
-        person?.employmentType === "FREELANCER" && data.agreedRate != null
+        isFreelancer && data.agreedRate != null
           ? new Prisma.Decimal(data.agreedRate)
+          : null,
+      hourlyRate:
+        isFreelancer && data.hourlyRate != null
+          ? new Prisma.Decimal(data.hourlyRate)
           : null,
       notes: data.notes || null,
     },
@@ -115,8 +126,16 @@ export async function updatePersonAssignment(id: string, input: unknown) {
   revalidateAssignment(existing.projectId, person?.personalToken ?? null);
 }
 
-/** Nur der vereinbarte Satz (Inline-Input in der Tabelle, Freelancer). */
-export async function updateAssignmentAgreedRate(id: string, agreedRate: number | null) {
+/**
+ * Nur der Satz (Inline-Input in der Tabelle, Freelancer). Je nach
+ * Vergütungsart des Einsatzes wird Pauschale ODER Stundensatz gesetzt —
+ * das jeweils andere Feld wird geleert (genau eines darf gesetzt sein).
+ */
+export async function updateAssignmentRate(
+  id: string,
+  rate: number | null,
+  kind: "agreed" | "hourly"
+) {
   await requireRole(CAN_WRITE);
   const existing = await prisma.personAssignment.findUnique({
     where: { id },
@@ -126,11 +145,13 @@ export async function updateAssignmentAgreedRate(id: string, agreedRate: number 
   if (existing.person.employmentType !== "FREELANCER") {
     throw new Error("Satz nur bei Freelancern");
   }
+  const value = rate == null ? null : new Prisma.Decimal(rate);
   await prisma.personAssignment.update({
     where: { id },
-    data: {
-      agreedRate: agreedRate == null ? null : new Prisma.Decimal(agreedRate),
-    },
+    data:
+      kind === "agreed"
+        ? { agreedRate: value, hourlyRate: null }
+        : { hourlyRate: value, agreedRate: null },
     select: { id: true },
   });
   revalidatePath(`/projects/${existing.projectId}`);

@@ -115,12 +115,32 @@ export async function updateProjectGroup(
     await validatePeriodIds(existing.projectId, input.billingPeriodIds);
     data.billingPeriods = { set: input.billingPeriodIds.map((pid) => ({ id: pid })) };
   }
-  await prisma.projectGroup.update({
+  const updated = await prisma.projectGroup.update({
     where: { id },
     data,
-    select: { id: true },
+    select: { id: true, kind: true },
   });
+
+  // SERVICE-Gruppen: bestehende Einsätze übernehmen die neue Zeitraum-Auswahl.
+  // Einsätze, deren Zeitraum nicht (mehr) zur Auswahl gehört, wandern auf den
+  // ersten gewählten Zeitraum. Explizite Uhrzeiten (Call-Times) bleiben
+  // unangetastet — nur die ganztägige Basis wird umgestellt.
+  if (
+    input.billingPeriodIds !== undefined &&
+    input.billingPeriodIds.length > 0 &&
+    updated.kind === "SERVICE"
+  ) {
+    const ids = input.billingPeriodIds;
+    await prisma.personAssignment.updateMany({
+      where: {
+        projectService: { groupId: id },
+        OR: [{ billingPeriodId: null }, { billingPeriodId: { notIn: ids } }],
+      },
+      data: { billingPeriodId: ids[0] },
+    });
+  }
   revalidatePath(`/projects/${existing.projectId}`);
+  revalidatePath("/calendar");
 }
 
 // Beibehalten für Rückwärtskompatibilität — leitet nur an updateProjectGroup weiter.

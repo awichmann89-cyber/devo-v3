@@ -70,6 +70,7 @@ export interface PersonAssignmentVM {
   plannedStart: string | null; // ISO
   plannedEnd: string | null; // ISO
   agreedRate: number | null;
+  hourlyRate: number | null;
   invoiceReceived: boolean;
   notes: string | null;
   // Summe der erfassten Ist-Minuten (read-only Anzeige)
@@ -141,7 +142,10 @@ export function PersonAssignmentDialog({
   const [withTimes, setWithTimes] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  // Vergütungsart (Freelancer): Pauschale/Tagessatz gesamt ODER nach Stunden
+  const [payKind, setPayKind] = useState<"agreed" | "hourly">("agreed");
   const [agreedRate, setAgreedRate] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -161,7 +165,9 @@ export function PersonAssignmentDialog({
     // Default beim Anlegen: erster Zeitraum der Gruppe/des Projekts.
     setBillingPeriodId(assignment ? (assignment.billingPeriodId ?? "") : (periods[0]?.id ?? ""));
     setWithTimes(assignment?.plannedStart != null);
+    setPayKind(assignment?.hourlyRate != null ? "hourly" : "agreed");
     setAgreedRate(assignment?.agreedRate != null ? String(assignment.agreedRate) : "");
+    setHourlyRate(assignment?.hourlyRate != null ? String(assignment.hourlyRate) : "");
     setNotes(assignment?.notes ?? "");
     if (assignment?.plannedStart && assignment.plannedEnd) {
       setStart(isoToLocalInput(assignment.plannedStart));
@@ -181,14 +187,16 @@ export function PersonAssignmentDialog({
     setEnd(dateWithTime(baseEnd, "18:00"));
   }, [open, assignment, selectedPeriod, planningStartIso, planningEndIso]);
 
-  // Beim Wechsel der Person: Freelancer-Satz mit Standard-Tagessatz vorbelegen.
+  // Beim Wechsel der Person: Freelancer-Sätze aus dem Stamm vorbelegen.
   function handlePersonChange(id: string) {
     setPersonId(id);
     const person = persons.find((p) => p.id === id);
     if (person?.employmentType === "FREELANCER") {
       setAgreedRate(person.defaultDayRate != null ? String(person.defaultDayRate) : "");
+      setHourlyRate(person.hourlyWage != null ? String(person.hourlyWage) : "");
     } else {
       setAgreedRate("");
+      setHourlyRate("");
     }
   }
 
@@ -244,8 +252,12 @@ export function PersonAssignmentDialog({
       plannedStart: withTimes ? localInputToIso(start) : null,
       plannedEnd: withTimes ? localInputToIso(end) : null,
       agreedRate:
-        employmentType === "FREELANCER" && agreedRate !== ""
+        employmentType === "FREELANCER" && payKind === "agreed" && agreedRate !== ""
           ? Number(agreedRate)
+          : null,
+      hourlyRate:
+        employmentType === "FREELANCER" && payKind === "hourly" && hourlyRate !== ""
+          ? Number(hourlyRate)
           : null,
       notes: notes || null,
     };
@@ -395,18 +407,44 @@ export function PersonAssignmentDialog({
 
           {employmentType === "FREELANCER" && (
             <div className="space-y-2">
-              <Label htmlFor="pa-rate">Vereinbarter Satz (€, gesamt)</Label>
-              <Input
-                id="pa-rate"
-                type="number"
-                step="0.01"
-                min="0"
-                value={agreedRate}
-                onChange={(e) => setAgreedRate(e.target.value)}
-                placeholder="z.B. 450,00"
-              />
+              <Label>Vergütung</Label>
+              <div className="grid grid-cols-[180px_1fr] gap-2">
+                <Select
+                  value={payKind}
+                  onValueChange={(v) => setPayKind(v as "agreed" | "hourly")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agreed">Tagessatz / Pauschale</SelectItem>
+                    <SelectItem value="hourly">Nach Stunden</SelectItem>
+                  </SelectContent>
+                </Select>
+                {payKind === "agreed" ? (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={agreedRate}
+                    onChange={(e) => setAgreedRate(e.target.value)}
+                    placeholder="€ gesamt, z.B. 450,00"
+                  />
+                ) : (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={hourlyRate}
+                    onChange={(e) => setHourlyRate(e.target.value)}
+                    placeholder="€ pro Stunde, z.B. 45,00"
+                  />
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Zählt automatisch als Projektkosten in der Gewinnrechnung.
+                {payKind === "agreed"
+                  ? "Pauschale zählt direkt als Projektkosten in der Gewinnrechnung."
+                  : "Kosten = erfasste Stunden × Satz — die Person trägt ihre Zeiten über den persönlichen Link nach."}
               </p>
             </div>
           )}

@@ -827,10 +827,14 @@ model PersonAssignment {
   // Berechnungszeitraum bzw. den Projekt-Planungszeitraum (so auch im Feed).
   plannedStart     DateTime?
   plannedEnd       DateTime?
-  // Freelancer: vereinbarter Gesamtsatz für DIESEN Einsatz (netto).
-  // Snapshot beim Buchen (Vorbefüllung aus Person.defaultDayRate) —
-  // zählt automatisch als Projektkosten. Null bei allen anderen Arten.
+  // Freelancer-Vergütung für DIESEN Einsatz (netto) — genau EINES von beiden:
+  // agreedRate = Pauschale/Tagessatz (gesamt), zählt direkt als Projektkosten.
+  // hourlyRate = Stundensatz; erfasste Zeiten dieses Einsatzes bekommen ihn
+  //              als hourlyWageSnapshot → Kosten = Stunden × Satz.
+  // Snapshot beim Buchen (Vorbefüllung aus dem Personalstamm) —
+  // null bei allen anderen Beschäftigungsarten.
   agreedRate       Decimal?       @db.Decimal(10, 2)
+  hourlyRate       Decimal?       @db.Decimal(10, 2)
   // Freelancer: Rechnung für diesen Einsatz eingegangen.
   invoiceReceived  Boolean        @default(false)
   notes            String?

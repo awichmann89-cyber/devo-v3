@@ -42,9 +42,15 @@ import {
   Package,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { ExtraCostKind } from "@prisma/client";
+import type { EmploymentType, ExtraCostKind } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
-import { extraCostKindLabel } from "@/lib/labels";
+import {
+  employmentTypeLabel,
+  employmentTypeVariant,
+  extraCostKindLabel,
+} from "@/lib/labels";
+import { formatMinutes } from "@/lib/personnel-costs";
+import { Badge } from "@/components/ui/badge";
 import {
   GroupHeaderRow,
   NoteRowCells,
@@ -154,6 +160,24 @@ interface Props {
   groupComments: CostGroupCommentVM[];
   /** Personalkosten aus dem Einsatzplan (read-only, Pflege im Personal-Tab). */
   personnelCost: number;
+  /** Einsatzplan-Zeilen (read-only): pro Einsatz Person, Position, Vergütung. */
+  personnelEntries: PersonnelEntryVM[];
+  /** Erfasste Zeiten ohne Einsatz (z.B. nach Positions-Löschung). */
+  orphanTime: { minutes: number; cost: number };
+}
+
+export interface PersonnelEntryVM {
+  id: string;
+  personName: string;
+  employmentType: EmploymentType;
+  serviceName: string;
+  /** Pauschale/Tagessatz (gesamt) — direkt kostenwirksam. */
+  agreedRate: number | null;
+  /** Stundensatz — Kosten entstehen über erfasste Zeiten. */
+  hourlyRate: number | null;
+  loggedMinutes: number;
+  /** Ist-Kosten aus erfassten Zeiten (Stunden × Lohn-Snapshot). */
+  timeCost: number;
 }
 
 type ExtraDialogState = {
@@ -183,6 +207,8 @@ export function CostsSection({
   extraGroups,
   groupComments,
   personnelCost,
+  personnelEntries,
+  orphanTime,
 }: Props) {
   const [pending, startTransition] = useTransition();
 
@@ -263,7 +289,9 @@ export function CostsSection({
     subhireGroups.length === 0 &&
     extraGroups.length === 0 &&
     subhires.length === 0 &&
-    extraCosts.length === 0;
+    extraCosts.length === 0 &&
+    personnelEntries.length === 0 &&
+    orphanTime.minutes === 0;
 
   // ----- DnD -----
   const sensors = useSensors(
@@ -929,6 +957,73 @@ export function CostsSection({
                     {renderUngroupedHeader("__ungrouped_extras__")}
                     {ungroupedExtras.map((c) =>
                       renderExtraRow(c, `EXTRA:${c.id}`, false)
+                    )}
+                  </TableBody>
+                )}
+
+                {/* Personal (Einsatzplan) — read-only, Pflege im Personal-Tab. */}
+                {(personnelEntries.length > 0 || orphanTime.minutes > 0) && (
+                  <TableBody>
+                    <TableRow className="bg-muted/40 hover:bg-muted/50">
+                      <TableCell colSpan={COL_SPAN_ALL} className="py-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                          Personal (Einsatzplan)
+                          <InfoHint text="Automatisch aus dem Einsatzplan (Tab Personal & Transport): Freelancer-Pauschalen direkt, Stunden-Vergütungen über die erfassten Zeiten. Hier nicht doppelt als Extrakosten erfassen." />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {personnelEntries.map((p) => {
+                      const cost = (p.agreedRate ?? 0) + p.timeCost;
+                      return (
+                        <TableRow key={`personnel:${p.id}`}>
+                          <TableCell />
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{p.personName}</span>
+                              <Badge variant={employmentTypeVariant(p.employmentType)}>
+                                {employmentTypeLabel(p.employmentType)}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {p.serviceName}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                            {p.loggedMinutes > 0
+                              ? `${formatMinutes(p.loggedMinutes)} h`
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                            {p.agreedRate !== null
+                              ? `${formatCurrency(p.agreedRate)} pausch.`
+                              : p.hourlyRate !== null
+                                ? `${formatCurrency(p.hourlyRate)}/h`
+                                : p.timeCost > 0
+                                  ? "Lohn"
+                                  : "—"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                            {cost > 0 ? formatCurrency(cost) : "—"}
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      );
+                    })}
+                    {orphanTime.minutes > 0 && (
+                      <TableRow>
+                        <TableCell />
+                        <TableCell className="text-sm text-muted-foreground">
+                          Weitere erfasste Zeiten (ohne Einsatz)
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                          {formatMinutes(orphanTime.minutes)} h
+                        </TableCell>
+                        <TableCell />
+                        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                          {orphanTime.cost > 0 ? formatCurrency(orphanTime.cost) : "—"}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
                     )}
                   </TableBody>
                 )}

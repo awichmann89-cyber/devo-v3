@@ -26,7 +26,7 @@ import { DeleteProjectButton } from "./delete-button";
 import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { buildPackList } from "@/lib/packlist";
-import { personnelCostForProject, workedMinutes } from "@/lib/personnel-costs";
+import { personnelCostForProject, timeEntryCost, workedMinutes } from "@/lib/personnel-costs";
 import { assignmentEffectiveRange, rangesOverlap } from "@/lib/personnel-schedule";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
@@ -60,7 +60,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                   select: { id: true, start: true, end: true, notes: true },
                 },
                 timeEntries: {
-                  select: { startMinute: true, endMinute: true, breakMinutes: true },
+                  select: {
+                    startMinute: true,
+                    endMinute: true,
+                    breakMinutes: true,
+                    hourlyWageSnapshot: true,
+                  },
                 },
               },
               orderBy: { createdAt: "asc" },
@@ -71,6 +76,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         // Ist-Arbeitszeiten (für Personalkosten in der Gewinnrechnung)
         timeEntries: {
           select: {
+            assignmentId: true,
             startMinute: true,
             endMinute: true,
             breakMinutes: true,
@@ -488,7 +494,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     }
   }
 
-  // Personalkosten aus dem Einsatzplan: Freelancer-Sätze + Minijobber-Stunden.
+  // Personalkosten aus dem Einsatzplan: Freelancer-Sätze + erfasste Stunden.
   const personnelCost = personnelCostForProject({
     assignments: project.services.flatMap((s) =>
       s.personAssignments.map((a) => ({
@@ -503,6 +509,47 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
     })),
   }).total;
+
+  // Einsatzplan-Zeilen für den Kosten-Tab (read-only Anzeige):
+  // pro Einsatz Person, Position, Vergütung und Ist-Kosten aus Zeiten.
+  const personnelEntries = project.services.flatMap((s) =>
+    s.personAssignments.map((a) => ({
+      id: a.id,
+      personName: a.person.name,
+      employmentType: a.person.employmentType,
+      serviceName: s.serviceItem.name,
+      agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+      hourlyRate: a.hourlyRate !== null ? Number(a.hourlyRate) : null,
+      loggedMinutes: a.timeEntries.reduce((sum, e) => sum + workedMinutes(e), 0),
+      timeCost: a.timeEntries.reduce(
+        (sum, e) =>
+          sum +
+          timeEntryCost({
+            startMinute: e.startMinute,
+            endMinute: e.endMinute,
+            breakMinutes: e.breakMinutes,
+            hourlyWageSnapshot:
+              e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
+          }),
+        0
+      ),
+    }))
+  );
+  // Zeiten ohne Einsatz (z.B. nach Positions-Löschung oder Office-Erfassung).
+  const orphanEntries = project.timeEntries.filter((e) => e.assignmentId === null);
+  const orphanMinutes = orphanEntries.reduce((s, e) => s + workedMinutes(e), 0);
+  const orphanTimeCost = orphanEntries.reduce(
+    (s, e) =>
+      s +
+      timeEntryCost({
+        startMinute: e.startMinute,
+        endMinute: e.endMinute,
+        breakMinutes: e.breakMinutes,
+        hourlyWageSnapshot:
+          e.hourlyWageSnapshot !== null ? Number(e.hourlyWageSnapshot) : null,
+      }),
+    0
+  );
 
   const deviceCount = project.assignments.reduce(
     (s, a) => s + a.quantity,
@@ -853,6 +900,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 plannedStart: a.plannedStart?.toISOString() ?? null,
                 plannedEnd: a.plannedEnd?.toISOString() ?? null,
                 agreedRate: a.agreedRate !== null ? Number(a.agreedRate) : null,
+                hourlyRate: a.hourlyRate !== null ? Number(a.hourlyRate) : null,
                 invoiceReceived: a.invoiceReceived,
                 notes: a.notes,
                 loggedMinutes: a.timeEntries.reduce(
@@ -937,6 +985,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               sortOrder: c.sortOrder,
             }))}
             personnelCost={personnelCost}
+            personnelEntries={personnelEntries}
+            orphanTime={{ minutes: orphanMinutes, cost: orphanTimeCost }}
           />
         </TabsContent>
 

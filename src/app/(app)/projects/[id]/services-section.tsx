@@ -105,7 +105,7 @@ import {
 import {
   removePersonAssignment,
   setAssignmentInvoiceReceived,
-  updateAssignmentAgreedRate,
+  updateAssignmentRate,
 } from "./person-assignments-actions";
 import {
   PersonAssignmentDialog,
@@ -476,13 +476,17 @@ export function ServicesSection({
   }
 
   // ----- Einsatzplan (Personen an Positionen) -----
-  function handleAssignmentRate(a: PersonAssignmentVM, value: string) {
+  function handleAssignmentRate(
+    a: PersonAssignmentVM,
+    value: string,
+    kind: "agreed" | "hourly"
+  ) {
     const trimmed = value.trim();
     const newVal = trimmed === "" ? null : Number(trimmed);
     if (newVal !== null && (!isFinite(newVal) || newVal < 0)) return;
     startTransition(async () => {
       try {
-        await updateAssignmentAgreedRate(a.id, newVal);
+        await updateAssignmentRate(a.id, newVal, kind);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fehler");
       }
@@ -648,26 +652,47 @@ export function ServicesSection({
         </TableCell>
         <TableCell className="text-right">
           {isFreelancer ? (
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Satz"
-              defaultValue={a.agreedRate === null ? "" : String(a.agreedRate)}
-              onBlur={(e) => {
-                const raw = e.target.value;
-                const newVal = raw.trim() === "" ? null : Number(raw);
-                if (newVal !== a.agreedRate) handleAssignmentRate(a, raw);
-              }}
-              className="h-7 w-24 ml-auto text-right font-mono"
-              title="Vereinbarter Satz (€, gesamt) — zählt als Projektkosten"
-            />
+            <div className="flex items-center justify-end gap-1">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Satz"
+                defaultValue={
+                  a.hourlyRate !== null
+                    ? String(a.hourlyRate)
+                    : a.agreedRate !== null
+                      ? String(a.agreedRate)
+                      : ""
+                }
+                onBlur={(e) => {
+                  const raw = e.target.value;
+                  const kind = a.hourlyRate !== null ? "hourly" : "agreed";
+                  const current = a.hourlyRate ?? a.agreedRate;
+                  const newVal = raw.trim() === "" ? null : Number(raw);
+                  if (newVal !== current) handleAssignmentRate(a, raw, kind);
+                }}
+                className="h-7 w-24 text-right font-mono"
+                title={
+                  a.hourlyRate !== null
+                    ? "Stundensatz (€/h) — Kosten = erfasste Stunden × Satz"
+                    : "Pauschale/Tagessatz (€, gesamt) — zählt direkt als Projektkosten"
+                }
+              />
+              <span className="w-7 text-left text-[10px] text-muted-foreground">
+                {a.hourlyRate !== null ? "€/h" : "€"}
+              </span>
+            </div>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}
         </TableCell>
         <TableCell className="text-right tabular-nums font-mono text-xs text-muted-foreground">
-          {isFreelancer && a.agreedRate !== null ? formatCurrency(a.agreedRate) : ""}
+          {isFreelancer && a.agreedRate !== null
+            ? formatCurrency(a.agreedRate)
+            : isFreelancer && a.hourlyRate !== null
+              ? formatCurrency((a.loggedMinutes / 60) * a.hourlyRate)
+              : ""}
         </TableCell>
         <TableCell>
           <div className="flex gap-0.5">
@@ -725,6 +750,11 @@ export function ServicesSection({
     );
   }
 
+  /** Personal-Position ohne zugewiesene Person → farblich hervorheben. */
+  function isUnstaffed(ps: ProjectServiceVM): boolean {
+    return ps.serviceItem.kind === "PERSONAL" && ps.personAssignments.length === 0;
+  }
+
   /** Rendert eine sortierbare Service-Zeile (Personal/Transport). */
   function renderServiceRow(ps: ProjectServiceVM, sortId: string) {
     const otherGroups = groups.filter((g) => g.id !== ps.groupId);
@@ -732,12 +762,19 @@ export function ServicesSection({
     const line = ps.quantity * effectivePrice;
     const hasOverride = ps.unitPriceOverride !== null;
     const KindIcon = kindIcon(ps.serviceItem.kind);
+    const unstaffed = isUnstaffed(ps);
     // Fragment: Service-Zeile + Einsatz-Subzeilen. Die Subzeilen sind NICHT im
     // SortableContext registriert — sie folgen ihrer Parent-Zeile in
     // DOM-Reihenfolge, bewegen sich beim Drag aber erst nach dem Drop mit.
     return (
       <Fragment key={sortId}>
-      <SortableRow id={sortId} className="[&_td]:px-2 [&_td]:py-1">
+      <SortableRow
+        id={sortId}
+        className={cn(
+          "[&_td]:px-2 [&_td]:py-1",
+          unstaffed && "bg-warning-subtle hover:bg-warning-subtle"
+        )}
+      >
         <DragHandleCell />
         <TableCell>
           <div className="flex items-center gap-2 font-medium truncate">
@@ -746,6 +783,15 @@ export function ServicesSection({
               aria-label={serviceItemKindLabel(ps.serviceItem.kind)}
             />
             <span className="truncate">{ps.serviceItem.name}</span>
+            {unstaffed && (
+              <Badge
+                variant="warning"
+                className="shrink-0"
+                title="Noch keine Person eingeplant — über den Personen-Button zuweisen"
+              >
+                Unbesetzt
+              </Badge>
+            )}
           </div>
         </TableCell>
         <TableCell>
@@ -872,6 +918,14 @@ export function ServicesSection({
               {planEntries.some((e) => e.a.conflicts.length > 0) && (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" /> Überbuchungen
+                </Badge>
+              )}
+              {projectServices.filter(isUnstaffed).length > 0 && (
+                <Badge variant="warning" className="gap-1">
+                  {projectServices.filter(isUnstaffed).length} unbesetzte{" "}
+                  {projectServices.filter(isUnstaffed).length === 1
+                    ? "Position"
+                    : "Positionen"}
                 </Badge>
               )}
             </CardTitle>

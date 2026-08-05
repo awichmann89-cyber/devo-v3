@@ -29,6 +29,15 @@ export async function setInvoicePrepayment(
 
 /**
  * Setzt das `paidAt`-Datum einer Rechnung. `null` = wieder als unbezahlt markieren.
+ *
+ * Sind nach dem Zahlungseingang alle regulären Rechnungen des Projekts
+ * bezahlt, wird der Projekt-Status automatisch auf COMPLETED gesetzt.
+ * Zwei Ausnahmen:
+ * - Nur bezahlte Vorkasse-Rechnungen schließen NICHT ab — die Veranstaltung
+ *   steht dann i.d.R. noch aus, und COMPLETED würde die Material-
+ *   Reservierung freigeben (siehe blockingStatuses in lib/availability.ts).
+ * - CANCELLED bleibt unangetastet; das Zurücksetzen auf unbezahlt macht
+ *   den Statuswechsel nicht automatisch rückgängig (manuell änderbar).
  */
 export async function setInvoicePaid(invoiceId: string, paidAt: Date | null) {
   await requireRole(CAN_WRITE);
@@ -37,6 +46,35 @@ export async function setInvoicePaid(invoiceId: string, paidAt: Date | null) {
     data: { paidAt },
     select: { projectId: true },
   });
+
+  if (paidAt) {
+    // Mahnungen (kind REMINDER) zählen nicht mit: Zahlungen werden auf der
+    // Original-Rechnung erfasst, die Mahnung dupliziert nur deren Betrag.
+    const [openInvoices, paidFinalInvoices] = await Promise.all([
+      prisma.invoice.count({
+        where: { projectId: inv.projectId, kind: "INVOICE", paidAt: null },
+      }),
+      prisma.invoice.count({
+        where: {
+          projectId: inv.projectId,
+          kind: "INVOICE",
+          isPrepayment: false,
+          paidAt: { not: null },
+        },
+      }),
+    ]);
+    if (openInvoices === 0 && paidFinalInvoices > 0) {
+      await prisma.project.updateMany({
+        where: {
+          id: inv.projectId,
+          status: { notIn: ["COMPLETED", "CANCELLED"] },
+        },
+        data: { status: "COMPLETED" },
+      });
+      revalidatePath("/projects");
+    }
+  }
+
   revalidatePath("/finances");
   revalidatePath("/finances/invoices");
   revalidatePath("/finances/forecast");

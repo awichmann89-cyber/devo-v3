@@ -35,7 +35,7 @@ export async function addTimeEntryWithToken(
 
   const assignment = await prisma.personAssignment.findUnique({
     where: { id: assignmentId },
-    select: { personId: true, projectId: true },
+    select: { personId: true, projectId: true, hourlyRate: true },
   });
   if (!assignment || assignment.personId !== person.id) {
     return { ok: false, error: "Einsatz nicht gefunden" };
@@ -47,6 +47,15 @@ export async function addTimeEntryWithToken(
   }
   const data = parsed.data;
 
+  // Lohn-Snapshot: Stundensatz des Einsatzes (Freelancer nach Stunden)
+  // vor dem Minijobber-Stundenlohn — sonst kein Kosteneffekt (D4).
+  const snapshot =
+    assignment.hourlyRate !== null
+      ? assignment.hourlyRate
+      : person.employmentType === "MINIJOBBER" && person.hourlyWage !== null
+        ? new Prisma.Decimal(person.hourlyWage)
+        : null;
+
   await prisma.timeEntry.create({
     data: {
       personId: person.id,
@@ -56,11 +65,7 @@ export async function addTimeEntryWithToken(
       startMinute: clockToMinutes(data.start),
       endMinute: clockToMinutes(data.end),
       breakMinutes: data.breakMinutes,
-      // Lohn-Snapshot nur bei Minijobbern — sonst kein Kosteneffekt (D4).
-      hourlyWageSnapshot:
-        person.employmentType === "MINIJOBBER" && person.hourlyWage !== null
-          ? new Prisma.Decimal(person.hourlyWage)
-          : null,
+      hourlyWageSnapshot: snapshot,
       notes: data.notes || null,
     },
     select: { id: true },

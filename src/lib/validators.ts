@@ -276,8 +276,14 @@ export const personAssignmentSchema = z
     billingPeriodId: z.string().optional().nullable(),
     plannedStart: z.coerce.date().optional().nullable(),
     plannedEnd: z.coerce.date().optional().nullable(),
+    // Vergütung (Freelancer): Pauschale ODER Stundensatz — nie beides.
     agreedRate: z.coerce.number().min(0).optional().nullable(),
+    hourlyRate: z.coerce.number().min(0).optional().nullable(),
     notes: z.string().max(500).optional().nullable(),
+  })
+  .refine((d) => d.agreedRate == null || d.hourlyRate == null, {
+    path: ["hourlyRate"],
+    message: "Entweder Pauschale oder Stundensatz angeben",
   })
   .refine((d) => (d.plannedStart == null) === (d.plannedEnd == null), {
     path: ["plannedEnd"],
