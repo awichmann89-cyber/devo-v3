@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
@@ -44,7 +43,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { findNoteTokens, type MentionCandidate } from "@/lib/note-tasks";
 
@@ -186,6 +190,26 @@ export function MarkdownEditor({
       : null;
 
   React.useEffect(() => setActiveIndex(0), [query?.from, query?.query]);
+
+  // Virtueller Anker an der Schreibmarke. Bei jeder Cursorbewegung ein neues
+  // Objekt, damit Radix die Blase nachführt statt am alten Rechteck zu kleben.
+  // `new DOMRect` steckt bewusst im Callback — beim Rendern auf dem Server
+  // gibt es die Klasse nicht.
+  const caretAnchorRef = React.useRef<{ getBoundingClientRect: () => DOMRect }>({
+    getBoundingClientRect: () => new DOMRect(),
+  });
+  caretAnchorRef.current = React.useMemo(
+    () => ({
+      getBoundingClientRect: () =>
+        new DOMRect(
+          query?.left ?? 0,
+          query?.top ?? 0,
+          1,
+          (query?.bottom ?? 0) - (query?.top ?? 0)
+        ),
+    }),
+    [query?.left, query?.top, query?.bottom]
+  );
 
   const replaceQuery = React.useCallback(
     (text: string) => {
@@ -382,82 +406,70 @@ export function MarkdownEditor({
 
       <EditorContent editor={editor} />
 
-      {visible === "mention" && query && (
-        <CaretPopover caret={query} height={matches.length * 32 + 8}>
-          <ul role="listbox" aria-label="Benutzer erwähnen">
-            {matches.map((person, index) => (
-              <li key={person.id}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={index === activeIndex}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => replaceQuery(`@${person.name} `)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    index === activeIndex
-                      ? "bg-accent text-accent-foreground"
-                      : "text-popover-foreground"
-                  )}
-                >
-                  <AtSign className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{person.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </CaretPopover>
-      )}
+      {/*
+        Die Blasen laufen über das Popover-Primitive, nicht über ein eigenes
+        Portal. Im Notiz-Dialog ist das der einzige Weg, der auch bedienbar ist:
+        Radix' modaler Dialog setzt `pointer-events: none` auf den <body> und
+        fängt den Fokus ein. Eine selbst portierte Blase wäre dort sichtbar,
+        aber tot. Radix meldet das Popover dagegen als oberste Ebene an — sie
+        bekommt `pointer-events: auto`, und die Fokus-Falle des Dialogs wird
+        solange pausiert. Nebenbei erledigt Floating UI das Umklappen an den
+        Bildschirmrändern.
 
-      {visible === "due" && query && (
-        <CaretPopover caret={query} height={124}>
-          <DuePicker
-            onPick={(date) => replaceQuery(`!${formatDueValue(date)} `)}
-            onDismiss={() => setDismissedFrom(query.from)}
-          />
-        </CaretPopover>
-      )}
+        Der Anker ist virtuell: ein reines Rechteck an der Schreibmarke. Ein
+        echtes Anker-Element im Editor käme nicht in Frage, weil `DialogContent`
+        per `translate-x-[-50%]` verschoben ist.
+      */}
+      <Popover
+        open={visible !== null}
+        onOpenChange={(open) => {
+          if (!open && query) setDismissedFrom(query.from);
+        }}
+      >
+        <PopoverAnchor virtualRef={caretAnchorRef} />
+        {visible && (
+          <PopoverContent
+            align="start"
+            side="bottom"
+            sideOffset={4}
+            className="w-64 p-1"
+            // Der Fokus muss im Editor bleiben — sonst bricht das Weitertippen ab.
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            {visible === "mention" ? (
+              <ul role="listbox" aria-label="Benutzer erwähnen">
+                {matches.map((person, index) => (
+                  <li key={person.id}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={index === activeIndex}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => replaceQuery(`@${person.name} `)}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        index === activeIndex
+                          ? "bg-accent text-accent-foreground"
+                          : "text-popover-foreground"
+                      )}
+                    >
+                      <AtSign className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{person.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <DuePicker
+                onPick={(date) => replaceQuery(`!${formatDueValue(date)} `)}
+                onDismiss={() => query && setDismissedFrom(query.from)}
+              />
+            )}
+          </PopoverContent>
+        )}
+      </Popover>
     </div>
-  );
-}
-
-/**
- * Blase an der Schreibmarke.
- *
- * Zwingend über ein Portal am <body>: `DialogContent` ist per
- * `translate-x-[-50%]` verschoben, und ein Transform macht das Element zum
- * Bezugsrahmen für `position: fixed`. Innerhalb des Dialogs gerendert würden
- * die Bildschirmkoordinaten aus `coordsAtPos()` deshalb um den Dialog-Versatz
- * verrutschen — die Blase landete unten rechts statt am Cursor.
- */
-function CaretPopover({
-  caret,
-  height,
-  children,
-}: {
-  caret: { left: number; top: number; bottom: number };
-  /** Geschätzte Höhe — entscheidet, ob nach oben geklappt wird. */
-  height: number;
-  children: React.ReactNode;
-}) {
-  if (typeof document === "undefined") return null;
-
-  const WIDTH = 256;
-  const GAP = 4;
-  const flipUp = caret.bottom + GAP + height > window.innerHeight;
-
-  return createPortal(
-    <div
-      className="fixed z-50 max-h-64 w-64 overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
-      style={{
-        left: Math.max(8, Math.min(caret.left, window.innerWidth - WIDTH - 8)),
-        top: flipUp ? Math.max(8, caret.top - height - GAP) : caret.bottom + GAP,
-      }}
-    >
-      {children}
-    </div>,
-    document.body
   );
 }
 
