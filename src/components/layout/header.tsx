@@ -28,6 +28,7 @@ interface HeaderProps {
 // Titel + Untertitel je Route (Redesign: Seitentitel wandert in den Header).
 const TITLES: [prefix: string, title: string, sub: string][] = [
   ["/projects", "Projekte", "Veranstaltungen mit Planungs- und Berechnungszeitraum"],
+  ["/tasks", "Aufgaben", "Aufgaben aus den Projektnotizen"],
   ["/calendar", "Kalender", "Timeline aller Buchungen"],
   ["/finances/quotes", "Angebote", "Erstellte Angebote und deren Status"],
   ["/finances/pending", "Zu fakturieren", "Abgeschlossene Projekte ohne Schlussrechnung"],

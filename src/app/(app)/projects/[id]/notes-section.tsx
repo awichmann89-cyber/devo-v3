@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InfoHint } from "@/components/ui/info-hint";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -18,16 +14,20 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowAction, RowActions } from "@/components/ui/row-actions";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { MarkdownView } from "@/components/ui/markdown-view";
 import { formatDate } from "@/lib/utils";
+import { countTasks, toggleTaskLine } from "@/lib/markdown-tasks";
+import type { MentionCandidate } from "@/lib/note-tasks";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Pencil, Trash2, Loader2, StickyNote, Download } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ import {
   createProjectNote,
   updateProjectNote,
   deleteProjectNote,
+  toggleProjectNoteTask,
 } from "./notes-actions";
 import { toastError } from "@/lib/toast";
 
@@ -48,10 +49,13 @@ export interface NoteVM {
 export function NotesSection({
   projectId,
   notes,
+  people,
   canWrite,
 }: {
   projectId: string;
   notes: NoteVM[];
+  /** Erwähnbare Benutzer für `@Name` in Aufgaben. */
+  people: MentionCandidate[];
   canWrite: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -146,36 +150,14 @@ export function NotesSection({
                sonst liegt Rahmen auf Rahmen. */
             <ul className="divide-y rounded-lg border">
               {notes.map((note) => (
-                <li key={note.id} className="p-4">
-                  <div className="flex flex-row items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-base font-bold leading-tight tracking-tight">
-                        {note.title}
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        Aktualisiert {formatDate(note.updatedAt)}
-                      </p>
-                    </div>
-                    {canWrite && (
-                      <RowActions density="comfortable" className="shrink-0">
-                        <RowAction
-                          icon={Pencil}
-                          label="Bearbeiten"
-                          onClick={() => openEdit(note)}
-                        />
-                        <RowAction
-                          icon={Trash2}
-                          label="Löschen"
-                          destructive
-                          onClick={() => setConfirmDelete(note)}
-                        />
-                      </RowActions>
-                    )}
-                  </div>
-                  <div className="mt-3">
-                    <MarkdownView content={note.content} />
-                  </div>
-                </li>
+                <NoteItem
+                  key={note.id}
+                  note={note}
+                  people={people}
+                  canWrite={canWrite}
+                  onEdit={() => openEdit(note)}
+                  onDelete={() => setConfirmDelete(note)}
+                />
               ))}
             </ul>
           )}
@@ -187,6 +169,7 @@ export function NotesSection({
         onOpenChange={setDialogOpen}
         projectId={projectId}
         note={editing}
+        people={people}
       />
 
       <ConfirmDialog
@@ -209,16 +192,103 @@ export function NotesSection({
   );
 }
 
+/**
+ * Eine Notiz in der Liste. Aufgaben lassen sich hier direkt abhaken — der neue
+ * Stand wird sofort angezeigt und im Hintergrund gespeichert.
+ */
+function NoteItem({
+  note,
+  people,
+  canWrite,
+  onEdit,
+  onDelete,
+}: {
+  note: NoteVM;
+  people: MentionCandidate[];
+  canWrite: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [optimistic, setOptimistic] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  // Sobald der Server den neuen Stand geliefert hat, zählt wieder er.
+  useEffect(() => setOptimistic(null), [note.content]);
+
+  const content = optimistic ?? note.content;
+  const tasks = countTasks(content);
+
+  function handleToggleTask(line: number, checked: boolean) {
+    const next = toggleTaskLine(content, line, checked);
+    if (next === null) return;
+
+    setOptimistic(next);
+    startTransition(async () => {
+      try {
+        await toggleProjectNoteTask(note.id, line, checked);
+      } catch (err) {
+        setOptimistic(null);
+        toastError(err, "Speichern");
+      }
+    });
+  }
+
+  return (
+    <li className="p-4">
+      <div className="flex flex-row items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-base font-bold leading-tight tracking-tight">
+            {note.title}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              Aktualisiert {formatDate(note.updatedAt)}
+            </p>
+            {tasks.total > 0 && (
+              <Badge
+                size="sm"
+                variant={tasks.done === tasks.total ? "success" : "outline"}
+              >
+                {tasks.done}/{tasks.total} erledigt
+              </Badge>
+            )}
+          </div>
+        </div>
+        {canWrite && (
+          <RowActions density="comfortable" className="shrink-0">
+            <RowAction icon={Pencil} label="Bearbeiten" onClick={onEdit} />
+            <RowAction
+              icon={Trash2}
+              label="Löschen"
+              destructive
+              onClick={onDelete}
+            />
+          </RowActions>
+        )}
+      </div>
+      <div className="mt-3">
+        <MarkdownView
+          content={content}
+          people={people}
+          onToggleTask={canWrite ? handleToggleTask : undefined}
+        />
+      </div>
+    </li>
+  );
+}
+
 function NoteDialog({
   open,
   onOpenChange,
   projectId,
   note,
+  people,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projectId: string;
   note: NoteVM | null;
+  people: MentionCandidate[];
 }) {
   const [title, setTitle] = useState(note?.title ?? "");
   const [content, setContent] = useState(note?.content ?? "");
@@ -268,66 +338,57 @@ function NoteDialog({
         <DialogHeader>
           <DialogTitle>{note ? "Notiz bearbeiten" : "Notiz anlegen"}</DialogTitle>
           <DialogDescription>
-            Beschreibung unterstützt Markdown (Überschriften, Listen, Links, Code,
-            Tabellen).
+            Text wird direkt formatiert angezeigt — inklusive Tabellen und
+            Aufgaben zum Abhaken.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="note-title">Titel</Label>
-            <Input
-              id="note-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={200}
-              autoFocus
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Label>Beschreibung</Label>
-              <InfoHint
-                text={
-                  <>
-                    Markdown: <code># Überschrift</code> · <code>**fett**</code>{" "}
-                    · <code>*kursiv*</code> · <code>- Liste</code> ·{" "}
-                    <code>[Link](url)</code> · <code>`code`</code>
-                  </>
-                }
+        {/* Das Formular übernimmt die Flex-Spalte des Dialogs, damit der
+            Editor scrollt und der Footer stehen bleibt. */}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
+          <DialogBody className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="note-title">Titel</Label>
+              <Input
+                id="note-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={200}
+                autoFocus
+                required
               />
             </div>
-            <Tabs defaultValue="edit">
-              <TabsList>
-                <TabsTrigger value="edit">Bearbeiten</TabsTrigger>
-                <TabsTrigger value="preview">Vorschau</TabsTrigger>
-              </TabsList>
-              <TabsContent value="edit">
-                <Textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={14}
-                  placeholder={
-                    "# Überschrift\n\n- Stichpunkt 1\n- Stichpunkt 2\n\n**Wichtig:** ..."
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label>Beschreibung</Label>
+                <InfoHint
+                  text={
+                    <>
+                      Formatierung über die Leiste oder per Tastatur:{" "}
+                      <code># </code> Überschrift · <code>- </code> Liste ·{" "}
+                      <code>1. </code> Nummerierung · <code>&gt; </code> Zitat ·{" "}
+                      <code>**fett**</code> · <code>*kursiv*</code>. Aufgaben und
+                      Tabellen legst du über die Leiste an; in der Tabelle
+                      wechselt <code>Tab</code> zur nächsten Zelle.
+                      <br />
+                      In einer Aufgabe weist <code>@Name</code> sie einem
+                      Benutzer zu und <code>!20.08.2026</code> setzt eine Frist —
+                      beides landet auf der Seite „Aufgaben“.
+                    </>
                   }
-                  className="font-mono text-sm"
                 />
-              </TabsContent>
-              <TabsContent value="preview">
-                <div className="min-h-[260px] rounded-md border p-4">
-                  {content.trim() ? (
-                    <MarkdownView content={content} />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Keine Vorschau — Beschreibung ist leer.
-                    </p>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
+              </div>
+              <MarkdownEditor
+                value={content}
+                onChange={setContent}
+                label="Beschreibung"
+                people={people}
+                disabled={pending}
+                placeholder="Notiz schreiben…"
+              />
+            </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button
@@ -346,94 +407,5 @@ function NoteDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// Markdown-Renderer mit Tailwind-Klassen für die wichtigsten Block-Elemente.
-// Verzichtet bewusst auf @tailwindcss/typography, um keine zusätzliche Abhängigkeit einzuführen.
-function MarkdownView({ content }: { content: string }) {
-  return (
-    <div className="text-sm leading-relaxed">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        components={{
-          h1: ({ children }) => (
-            <h1 className="mb-2 mt-4 text-xl font-bold first:mt-0">{children}</h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="mb-2 mt-4 text-lg font-semibold first:mt-0">{children}</h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="mb-2 mt-3 text-base font-semibold first:mt-0">{children}</h3>
-          ),
-          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-          ul: ({ children }) => (
-            <ul className="mb-2 list-disc space-y-0.5 pl-5 last:mb-0">{children}</ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="mb-2 list-decimal space-y-0.5 pl-5 last:mb-0">{children}</ol>
-          ),
-          li: ({ children }) => <li>{children}</li>,
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline underline-offset-2 hover:no-underline"
-            >
-              {children}
-            </a>
-          ),
-          blockquote: ({ children }) => (
-            <blockquote className="mb-2 border-l-2 border-muted-foreground/30 pl-3 italic text-muted-foreground">
-              {children}
-            </blockquote>
-          ),
-          code: ({ className, children, ...rest }) => {
-            const isInline = !className;
-            if (isInline) {
-              return (
-                <code
-                  className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]"
-                  {...rest}
-                >
-                  {children}
-                </code>
-              );
-            }
-            return (
-              <code className={className} {...rest}>
-                {children}
-              </code>
-            );
-          },
-          pre: ({ children }) => (
-            <pre className="mb-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">
-              {children}
-            </pre>
-          ),
-          table: ({ children }) => (
-            <div className="mb-2 overflow-x-auto">
-              <table className="w-full border-collapse text-xs">{children}</table>
-            </div>
-          ),
-          th: ({ children }) => (
-            <th className="border-b bg-muted/50 px-2 py-1 text-left font-medium">
-              {children}
-            </th>
-          ),
-          td: ({ children }) => (
-            <td className="border-b px-2 py-1 align-top">{children}</td>
-          ),
-          hr: () => <hr className="my-3 border-border" />,
-          strong: ({ children }) => (
-            <strong className="font-semibold">{children}</strong>
-          ),
-          em: ({ children }) => <em className="italic">{children}</em>,
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
   );
 }

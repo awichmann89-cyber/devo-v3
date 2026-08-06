@@ -15,6 +15,7 @@ import {
   projectStatusVariant,
 } from "@/lib/labels";
 import { getSettings, parseDayFactorMap, getDayFactor } from "@/lib/settings";
+import { userLabel } from "@/lib/note-tasks";
 import { ProjectForm } from "../project-form";
 import { AssignmentsSection } from "./assignments-section";
 import { NotesSection } from "./notes-section";
@@ -809,6 +810,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               content: n.content,
               updatedAt: n.updatedAt.toISOString(),
             }))}
+            people={users.map((u) => ({ id: u.id, name: userLabel(u) }))}
             canWrite={canWrite}
           />
         </TabsContent>

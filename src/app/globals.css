@@ -124,6 +124,124 @@
   }
 }
 
+@layer components {
+  /*
+   * WYSIWYG-Notizeditor (TipTap, siehe components/ui/markdown-editor.tsx).
+   * Der Editor rendert sein DOM selbst — die Blockformate lassen sich deshalb
+   * nicht als Tailwind-Klassen im JSX setzen und stehen hier. Sie decken sich
+   * bewusst mit denen von `MarkdownView`, damit Eingabe und Anzeige gleich
+   * aussehen.
+   */
+  .markdown-editor .tiptap {
+    @apply min-h-[18rem] px-3 py-2 text-sm leading-relaxed outline-none;
+  }
+  .markdown-editor .tiptap > * + * {
+    @apply mt-2;
+  }
+  .markdown-editor .tiptap h1 {
+    @apply mt-4 text-xl font-bold first:mt-0;
+  }
+  .markdown-editor .tiptap h2 {
+    @apply mt-4 text-lg font-semibold first:mt-0;
+  }
+  .markdown-editor .tiptap h3 {
+    @apply mt-3 text-base font-semibold first:mt-0;
+  }
+  .markdown-editor .tiptap ul {
+    @apply list-disc space-y-0.5 pl-5;
+  }
+  .markdown-editor .tiptap ol {
+    @apply list-decimal space-y-0.5 pl-5;
+  }
+  .markdown-editor .tiptap a {
+    @apply text-primary underline underline-offset-2;
+  }
+  .markdown-editor .tiptap blockquote {
+    @apply border-l-2 border-muted-foreground/30 pl-3 italic text-muted-foreground;
+  }
+  .markdown-editor .tiptap code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-[0.85em];
+  }
+  .markdown-editor .tiptap pre {
+    @apply overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs;
+  }
+  .markdown-editor .tiptap pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+  .markdown-editor .tiptap hr {
+    @apply my-3 border-t border-border;
+  }
+  .markdown-editor .tiptap hr.ProseMirror-selectednode {
+    @apply border-primary;
+  }
+
+  /* Platzhalter für das leere Dokument */
+  .markdown-editor .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-muted-foreground;
+  }
+
+  /* Aufgabenliste — Checkbox statt Aufzählungspunkt */
+  .markdown-editor .tiptap ul[data-type="taskList"] {
+    @apply list-none space-y-1 pl-0;
+  }
+  .markdown-editor .tiptap ul[data-type="taskList"] li {
+    @apply flex items-start gap-2;
+  }
+  .markdown-editor .tiptap ul[data-type="taskList"] li > label {
+    @apply mt-[3px] shrink-0 select-none;
+  }
+  .markdown-editor .tiptap ul[data-type="taskList"] li > div {
+    @apply min-w-0 flex-1;
+  }
+  .markdown-editor .tiptap ul[data-type="taskList"] input[type="checkbox"] {
+    @apply h-4 w-4 cursor-pointer rounded-sm border border-input accent-primary;
+  }
+  .markdown-editor .tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+    @apply text-muted-foreground line-through;
+  }
+
+  /* Kürzel in Aufgaben: @Name und !Datum (siehe lib/note-tasks.ts).
+     Reine Hervorhebung — im Markdown steht weiterhin der getippte Text. */
+  .markdown-editor .tiptap .note-token-mention {
+    @apply rounded-[5px] bg-info-subtle px-1 font-semibold text-info;
+  }
+  .markdown-editor .tiptap .note-token-due {
+    @apply rounded-[5px] bg-warning-subtle px-1 font-semibold text-warning;
+  }
+  /* Name passt zu keinem Benutzer — sichtbar, aber ohne Farbe. */
+  .markdown-editor .tiptap .note-token-unknown {
+    @apply rounded-[5px] bg-muted px-1 font-semibold text-muted-foreground;
+  }
+
+  /* Tabellen */
+  .markdown-editor .tiptap table {
+    @apply w-full table-fixed border-collapse text-xs;
+  }
+  .markdown-editor .tiptap table td,
+  .markdown-editor .tiptap table th {
+    @apply relative min-w-[4rem] border border-border px-2 py-1 align-top;
+  }
+  .markdown-editor .tiptap table th {
+    @apply bg-muted text-left font-semibold;
+  }
+  .markdown-editor .tiptap table p {
+    @apply m-0;
+  }
+  .markdown-editor .tiptap table .selectedCell::after {
+    content: "";
+    @apply pointer-events-none absolute inset-0 z-10 bg-primary-subtle opacity-70;
+  }
+  .markdown-editor .tiptap .column-resize-handle {
+    @apply pointer-events-none absolute -right-[2px] bottom-0 top-0 w-[3px] bg-primary;
+  }
+  .markdown-editor .tiptap.resize-cursor,
+  .markdown-editor .tiptap.resize-cursor td,
+  .markdown-editor .tiptap.resize-cursor th {
+    cursor: col-resize;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

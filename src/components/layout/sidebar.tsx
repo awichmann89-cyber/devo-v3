@@ -17,6 +17,7 @@ import {
   TrendingUp,
   AlertCircle,
   FileText,
+  ListTodo,
   UserRound,
   X,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/projects", label: "Projekte", icon: FolderKanban },
+      { href: "/tasks", label: "Aufgaben", icon: ListTodo },
       { href: "/calendar", label: "Kalender", icon: Calendar },
     ],
   },
