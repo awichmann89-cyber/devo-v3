@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -18,6 +19,7 @@ import { createCustomer, updateCustomer } from "./actions";
 import { toast } from "sonner";
 import type { Customer } from "@prisma/client";
 import { splitAddress, joinAddress } from "@/lib/utils";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   customer?: Customer;
@@ -93,7 +95,7 @@ export function CustomerDialog({
         }
         setOpen(false);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -107,9 +109,13 @@ export function CustomerDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Kunde bearbeiten" : "Kunde anlegen"}</DialogTitle>
+          <DialogDescription>
+            Auftraggeber mit Rechnungsadresse. Die Anschrift erscheint auf Angeboten
+            und Rechnungen.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">

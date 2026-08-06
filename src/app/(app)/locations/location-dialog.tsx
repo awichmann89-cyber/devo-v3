@@ -19,6 +19,7 @@ import { createLocation, updateLocation } from "./actions";
 import { toast } from "sonner";
 import type { Location } from "@prisma/client";
 import { splitAddress, joinAddress } from "@/lib/utils";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   location?: Location;
@@ -57,7 +58,7 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
         }
         setOpen(false);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : String(e) });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -77,7 +78,13 @@ export function LocationDialog({ location, open: controlledOpen, onOpenChange }:
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+            />
           </div>
           <div className="space-y-2">
             <Label>Adresse</Label>

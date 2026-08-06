@@ -1,12 +1,11 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  FilterResetButton,
+  FilterSearch,
+} from "@/components/filters/filter-controls";
 import {
   Table,
   TableBody,
@@ -38,9 +37,7 @@ import {
 import {
   ArrowRight,
   Plus,
-  Search,
   Trash2,
-  X,
   FolderPlus,
   Pencil,
   Loader2,
@@ -56,7 +53,6 @@ import {
   UserRound,
   Truck,
   Package,
-
 } from "lucide-react";
 import {
   DndContext,
@@ -74,7 +70,6 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   reorderGroupItems,
   addGroupComment,
@@ -132,8 +127,8 @@ import {
   QtyStepper,
   GroupTableFooter,
 } from "@/components/project/group-table";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  billingUnitLabel,
   billingUnitShort,
   serviceItemKindLabel,
 } from "@/lib/labels";
@@ -141,6 +136,9 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { BillingUnit, ServiceItemKind } from "@prisma/client";
 import type { ProjectGroup, ProjectGroupComment } from "@prisma/client";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
+import { useTransitionSaveStatus } from "@/lib/use-auto-save";
+import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
+import { toastError } from "@/lib/toast";
 
 export interface ProjectServiceVM {
   id: string;
@@ -217,6 +215,7 @@ export function ServicesSection({
   const [kindFilter, setKindFilter] = useState<string>("all");
   const [collapsedKinds, setCollapsedKinds] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
+  const saveStatus = useTransitionSaveStatus(pending);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<ProjectServiceVM | null>(null);
   // Einsatz-Dialog: anlegen (assignment null) oder bearbeiten
@@ -314,7 +313,7 @@ export function ServicesSection({
           ordered.map((r) => ({ kind: r.kind, id: r.id }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Sortieren");
+        toastError(err, "Verschieben");
       }
     });
   }
@@ -325,7 +324,7 @@ export function ServicesSection({
       try {
         await renameProjectGroup(id, name);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -339,7 +338,7 @@ export function ServicesSection({
       try {
         await reorderProjectGroups(ids);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -349,7 +348,7 @@ export function ServicesSection({
       try {
         await addGroupComment(projectId, groupId, "Zwischenüberschrift");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -359,7 +358,7 @@ export function ServicesSection({
       try {
         await updateGroupComment(id, text);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -369,7 +368,7 @@ export function ServicesSection({
       try {
         await deleteGroupComment(id);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -409,7 +408,7 @@ export function ServicesSection({
         groupId = res.id;
         setActiveGroupId(groupId);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler beim Anlegen der Gruppe");
+        toastError(e, "Anlegen");
         return;
       }
     }
@@ -422,7 +421,7 @@ export function ServicesSection({
           quantity: 1,
         });
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler beim Hinzufügen");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -434,7 +433,7 @@ export function ServicesSection({
       try {
         await updateProjectService(ps.id, { quantity: q });
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -447,7 +446,7 @@ export function ServicesSection({
       try {
         await updateProjectService(ps.id, { unitPriceOverride: newVal });
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -457,7 +456,7 @@ export function ServicesSection({
       try {
         await moveProjectServiceToGroup(serviceId, groupId);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -471,7 +470,7 @@ export function ServicesSection({
         toast.success("Position entfernt");
         setConfirmRemove(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -489,7 +488,7 @@ export function ServicesSection({
       try {
         await updateAssignmentRate(a.id, newVal, kind);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -499,7 +498,7 @@ export function ServicesSection({
       try {
         await setAssignmentInvoiceReceived(a.id, !a.invoiceReceived);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -514,7 +513,7 @@ export function ServicesSection({
             : "Einsatz entfernt"
         );
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -547,7 +546,7 @@ export function ServicesSection({
         }
         setGroupDialog(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -565,7 +564,7 @@ export function ServicesSection({
         );
         setDeleteGroupPrompt(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -613,7 +612,7 @@ export function ServicesSection({
     return (
       <TableRow
         key={`assignment:${a.id}`}
-        className="bg-muted/20 hover:bg-muted/30 [&_td]:px-2 [&_td]:py-1"
+        className="bg-muted/20 hover:bg-muted/30"
       >
         <TableCell />
         <TableCell>
@@ -689,7 +688,7 @@ export function ServicesSection({
           )}
         </TableCell>
         <TableCell
-          className="text-right tabular-nums font-mono text-xs text-muted-foreground"
+          className="text-right num text-xs text-muted-foreground"
           title={
             isFreelancer && a.hourlyRate !== null && a.loggedMinutes === 0
               ? "Geplante Stunden × Satz — bis Ist-Zeiten erfasst sind"
@@ -710,9 +709,8 @@ export function ServicesSection({
             {isFreelancer && (
               <Button
                 variant="ghost"
-                size="icon"
+                size="iconXs"
                 className={
-                  "h-7 w-7 " +
                   (a.invoiceReceived
                     ? "text-success hover:text-success"
                     : "text-muted-foreground")
@@ -730,8 +728,8 @@ export function ServicesSection({
             )}
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               onClick={() =>
                 setAssignDialog({
                   projectServiceId: ps.id,
@@ -747,8 +745,8 @@ export function ServicesSection({
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
+              size="iconXs"
+              className="text-destructive hover:text-destructive"
               onClick={() => handleRemoveAssignment(a)}
               disabled={pending}
               title="Einsatz entfernen (erfasste Zeiten bleiben erhalten)"
@@ -782,7 +780,6 @@ export function ServicesSection({
       <SortableRow
         id={sortId}
         className={cn(
-          "[&_td]:px-2 [&_td]:py-1",
           unstaffed && "bg-warning-subtle hover:bg-warning-subtle"
         )}
       >
@@ -847,15 +844,15 @@ export function ServicesSection({
             }
           />
         </TableCell>
-        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+        <TableCell className="text-right num text-sm font-medium">
           {formatCurrency(line)}
         </TableCell>
         <TableCell>
           <div className="flex gap-0.5">
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               onClick={() =>
                 setAssignDialog({
                   projectServiceId: ps.id,
@@ -891,8 +888,8 @@ export function ServicesSection({
             )}
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
+              size="iconXs"
+              className="text-destructive hover:text-destructive"
               onClick={() => setConfirmRemove(ps)}
               disabled={pending}
               title="Entfernen"
@@ -916,7 +913,7 @@ export function ServicesSection({
             className="cursor-pointer py-3"
             onClick={() => setPlanOpen((o) => !o)}
           >
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               {planOpen ? (
                 <ChevronDown className="h-4 w-4" />
               ) : (
@@ -943,7 +940,7 @@ export function ServicesSection({
           </CardHeader>
           {planOpen && (
             <CardContent className="p-0">
-              <Table className="[&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
+              <Table density="compact">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Zeit</TableHead>
@@ -999,7 +996,8 @@ export function ServicesSection({
           so weit scrollen, dass die Katalog-Suche hinter dem App-Header
           verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
           jeweils in ihrer eigenen Spalte. */}
-      <Card className="p-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:services-split"
         defaultLeftPx={360}
@@ -1009,28 +1007,25 @@ export function ServicesSection({
         leftClassName="lg:flex lg:flex-col lg:min-h-0"
         rightClassName="lg:flex lg:flex-col lg:min-h-0"
         left={
-          <Card className="border-0 shadow-none flex flex-col lg:flex-1 lg:min-h-0">
-            <CardHeader className="px-0 pt-0 pb-3 space-y-3">
+          <div className="flex flex-col lg:flex-1 lg:min-h-0">
+            <div className="space-y-3 pb-3">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
                   <Truck className="h-4 w-4" /> Personal &amp; Transport
                 </CardTitle>
                 <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-                  <Plus className="h-4 w-4" /> Neue Position
+                  <Plus className="h-4 w-4" /> Position anlegen
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <div className="relative flex-1 min-w-[180px]">
-                  <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Suche…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-9 pl-8"
-                  />
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <FilterSearch
+                  grow
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Bezeichnung oder Beschreibung…"
+                />
                 <Select value={kindFilter} onValueChange={setKindFilter}>
-                  <SelectTrigger className="h-9 w-[140px]">
+                  <SelectTrigger className="w-[140px]" aria-label="Art filtern">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1043,16 +1038,12 @@ export function ServicesSection({
                   </SelectContent>
                 </Select>
                 {(search || kindFilter !== "all") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <FilterResetButton
                     onClick={() => {
                       setSearch("");
                       setKindFilter("all");
                     }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  />
                 )}
               </div>
               {groups.length > 0 && (
@@ -1077,8 +1068,8 @@ export function ServicesSection({
                   </Select>
                 </div>
               )}
-            </CardHeader>
-            <CardContent className="p-0 flex-1 min-h-0">
+            </div>
+            <div className="min-h-0 flex-1 rounded-lg border">
               <div className="h-full overflow-y-auto">
                 {/* Mini-Tabellen-Header — Position links, Einheit (h/Std/Tag)
                     rechts neben dem Namen. */}
@@ -1154,13 +1145,13 @@ export function ServicesSection({
                                             {s.name}
                                           </div>
                                         </div>
-                                        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                                        <span className="shrink-0 num text-[11px] text-muted-foreground">
                                           {billingUnitShort(s.unit)}
                                         </span>
                                         <Button
                                           variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
+                                          size="iconXs"
+                                          className="shrink-0 opacity-60 group-hover:opacity-100"
                                           disabled={pending}
                                           onClick={() => handleAdd(s.id)}
                                           title={
@@ -1183,8 +1174,8 @@ export function ServicesSection({
                   })()
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         }
         right={
           <div className="flex flex-col lg:flex-1 lg:min-h-0">
@@ -1195,6 +1186,8 @@ export function ServicesSection({
                 </span>{" "}
                 zugewiesen
               </div>
+              {/* Mengen, Sätze und Gruppennamen speichern sofort. */}
+              <AutoSaveIndicator status={saveStatus} />
             </div>
 
             {/* EINE durchgehende Tabelle — Gruppen als Kopfzeilen (Redesign). */}
@@ -1209,7 +1202,7 @@ export function ServicesSection({
                     </p>
                   </div>
                 ) : (
-                  <Table className="[&_td]:px-2 [&_td]:py-1">
+                  <Table density="dense">
                     <TableHeader>
                       <TableRow className="hover:bg-secondary">
                         <TableHead className="w-8"></TableHead>
@@ -1329,7 +1322,28 @@ export function ServicesSection({
           </div>
         }
       />
+      </CardContent>
       </Card>
+
+      {/* Gruppe löschen — der Bestätigungsdialog fehlte bisher, sodass der
+          Löschen-Button in der Gruppen-Kopfzeile wirkungslos war. */}
+      <ConfirmDialog
+        open={deleteGroupPrompt !== null}
+        onOpenChange={(o) => !o && setDeleteGroupPrompt(null)}
+        title="Gruppe löschen?"
+        description={
+          deleteGroupPrompt && (
+            <>
+              Die Gruppe <strong>{deleteGroupPrompt.name}</strong> wird gelöscht.
+              Enthaltene Positionen werden in die nächste verbleibende Gruppe
+              verschoben.
+            </>
+          )
+        }
+        confirmLabel="Löschen"
+        pending={pending}
+        onConfirm={() => handleDeleteGroup()}
+      />
 
       <ServiceItemDialog
         open={dialogOpen}
@@ -1357,7 +1371,7 @@ export function ServicesSection({
         open={confirmRemove !== null}
         onOpenChange={(o) => !o && setConfirmRemove(null)}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -1411,7 +1425,7 @@ export function ServicesSection({
         open={groupDialog !== null}
         onOpenChange={(o) => !o && setGroupDialog(null)}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>
               {groupDialog?.mode === "create" ? "Gruppe anlegen" : "Gruppe bearbeiten"}

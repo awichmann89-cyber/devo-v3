@@ -92,11 +92,11 @@ export function PeriodsSection({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Planung */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <CalendarRange className="h-4 w-4" /> Planungszeitraum
             <InfoHint text="Blockt das gebuchte Material für andere Projekte. Bestimmt nicht den Mietpreis." />
           </CardTitle>
@@ -130,7 +130,7 @@ export function PeriodsSection({
       {/* Berechnungszeiträume */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <Calculator className="h-4 w-4" /> Berechnungszeiträume
             <Badge variant="outline" className="text-xs">
               {periods.length}{" "}
@@ -150,8 +150,8 @@ export function PeriodsSection({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
+                    size="iconXs"
+                    
                     onClick={() => removePeriod(i)}
                     title="Zeitraum entfernen"
                   >

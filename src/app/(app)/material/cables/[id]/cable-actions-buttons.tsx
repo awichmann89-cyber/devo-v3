@@ -8,6 +8,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { CableDialog, CableForDialog } from "../../cable-dialog";
 import { deleteCable } from "../../cables-actions";
+import { toastError } from "@/lib/toast";
 
 interface CategoryOpt {
   id: string;
@@ -35,7 +36,7 @@ export function CableActionsButtons({
         toast.success("Kabel gelöscht");
         router.push("/material?tab=cables");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }

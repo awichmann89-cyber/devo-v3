@@ -10,6 +10,7 @@ import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveInvoiceNumberSettings } from "./settings-actions";
 import { buildInvoiceNumber } from "@/lib/settings";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   initialPrefix: string;
@@ -48,7 +49,7 @@ export function InvoiceNumberForm({
         await saveInvoiceNumberSettings(prefix, padding, nextSeq);
         toast.success("Rechnungsnummer-Einstellungen gespeichert");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

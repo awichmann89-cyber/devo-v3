@@ -4,7 +4,6 @@ import { useRef, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -18,6 +17,7 @@ import { UploadCloud, Download, Trash2, Loader2, FileText, Image as ImageIcon, F
 import { toast } from "sonner";
 import { uploadProjectFile, deleteProjectFile } from "./files-actions";
 import { cn, formatDate } from "@/lib/utils";
+import { toastError } from "@/lib/toast";
 
 type FileVM = {
   id: string;
@@ -53,9 +53,7 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
       await uploadProjectFile(projectId, formData);
       toast.success("Datei hochgeladen", { description: file.name });
     } catch (e) {
-      toast.error("Upload fehlgeschlagen", {
-        description: e instanceof Error ? e.message : String(e),
-      });
+      toastError(e, "Hochladen");
     }
   }
 
@@ -84,9 +82,7 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
         toast.success("Datei gelöscht", { description: name });
         setDeleteTarget(null);
       } catch (e) {
-        toast.error("Löschen fehlgeschlagen", {
-          description: e instanceof Error ? e.message : String(e),
-        });
+        toastError(e, "Löschen");
       }
     });
   }
@@ -95,7 +91,7 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <Paperclip className="h-4 w-4" /> Dateien
             <InfoHint text="Dokumente, Pläne, Fotos zum Projekt. Drag & Drop oder Klick zum Hochladen." />
           </CardTitle>
@@ -170,7 +166,7 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
               Noch keine Dateien hochgeladen.
             </p>
           ) : (
-            <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-9 [&_th]:px-3">
+            <Table density="comfortable">
               <TableHeader>
                 <TableRow>
                   <TableHead></TableHead>
@@ -200,7 +196,7 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
                         {f.mimeType}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
+                    <TableCell className="num text-right text-xs text-muted-foreground">
                       {formatBytes(f.sizeBytes)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
@@ -213,8 +209,8 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
+                          size="iconXs"
+                          
                           asChild
                           title="Herunterladen"
                         >
@@ -230,8 +226,8 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
                         {canWrite && (
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            size="iconXs"
+                            className="text-destructive hover:text-destructive"
                             onClick={() => setDeleteTarget(f)}
                             disabled={pending}
                             title="Löschen"

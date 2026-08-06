@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { ArrowLeft, Package } from "lucide-react";
+import { DetailHeader } from "@/components/layout/detail-header";
+import { Package } from "lucide-react";
 import { formatCurrency, serialize } from "@/lib/utils";
 import { ItemsManager } from "./items-manager";
 import { DeletePackUnitButton } from "./delete-button";
@@ -103,40 +102,29 @@ export default async function PackUnitDetailPage(props: {
     );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/material?tab=pack-units">
-            <ArrowLeft className="h-4 w-4" /> Zurück
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-4">
+      <DetailHeader
+        backHref="/material?tab=pack-units"
+        title={packUnit.name}
+        badges={
+          <Badge variant={packUnit.packMode === "VARIABLE" ? "outline" : "secondary"}>
+            {packUnit.packMode === "VARIABLE" ? "Variabel" : "Fix"}
+          </Badge>
+        }
+        subtitle={packUnit.category?.name}
+        actions={
+          <>
+            <EditPackUnitButton
+              packUnit={serialize(packUnit)}
+              locations={locations}
+              categories={categories}
+            />
+            <DeletePackUnitButton id={packUnit.id} name={packUnit.name} />
+          </>
+        }
+      />
 
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-[21px] font-extrabold tracking-tight">{packUnit.name}</h1>
-            <Badge variant={packUnit.packMode === "VARIABLE" ? "outline" : "secondary"}>
-              {packUnit.packMode === "VARIABLE" ? "Variabel" : "Fix"}
-            </Badge>
-          </div>
-          {packUnit.category?.name && (
-            <p className="text-sm text-muted-foreground">
-              {packUnit.category.name}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <EditPackUnitButton
-            packUnit={serialize(packUnit)}
-            locations={locations}
-            categories={categories}
-          />
-          <DeletePackUnitButton id={packUnit.id} name={packUnit.name} />
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
           <CardContent>
@@ -160,7 +148,7 @@ export default async function PackUnitDetailPage(props: {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               QR-Code
               <InfoHint text="Scannt zur öffentlichen Inhaltsübersicht." />
             </CardTitle>

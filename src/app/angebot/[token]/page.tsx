@@ -1,8 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { isValidSnapshot, type DocumentSnapshot } from "@/lib/document-snapshot";
@@ -67,7 +65,7 @@ export default async function PublicQuotePage({ params, searchParams }: PageProp
       <main className="mx-auto max-w-2xl px-4 py-12">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Angebot nicht verfügbar</CardTitle>
+            <CardTitle>Angebot nicht verfügbar</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
@@ -299,7 +297,7 @@ function QuoteSnapshotView({
       {/* Projekt-Meta */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Projekt</CardTitle>
+          <CardTitle>Projekt</CardTitle>
         </CardHeader>
         <CardContent className="text-sm space-y-1">
           <div>
@@ -452,7 +450,7 @@ function SnapshotSection({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {groups.map((g) => {
@@ -525,7 +523,7 @@ function SnapshotSection({
                         key={idx}
                         className="flex items-baseline gap-3 border-b border-dashed border-muted py-1"
                       >
-                        <span className="w-10 shrink-0 text-right tabular-nums text-muted-foreground">
+                        <span className="w-10 shrink-0 num text-right text-muted-foreground">
                           {r.quantity}×
                         </span>
                         <span className="flex-1 min-w-0">
@@ -542,7 +540,7 @@ function SnapshotSection({
                             </span>
                           )}
                         </span>
-                        <span className="tabular-nums font-mono text-xs">
+                        <span className="num text-xs">
                           {formatCurrency(line)}
                         </span>
                       </li>
@@ -556,7 +554,7 @@ function SnapshotSection({
                         key={idx}
                         className="flex items-baseline gap-3 border-b border-dashed border-muted py-1"
                       >
-                        <span className="w-10 shrink-0 text-right tabular-nums text-muted-foreground">
+                        <span className="w-10 shrink-0 num text-right text-muted-foreground">
                           {r.quantity}×
                         </span>
                         <span className="flex-1 min-w-0">
@@ -567,7 +565,7 @@ function SnapshotSection({
                             </span>
                           )}
                         </span>
-                        <span className="tabular-nums font-mono text-xs">
+                        <span className="num text-xs">
                           {formatCurrency(line)}
                         </span>
                       </li>
@@ -581,7 +579,7 @@ function SnapshotSection({
                       key={idx}
                       className="flex items-baseline gap-3 border-b border-dashed border-muted py-1"
                     >
-                      <span className="w-10 shrink-0 text-right tabular-nums text-muted-foreground">
+                      <span className="w-10 shrink-0 num text-right text-muted-foreground">
                         {r.quantity}×
                       </span>
                       <span className="flex-1 min-w-0">
@@ -590,7 +588,7 @@ function SnapshotSection({
                           {r.unit}
                         </span>
                       </span>
-                      <span className="tabular-nums font-mono text-xs">
+                      <span className="num text-xs">
                         {formatCurrency(line)}
                       </span>
                     </li>
@@ -601,14 +599,14 @@ function SnapshotSection({
                 <span className="text-muted-foreground mr-3">
                   Zwischensumme {g.name}
                 </span>
-                <span className="tabular-nums font-mono font-medium">
+                <span className="num-strong">
                   {formatCurrency(info.sub)}
                 </span>
               </div>
               {info.disc > 0 && (
                 <div className="flex justify-end text-xs text-muted-foreground">
                   <span className="mr-3">Rabatt {g.discountPercent}%</span>
-                  <span className="tabular-nums font-mono">
+                  <span className="num">
                     -{formatCurrency(info.disc)}
                   </span>
                 </div>
@@ -621,14 +619,14 @@ function SnapshotSection({
             <span className="mr-3">
               {bereichDiscLabel} {bereichDiscountPercent}%
             </span>
-            <span className="tabular-nums font-mono">
+            <span className="num">
               -{formatCurrency(bereichDisc)}
             </span>
           </div>
         )}
         <div className="flex justify-end border-t pt-2 text-sm font-semibold">
           <span className="mr-3">{bereichLabel}</span>
-          <span className="tabular-nums font-mono">
+          <span className="num">
             {formatCurrency(bereichNet)}
           </span>
         </div>
@@ -657,7 +655,7 @@ function Row({
       } ${muted ? "text-muted-foreground" : ""}`}
     >
       <span>{label}</span>
-      <span className="tabular-nums font-mono">{value}</span>
+      <span className="num">{value}</span>
     </div>
   );
 }

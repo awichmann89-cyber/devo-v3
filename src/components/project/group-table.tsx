@@ -38,9 +38,9 @@ function HeaderIconButton({
         onClick();
       }}
       className={cn(
-        "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] border bg-card text-muted-foreground transition-colors disabled:opacity-35",
+        "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] border bg-card text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:opacity-35",
         destructive
-          ? "hover:border-destructive hover:text-destructive"
+          ? "hover:border-destructive hover:bg-destructive-subtle hover:text-destructive"
           : "hover:border-primary hover:text-primary"
       )}
     >
@@ -221,7 +221,7 @@ export function NoteRowCells({
           title="Zwischenüberschrift entfernen"
           disabled={pending}
           onClick={onDelete}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-faint transition-colors hover:bg-destructive-subtle hover:text-destructive disabled:opacity-40"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-[5px] text-faint transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background hover:bg-destructive-subtle hover:text-destructive disabled:opacity-40"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -318,7 +318,7 @@ export function GroupTableFooter({
           type="button"
           onClick={onAddGroup}
           disabled={pending}
-          className="inline-flex h-[30px] items-center gap-1.5 rounded-md border border-dashed border-input bg-transparent px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+          className="inline-flex h-[30px] items-center gap-1.5 rounded-md border border-dashed border-input bg-transparent px-3 text-xs font-semibold text-secondary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background hover:border-primary hover:text-primary disabled:opacity-50"
         >
           <Plus className="h-3.5 w-3.5" /> {addLabel}
         </button>

@@ -53,6 +53,7 @@ import {
   deleteTimeEntry,
   updateTimeEntry,
 } from "./time-actions";
+import { toastError } from "@/lib/toast";
 
 export interface PersonTimeEntryVM {
   id: string;
@@ -201,7 +202,7 @@ export function TimeEntriesSection({
         }
         setDialog(null);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Speichern");
+        toastError(err, "Speichern");
       }
     });
   }
@@ -215,7 +216,7 @@ export function TimeEntriesSection({
         toast.success("Eintrag gelöscht");
         setDeleting(null);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Löschen");
+        toastError(err, "Löschen");
       }
     });
   }
@@ -226,7 +227,7 @@ export function TimeEntriesSection({
     <Card>
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
         <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2">
             <Clock className="h-4 w-4" /> Arbeitszeiten
             <InfoHint text="Erfasste Ist-Zeiten — selbst eingetragen über den persönlichen Link oder hier vom Büro gepflegt." />
           </CardTitle>
@@ -250,12 +251,12 @@ export function TimeEntriesSection({
             </a>
           </Button>
           <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Eintrag
+            <Plus className="h-4 w-4" /> Zeit erfassen
           </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <Table className="[&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
+        <Table density="compact">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[110px]">Datum</TableHead>
@@ -315,8 +316,8 @@ export function TimeEntriesSection({
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
+                        size="iconSm"
+                        
                         onClick={() => openEdit(e)}
                         title="Bearbeiten"
                       >
@@ -324,8 +325,8 @@ export function TimeEntriesSection({
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        size="iconSm"
+                        className="text-destructive hover:text-destructive"
                         onClick={() => setDeleting(e)}
                         title="Löschen"
                       >
@@ -354,7 +355,7 @@ export function TimeEntriesSection({
 
       {/* Office-Dialog: Eintrag anlegen/bearbeiten (inkl. Lohn-Korrektur) */}
       <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>
               {dialog?.entryId ? "Zeiteintrag bearbeiten" : "Zeiteintrag anlegen"}

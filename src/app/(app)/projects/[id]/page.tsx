@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatTile, StatTileGrid } from "@/components/ui/stat-tile";
+import { DetailHeader } from "@/components/layout/detail-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip, HandCoins } from "lucide-react";
+import { FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip, HandCoins } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import {
   projectKindLabel,
@@ -419,9 +420,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
 
   const subAfterBereichDiscounts = materialBereichNet + servicesBereichNet;
   const projectDiscountAmount = (subAfterBereichDiscounts * projPct) / 100;
-  const subtotal = materialSubtotal + servicesSubtotal;
   const total = subAfterBereichDiscounts - projectDiscountAmount;
-  const discount = subtotal - total;
 
   // Interne Zusatzkosten (Zumietung + Extrakosten) — fließen NICHT in die
   // obigen Erlössummen oder in Angebote/Rechnungen ein, dienen nur der
@@ -575,10 +574,6 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const personnelCost =
     personnelEntries.reduce((s, e) => s + e.effCost, 0) + orphanTimeCost;
 
-  const deviceCount = project.assignments.reduce(
-    (s, a) => s + a.quantity,
-    0
-  );
 
   // Gewicht für die KPI-Card: Packeinheiten-Leergewicht inkl. der darin
   // liegenden Kabel (× Stück lt. Packliste) + lose Geräte + gebuchte Kabel.
@@ -660,99 +655,86 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/projects"><ArrowLeft className="h-4 w-4" /> Zurück</Link>
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <h1 className="text-[21px] font-extrabold tracking-tight">
-              {project.name}
-            </h1>
+    <div className="space-y-4">
+      <DetailHeader
+        backHref="/projects"
+        title={project.name}
+        badges={
+          <>
             <Badge variant={projectStatusVariant(project.status)}>
               {projectStatusLabel(project.status)}
             </Badge>
             <Badge variant={projectKindVariant(project.kind)}>
               {projectKindLabel(project.kind)}
             </Badge>
-          </div>
-          {project.customer && (
+          </>
+        }
+        subtitle={
+          project.customer && (
             <Link
               href="/customers"
-              className="text-muted-foreground hover:underline hover:text-foreground"
+              className="hover:text-foreground hover:underline"
             >
               {project.customer.name}
             </Link>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2 sm:shrink-0">
-          {canWrite && (
-            <CopyProjectButton
-              id={project.id}
-              name={project.name}
-              planningStart={project.planningStart.toISOString()}
-              planningEnd={project.planningEnd.toISOString()}
-            />
-          )}
-          <DeleteProjectButton id={project.id} name={project.name} />
-        </div>
-      </div>
+          )
+        }
+        actions={
+          <>
+            {canWrite && (
+              <CopyProjectButton
+                id={project.id}
+                name={project.name}
+                planningStart={project.planningStart.toISOString()}
+                planningEnd={project.planningEnd.toISOString()}
+              />
+            )}
+            <DeleteProjectButton id={project.id} name={project.name} />
+          </>
+        }
+      />
 
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Planung</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-sm font-medium">
-              {formatDate(project.planningStart)} bis {formatDate(project.planningEnd)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Berechnung</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-sm font-medium">
-              {project.billingPeriods.length === 0
-                ? "—"
-                : project.billingPeriods.length === 1
-                ? `${formatDate(project.billingPeriods[0].start)} bis ${formatDate(project.billingPeriods[0].end)}`
-                : `${formatDate(project.billingPeriods[0].start)} bis ${formatDate(
-                    project.billingPeriods[project.billingPeriods.length - 1].end
-                  )}`}
-            </div>
-            <div className="text-xs text-muted-foreground">
+      <StatTileGrid>
+        <StatTile
+          label="Planung"
+          size="sm"
+          value={`${formatDate(project.planningStart)} – ${formatDate(project.planningEnd)}`}
+          hint="blockt das Material"
+        />
+        <StatTile
+          label="Berechnung"
+          size="sm"
+          tone="info"
+          value={
+            project.billingPeriods.length === 0
+              ? "—"
+              : `${formatDate(project.billingPeriods[0].start)} – ${formatDate(
+                  project.billingPeriods[project.billingPeriods.length - 1].end
+                )}`
+          }
+          hint={
+            <>
               {billingDays} Tag(e) gesamt
               {project.billingPeriods.length > 1 &&
                 ` · ${project.billingPeriods.length} Zeiträume`}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Gewicht</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">
-              {totalWeightKg.toFixed(1)} kg
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Packeinheiten (leer, inkl. Kabel) + lose Geräte + Kabel
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Gesamtpreis</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(total)}</div>
-            {Number(project.discountPercent) > 0 && (
-              <div className="text-xs text-muted-foreground">
-                inkl. {project.discountPercent.toString()}% Rabatt
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </>
+          }
+        />
+        <StatTile
+          label="Gewicht"
+          value={`${totalWeightKg.toFixed(1)} kg`}
+          hint="Packeinheiten (leer, inkl. Kabel) + lose Geräte + Kabel"
+        />
+        <StatTile
+          label="Gesamtpreis"
+          value={formatCurrency(total)}
+          hint={
+            Number(project.discountPercent) > 0
+              ? `inkl. ${project.discountPercent.toString()} % Rabatt`
+              : undefined
+          }
+        />
+      </StatTileGrid>
 
       <Tabs defaultValue="details">
         <TabsList>
@@ -792,7 +774,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
 
         <TabsContent value="details">
           <Card>
-            <CardHeader><CardTitle>Projekt bearbeiten</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
             <CardContent>
               <ProjectForm
                 project={serialize(project)}

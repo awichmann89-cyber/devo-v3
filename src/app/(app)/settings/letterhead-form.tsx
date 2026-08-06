@@ -9,6 +9,7 @@ import { Upload, FileText, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { uploadLetterhead, deleteLetterhead } from "./letterhead-actions";
 import { LetterheadKind } from "@prisma/client";
+import { toastError } from "@/lib/toast";
 
 interface TemplateInfo {
   kind: LetterheadKind;
@@ -66,7 +67,7 @@ function Slot({
         toast.success("Briefpapier hochgeladen");
         if (fileInputRef.current) fileInputRef.current.value = "";
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Hochladen");
+        toastError(err, "Speichern");
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     });
@@ -79,7 +80,7 @@ function Slot({
         toast.success("Briefpapier entfernt");
         setConfirmDelete(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Löschen");
       }
     });
   }
@@ -87,7 +88,7 @@ function Slot({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-center gap-2">
           {title}
           <InfoHint text={`${description} Nur PDF, max. 10 MB.`} />
         </CardTitle>
@@ -108,7 +109,7 @@ function Slot({
                   })}
                 </div>
               </div>
-              <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+              <Button asChild variant="ghost" size="iconSm" >
                 <a
                   href={`/api/letterhead/${kind}`}
                   target="_blank"
@@ -120,8 +121,8 @@ function Slot({
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive"
+                size="iconSm"
+                className="text-destructive hover:text-destructive"
                 onClick={() => setConfirmDelete(true)}
                 title="Entfernen"
                 disabled={pending}

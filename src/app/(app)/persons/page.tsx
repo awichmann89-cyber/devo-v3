@@ -1,6 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { InfoHint } from "@/components/ui/info-hint";
 import { PersonsTable } from "./persons-table";
 
 export default async function PersonsPage() {
@@ -34,19 +32,5 @@ export default async function PersonsPage() {
     _count: p._count,
   }));
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Personen
-            <InfoHint text="Gesellschafter, Mitarbeiter, Freelancer und Minijobber. Personen werden im Projekt an Personal-Positionen eingeplant und erhalten einen persönlichen Link für Kalender-Abo und Zeiterfassung." />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PersonsTable persons={vmPersons} users={users} />
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <PersonsTable persons={vmPersons} users={users} />;
 }

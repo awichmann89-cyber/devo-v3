@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { FilterSearch } from "@/components/filters/filter-controls";
 import {
   Table,
   TableBody,
@@ -22,7 +23,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { InfoHint } from "@/components/ui/info-hint";
 import { QuantityInput } from "@/components/ui/quantity-input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -37,11 +37,8 @@ import {
   ChevronDown,
   ChevronRight,
   Package,
-  Boxes,
   ArrowRight,
-  Search,
   Pencil,
-  FolderPlus,
   Folder,
   FolderOpen,
   Download,
@@ -70,6 +67,8 @@ import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { cableSpecLabel } from "@/lib/labels";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
+import { useTransitionSaveStatus } from "@/lib/use-auto-save";
+import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { groupItemsByCategory } from "@/lib/category-tree";
 import type {
@@ -81,7 +80,6 @@ import type {
   Category,
   ProjectGroup,
 } from "@prisma/client";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cable as CableIcon } from "lucide-react";
 import {
   addCableAssignment,
@@ -125,6 +123,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
+import { toastError } from "@/lib/toast";
 
 type DeviceLite = Device & { category: Category | null };
 type CableLite = Cable & { category: Category | null };
@@ -245,6 +244,7 @@ export function AssignmentsSection({
 }: Props) {
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
+  const saveStatus = useTransitionSaveStatus(pending);
 
   // Tagesfaktor/-tage einer Gruppe — Fallback auf die globalen Werte.
   const factorFor = (groupId: string) => groupFactors[groupId] ?? billingFactor;
@@ -316,7 +316,7 @@ export function AssignmentsSection({
         toast.success("Zumietung entfernt");
         setSubhireDelete(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -398,7 +398,7 @@ export function AssignmentsSection({
             }
           }
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : "Fehler");
+          toastError(e, "Anlegen");
         }
       });
       return;
@@ -422,7 +422,7 @@ export function AssignmentsSection({
           toast.success("Gerät gebucht");
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -433,7 +433,7 @@ export function AssignmentsSection({
       try {
         await updateAssignmentQuantity(project.id, assignmentId, q);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -444,7 +444,7 @@ export function AssignmentsSection({
         await removeAssignment(project.id, assignmentId);
         toast.success("Gerät entfernt");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -454,7 +454,7 @@ export function AssignmentsSection({
       try {
         await moveAssignmentToGroup(project.id, assignmentId, groupId);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -494,7 +494,7 @@ export function AssignmentsSection({
         groupId = res.id;
         setActiveGroupId(res.id);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
         return;
       }
     }
@@ -509,7 +509,7 @@ export function AssignmentsSection({
         });
         toast.success("Kabel gebucht");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -520,7 +520,7 @@ export function AssignmentsSection({
       try {
         await updateCableAssignmentQuantity(project.id, assignmentId, q);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -531,7 +531,7 @@ export function AssignmentsSection({
         await removeCableAssignment(project.id, assignmentId);
         toast.success("Kabel entfernt");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -541,7 +541,7 @@ export function AssignmentsSection({
       try {
         await moveCableAssignmentToGroup(project.id, assignmentId, groupId);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -571,7 +571,7 @@ export function AssignmentsSection({
         }
         setGroupDialog(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -584,7 +584,7 @@ export function AssignmentsSection({
         await deleteProjectGroup(id);
         setDeleteGroup(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -595,7 +595,7 @@ export function AssignmentsSection({
       try {
         await renameProjectGroup(id, name);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -609,7 +609,7 @@ export function AssignmentsSection({
       try {
         await reorderProjectGroups(ids);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -619,7 +619,7 @@ export function AssignmentsSection({
       try {
         await addGroupComment(project.id, groupId, "Zwischenüberschrift");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -629,7 +629,7 @@ export function AssignmentsSection({
       try {
         await updateGroupComment(id, text);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -639,7 +639,7 @@ export function AssignmentsSection({
       try {
         await deleteGroupComment(id);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -728,7 +728,7 @@ export function AssignmentsSection({
           ordered.map((r) => ({ kind: r.kind, id: r.id }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Sortieren");
+        toastError(err, "Verschieben");
       }
     });
   }
@@ -775,7 +775,7 @@ export function AssignmentsSection({
         }
         setAdHocDialog(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -789,7 +789,7 @@ export function AssignmentsSection({
         toast.success("Position entfernt");
         setAdHocDelete(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -806,9 +806,8 @@ export function AssignmentsSection({
         id={sortId}
         key={sortId}
         className={cn(
-          "[&_td]:px-2 [&_td]:py-1",
           hasSubhire
-            ? "bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40"
+            ? "bg-subhire-subtle hover:bg-subhire-subtle"
             : "bg-warning-subtle hover:bg-warning-subtle"
         )}
       >
@@ -823,7 +822,7 @@ export function AssignmentsSection({
             </div>
           )}
           {hasSubhire && (
-            <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
+            <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-subhire">
               <HandCoins className="h-3 w-3" />
               zugemietet: {subhiredQty} Stk.
             </div>
@@ -843,7 +842,7 @@ export function AssignmentsSection({
                     unitPrice: unit,
                   });
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Fehler");
+                  toastError(e, "Speichern");
                 }
               })
             }
@@ -851,14 +850,14 @@ export function AssignmentsSection({
           />
         </TableCell>
         {!isSale && (
-          <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+          <TableCell className="num text-right text-xs text-muted-foreground whitespace-nowrap">
             {daysFor(it.groupId)} ({String(factorFor(it.groupId)).replace(".", ",")})
           </TableCell>
         )}
-        <TableCell className="text-right tabular-nums font-mono text-sm">
+        <TableCell className="text-right num text-sm">
           {formatCurrency(unit)}
         </TableCell>
-        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+        <TableCell className="text-right num text-sm font-medium">
           {formatCurrency(line)}
         </TableCell>
         {!isSale && <TableCell />}
@@ -866,11 +865,8 @@ export function AssignmentsSection({
           <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
-              size="icon"
-              className={cn(
-                "h-7 w-7",
-                hasSubhire && "text-fuchsia-600 dark:text-fuchsia-400"
-              )}
+              size="iconXs"
+              className={cn(hasSubhire && "text-subhire")}
               onClick={() =>
                 setSubhireDialog(
                   emptySubhire({
@@ -887,8 +883,8 @@ export function AssignmentsSection({
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               onClick={() =>
                 setAdHocDialog({
                   mode: "edit",
@@ -906,8 +902,8 @@ export function AssignmentsSection({
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
+              size="iconXs"
+              className="text-destructive hover:text-destructive"
               onClick={() => setAdHocDelete(it)}
               disabled={pending}
               title="Entfernen"
@@ -941,10 +937,9 @@ export function AssignmentsSection({
         <SortableRow
           id={sortId}
           className={cn(
-            "[&_td]:px-2 [&_td]:py-1",
             // Zugemietet → blau (dominiert die Warnung optisch).
             hasSubhire &&
-              "bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40",
+              "bg-subhire-subtle hover:bg-subhire-subtle",
             !hasSubhire &&
               showOverWarning &&
               "bg-destructive-subtle/70 hover:bg-destructive-subtle"
@@ -979,7 +974,7 @@ export function AssignmentsSection({
                     </div>
                   )}
                   {hasSubhire && (
-                    <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
+                    <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-subhire">
                       <HandCoins className="h-3 w-3" />
                       zugemietet: {subhiredQty} Stk.
                     </div>
@@ -997,14 +992,14 @@ export function AssignmentsSection({
             />
           </TableCell>
           {!isSale && (
-            <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+            <TableCell className="num text-right text-xs text-muted-foreground whitespace-nowrap">
               {daysFor(a.groupId)} ({String(factorFor(a.groupId)).replace(".", ",")})
             </TableCell>
           )}
-          <TableCell className="text-right tabular-nums font-mono text-sm">
+          <TableCell className="text-right num text-sm">
             {formatCurrency(rate)}
           </TableCell>
-          <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+          <TableCell className="text-right num text-sm font-medium">
             {formatCurrency(lineTotal)}
           </TableCell>
           {!isSale && (
@@ -1037,11 +1032,8 @@ export function AssignmentsSection({
               )}
               <Button
                 variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-7 w-7",
-                  hasSubhire && "text-fuchsia-600 dark:text-fuchsia-400"
-                )}
+                size="iconXs"
+                className={cn(hasSubhire && "text-subhire")}
                 onClick={() =>
                   setSubhireDialog(
                     emptySubhire({
@@ -1058,8 +1050,8 @@ export function AssignmentsSection({
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-7 w-7"
+                size="iconXs"
+                
                 onClick={() => handleRemove(a.id)}
                 disabled={pending}
                 title="Entfernen"
@@ -1121,17 +1113,17 @@ export function AssignmentsSection({
     return (
       <TableRow
         key={`SUBHIRE:${s.id}`}
-        className="bg-fuchsia-50/70 hover:bg-fuchsia-50 dark:bg-fuchsia-950/30 dark:hover:bg-fuchsia-950/40 [&_td]:px-2 [&_td]:py-1"
+        className="bg-subhire-subtle hover:bg-subhire-subtle"
       >
         <TableCell />
         <TableCell>
           <div className="font-medium truncate">{s.name}</div>
-          <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400">
+          <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-subhire">
             <HandCoins className="h-3 w-3" />
             zugemietet{s.supplier ? ` · ${s.supplier}` : ""}
           </div>
         </TableCell>
-        <TableCell className="text-center tabular-nums font-mono text-sm">
+        <TableCell className="text-center num text-sm">
           {s.quantity}
         </TableCell>
         {!isSale && (
@@ -1141,7 +1133,7 @@ export function AssignmentsSection({
         <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
         {!isSale && (
           <TableCell>
-            <span className="text-xs font-medium text-fuchsia-600 dark:text-fuchsia-400">
+            <span className="text-xs font-medium text-subhire">
               zugemietet
             </span>
           </TableCell>
@@ -1150,8 +1142,8 @@ export function AssignmentsSection({
           <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               title="Bearbeiten"
               onClick={() =>
                 setSubhireDialog({
@@ -1172,8 +1164,8 @@ export function AssignmentsSection({
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
+              size="iconXs"
+              className="text-destructive hover:text-destructive"
               title="Entfernen"
               onClick={() => setSubhireDelete(s)}
               disabled={pending}
@@ -1257,8 +1249,8 @@ export function AssignmentsSection({
               )}
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-7 w-7"
+                size="iconXs"
+                
                 onClick={() => handleRemoveCable(ca.id)}
                 disabled={pending}
                 title="Entfernen"
@@ -1318,7 +1310,10 @@ export function AssignmentsSection({
 
   return (
     <>
-      <div className="mb-3 flex justify-end gap-2">
+      <div className="mb-3 flex items-center justify-end gap-2">
+        {/* Inline-Änderungen (Mengen, Gruppennamen, Zwischenüberschriften)
+            speichern sofort — der Indikator macht das sichtbar. */}
+        <AutoSaveIndicator status={saveStatus} className="mr-auto" />
         <ScanDialog
           projectId={project.id}
           hasAssignments={hasPackableItems}
@@ -1354,7 +1349,8 @@ export function AssignmentsSection({
           so weit scrollen, dass die Katalog-Suche hinter dem App-Header
           verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
           jeweils in ihrer eigenen Spalte. */}
-      <Card className="p-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:material-split"
         defaultLeftPx={360}
@@ -1364,22 +1360,19 @@ export function AssignmentsSection({
         leftClassName="lg:flex lg:flex-col lg:min-h-0"
         rightClassName="lg:flex lg:flex-col lg:min-h-0"
         left={
-          <Card className="border-0 shadow-none flex flex-col lg:flex-1 lg:min-h-0">
-            <CardHeader className="px-0 pt-0 pb-3 space-y-3">
-              <CardTitle className="text-base flex items-center gap-2">
+          <div className="flex flex-col lg:flex-1 lg:min-h-0">
+            <div className="space-y-3 pb-3">
+              <CardTitle className="flex items-center gap-2">
                 <Package className="h-4 w-4" /> Katalog
               </CardTitle>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Gerät oder Kabel suchen…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-9 pl-8"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+              <FilterSearch
+                grow
+                value={search}
+                onChange={setSearch}
+                placeholder="Gerät oder Kabel suchen…"
+              />
+            </div>
+            <div className="rounded-lg border lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
               <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 <span className="flex-1">Bezeichnung</span>
                 <span className="w-10 text-right">Bestand</span>
@@ -1442,13 +1435,13 @@ export function AssignmentsSection({
                                       {d.name}
                                     </div>
                                   </div>
-                                  <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                                  <span className="shrink-0 num text-[11px] text-muted-foreground">
                                     {remainingStock}
                                   </span>
                                   <Button
                                     variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
+                                    size="iconXs"
+                                    className="shrink-0 opacity-60 group-hover:opacity-100"
                                     disabled={pending}
                                     onClick={() => handleAdd(d.id)}
                                     title={
@@ -1524,15 +1517,15 @@ export function AssignmentsSection({
                                 )}
                               </div>
                               <span className={cn(
-                                "shrink-0 text-[11px] tabular-nums",
+                                "num shrink-0 text-[11px]",
                                 free <= 0 ? "text-destructive font-semibold" : "text-muted-foreground",
                               )}>
                                 {free} frei
                               </span>
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 shrink-0 opacity-60 group-hover:opacity-100"
+                                size="iconXs"
+                                className="shrink-0 opacity-60 group-hover:opacity-100"
                                 disabled={pending}
                                 onClick={() => handleAddCable(c.id)}
                                 title={
@@ -1551,8 +1544,8 @@ export function AssignmentsSection({
                   </li>
                 </ul>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         }
         right={
           <div className="flex flex-col lg:flex-1 lg:min-h-0">
@@ -1613,7 +1606,7 @@ export function AssignmentsSection({
                     <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
                   </div>
                 ) : (
-                  <Table className="[&_td]:px-2 [&_td]:py-1">
+                  <Table density="dense">
                     <TableHeader>
                       <TableRow className="hover:bg-secondary">
                         <TableHead className="w-8"></TableHead>
@@ -1737,7 +1730,7 @@ export function AssignmentsSection({
                 {discount > 0 && (
                   <span>
                     Rabatte{" "}
-                    <span className="font-mono tabular-nums">−{formatCurrency(discount)}</span>
+                    <span className="num">−{formatCurrency(discount)}</span>
                   </span>
                 )}
                 {!isSale && (
@@ -1754,13 +1747,15 @@ export function AssignmentsSection({
           </div>
         }
       />
+      </CardContent>
+      </Card>
 
       {/* Gruppe-Dialog */}
       <Dialog
         open={groupDialog !== null}
         onOpenChange={(o) => !o && setGroupDialog(null)}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>
               {groupDialog?.mode === "create" ? "Gruppe anlegen" : "Gruppe bearbeiten"}
@@ -1879,7 +1874,7 @@ export function AssignmentsSection({
         open={adHocDialog !== null}
         onOpenChange={(o) => !o && setAdHocDialog(null)}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>
               {adHocDialog?.mode === "create"
@@ -2005,8 +2000,6 @@ export function AssignmentsSection({
         pending={pending}
         onConfirm={handleDeleteAdHoc}
       />
-
-      </Card>
 
       <ConfirmDialog
         open={conflictPrompt !== null}

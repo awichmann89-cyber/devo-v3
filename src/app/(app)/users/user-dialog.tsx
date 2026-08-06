@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -24,6 +25,7 @@ import { createUser, updateUser } from "./actions";
 import { toast } from "sonner";
 import { Role } from "@prisma/client";
 import { roleLabel } from "@/lib/labels";
+import { toastError } from "@/lib/toast";
 
 interface UserVM {
   id: string;
@@ -65,7 +67,7 @@ export function UserDialog({ user, open: controlledOpen, onOpenChange }: Props) 
         }
         setOpen(false);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -74,17 +76,21 @@ export function UserDialog({ user, open: controlledOpen, onOpenChange }: Props) 
     <Dialog open={open} onOpenChange={setOpen}>
       {!user && (
         <DialogTrigger asChild>
-          <Button><Plus className="h-4 w-4" /> Neuer Benutzer</Button>
+          <Button><Plus className="h-4 w-4" /> Benutzer anlegen</Button>
         </DialogTrigger>
       )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{user ? "Benutzer bearbeiten" : "Neuer Benutzer"}</DialogTitle>
+          <DialogTitle>{user ? "Benutzer bearbeiten" : "Benutzer anlegen"}</DialogTitle>
+          <DialogDescription>
+            Die Rolle steuert die Schreibrechte: Administrator (alles), Disponent
+            (Projekte und Material), Leser (nur lesen).
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            <Label htmlFor="email">E-Mail</Label>
+            <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoFocus />
           </div>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>

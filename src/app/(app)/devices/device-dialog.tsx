@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -24,16 +25,37 @@ import {
 import { Plus, Loader2, Pencil } from "lucide-react";
 import { createDevice, updateDevice } from "./actions";
 import { toast } from "sonner";
-import {
-  type Category,
-  type Device,
-} from "@prisma/client";
+import { type Category } from "@prisma/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { flattenCategoryTree } from "@/lib/category-tree";
+import { toastError } from "@/lib/toast";
+
+/** Prisma-Decimal oder bereits serialisierte Zahl — das Formular ruft nur `toString()`. */
+type NumberLike = number | string | { toString(): string };
+
+/**
+ * Nur die Felder, die das Formular tatsächlich liest — so kann der Dialog
+ * sowohl mit einem vollen Prisma-`Device` als auch mit dem schlankeren
+ * Listen-ViewModel (`DeviceVM`) aufgerufen werden.
+ */
+export interface DeviceForDialog {
+  id: string;
+  manufacturer: string | null;
+  model: string | null;
+  description: string | null;
+  stockQuantity: number;
+  dailyRate: NumberLike;
+  replacementValue: NumberLike | null;
+  weight: NumberLike | null;
+  powerWatts: number | null;
+  categoryId: string | null;
+  inspectionExempt: boolean;
+  showOnDocuments: boolean;
+}
 
 interface Props {
   categories: Category[];
-  device?: Device;
+  device?: DeviceForDialog;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   editTrigger?: boolean;
@@ -97,7 +119,7 @@ export function DeviceDialog({
         }
         setOpen(false);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : String(e) });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -118,9 +140,13 @@ export function DeviceDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Gerät bearbeiten" : "Gerät anlegen"}</DialogTitle>
+          <DialogDescription>
+            Ein Geräte-Typ mit Lagerbestand — Seriennummern werden auf der
+            Detailseite gepflegt.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -131,6 +157,7 @@ export function DeviceDialog({
                 value={form.manufacturer ?? ""}
                 onChange={(e) => setForm({ ...form, manufacturer: e.target.value })}
                 required
+                autoFocus
               />
             </div>
             <div className="space-y-2">

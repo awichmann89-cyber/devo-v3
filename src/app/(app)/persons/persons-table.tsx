@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -10,25 +11,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableEmpty } from "@/components/ui/table-empty";
+import { TableGroupRow, groupChildIndent } from "@/components/ui/table-group-row";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
+import { ListCard } from "@/components/layout/list-card";
+import { FilterResetButton, FilterSearch } from "@/components/filters/filter-controls";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pencil,
-  Trash2,
-  Plus,
-  X,
-  Search,
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-  ExternalLink,
-} from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PersonDialog, PersonVM, UserOptionVM } from "./person-dialog";
 import { deletePerson } from "./actions";
 import { toast } from "sonner";
+import { toastBlocked } from "@/lib/toast";
 import { employmentTypeLabel } from "@/lib/labels";
 import { formatCurrency } from "@/lib/utils";
 import { EmploymentType } from "@prisma/client";
@@ -64,6 +59,7 @@ export function PersonsTable({
   persons: Row[];
   users: UserOptionVM[];
 }) {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PersonVM | null>(null);
   const [deleting, setDeleting] = useState<Row | null>(null);
@@ -118,163 +114,122 @@ export function PersonsTable({
         }
         setDeleting(null);
       } catch (e) {
-        toast.error("Löschen nicht möglich", {
-          description: e instanceof Error ? e.message : "",
-        });
+        toastBlocked(e, "Löschen");
       }
     });
   }
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Suche…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-72 pl-8"
-          />
-        </div>
-        {search && (
-          <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
-            <X className="h-4 w-4" /> Filter zurücksetzen
-          </Button>
-        )}
-        <div className="ml-auto">
+      <ListCard
+        title="Personen"
+        info="Gesellschafter, Mitarbeiter, Freelancer und Minijobber. Personen werden im Projekt an Personal-Positionen eingeplant und erhalten einen persönlichen Link für Kalender-Abo und Zeiterfassung."
+        action={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Person anlegen
           </Button>
-        </div>
-      </div>
-
-      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Kontakt</TableHead>
-            <TableHead className="text-right">Satz</TableHead>
-            <TableHead className="text-right">Einsätze</TableHead>
-            <TableHead className="w-[120px]"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.length === 0 && (
+        }
+        count={{ shown: filtered.length, total: persons.length }}
+        filters={
+          <>
+            <FilterSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Name, E-Mail oder Telefon…"
+            />
+            {search && <FilterResetButton onClick={() => setSearch("")} />}
+          </>
+        }
+      >
+        <Table density="comfortable">
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                {persons.length === 0
-                  ? "Noch keine Personen angelegt"
-                  : "Keine Treffer für die Suche"}
-              </TableCell>
+              <TableHead>Name</TableHead>
+              <TableHead>Kontakt</TableHead>
+              <TableHead className="text-right">Satz</TableHead>
+              <TableHead className="text-right">Einsätze</TableHead>
+              <TableHead className="w-[76px]"></TableHead>
             </TableRow>
-          )}
-          {grouped.map((group) => {
-            const isCollapsed = collapsedTypes.has(group.type);
-            return (
-              <Fragment key={group.type}>
-                <TableRow
-                  className="cursor-pointer bg-muted/30 hover:bg-muted/50"
-                  onClick={() => toggleType(group.type)}
-                >
-                  <TableCell colSpan={5} className="py-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide">
-                      {isCollapsed ? (
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                      )}
-                      {isCollapsed ? (
-                        <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="truncate">{group.label}</span>
-                      <span className="ml-1 font-normal text-muted-foreground normal-case">
-                        ({group.items.length})
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-                {!isCollapsed &&
-                  group.items.map((p) => (
-                    <TableRow key={p.id} className={p.active ? "" : "opacity-50"}>
-                      <TableCell style={{ paddingLeft: "2.5rem" }}>
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/persons/${p.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {p.name}
-                          </Link>
-                          {!p.active && <Badge variant="outline">Inaktiv</Badge>}
-                          {p.userLabel && (
-                            <Badge variant="secondary" title="Verknüpfter Cratel-Account">
-                              {p.userLabel}
-                            </Badge>
-                          )}
-                        </div>
-                        {p.notes && (
-                          <div className="text-xs text-muted-foreground line-clamp-1">
-                            {p.notes}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {p.email && <div>{p.email}</div>}
-                        {p.phone && (
-                          <div className="text-muted-foreground">{p.phone}</div>
-                        )}
-                        {!p.email && !p.phone && (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {rateLabel(p)}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {p._count.assignments}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            asChild
-                            title="Detailseite"
-                          >
-                            <Link href={`/persons/${p.id}`}>
-                              <ExternalLink className="h-4 w-4" />
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 && (
+              <TableEmpty colSpan={5} hasData={persons.length > 0} entity="Personen" />
+            )}
+            {grouped.map((group) => {
+              const isCollapsed = collapsedTypes.has(group.type);
+              return (
+                <Fragment key={group.type}>
+                  <TableGroupRow
+                    colSpan={5}
+                    label={group.label}
+                    count={group.items.length}
+                    collapsed={isCollapsed}
+                    onToggle={() => toggleType(group.type)}
+                  />
+                  {!isCollapsed &&
+                    group.items.map((p) => (
+                      <TableRow
+                        key={p.id}
+                        className={p.active ? "cursor-pointer" : "cursor-pointer opacity-50"}
+                        onClick={() => router.push(`/persons/${p.id}`)}
+                      >
+                        <TableCell style={{ paddingLeft: groupChildIndent(0) }}>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/persons/${p.id}`}
+                              className="font-medium hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {p.name}
                             </Link>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => openEdit(p)}
-                            title="Bearbeiten"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeleting(p)}
-                            title="Löschen"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </Fragment>
-            );
-          })}
-        </TableBody>
-      </Table>
+                            {!p.active && <Badge variant="outline">Inaktiv</Badge>}
+                            {p.userLabel && (
+                              <Badge variant="secondary" title="Verknüpfter Cratel-Account">
+                                {p.userLabel}
+                              </Badge>
+                            )}
+                          </div>
+                          {p.notes && (
+                            <div className="line-clamp-1 text-xs text-muted-foreground">
+                              {p.notes}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {p.email && <div>{p.email}</div>}
+                          {p.phone && <div className="text-muted-foreground">{p.phone}</div>}
+                          {!p.email && !p.phone && (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="num text-right">{rateLabel(p)}</TableCell>
+                        <TableCell className="num text-right">
+                          {p._count.assignments}
+                        </TableCell>
+                        <TableCell>
+                          <RowActions density="comfortable">
+                            <RowAction
+                              icon={Pencil}
+                              label="Bearbeiten"
+                              onClick={() => openEdit(p)}
+                            />
+                            <RowAction
+                              icon={Trash2}
+                              label="Löschen"
+                              destructive
+                              disabled={pending}
+                              onClick={() => setDeleting(p)}
+                            />
+                          </RowActions>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </ListCard>
 
       <PersonDialog
         open={dialogOpen}

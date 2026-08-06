@@ -40,6 +40,25 @@ export function formatCurrency(value: number | string | null | undefined): strin
   }).format(num);
 }
 
+/**
+ * Betrag mit typografischem Minus (U+2212) statt ASCII-Hyphen.
+ *
+ * Für Abzüge (Rabatte, Kosten), die als negativer Posten dargestellt werden,
+ * auch wenn der Wert positiv übergeben wird: `formatCurrencySigned(50, {negate: true})`
+ * → „−50,00 €". Bei 0 kommt der Platzhalter „—".
+ */
+export function formatCurrencySigned(
+  value: number | null | undefined,
+  options: { negate?: boolean; zeroAsDash?: boolean } = {}
+): string {
+  const { negate = false, zeroAsDash = true } = options;
+  if (value === null || value === undefined) return "—";
+  if (value === 0 && zeroAsDash) return "—";
+  const abs = Math.abs(value);
+  const isNegative = negate ? value > 0 : value < 0;
+  return (isNegative ? "−" : "") + formatCurrency(abs);
+}
+
 export function daysBetween(start: Date, end: Date): number {
   const ms = end.getTime() - start.getTime();
   return Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
@@ -9,9 +8,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Hash, ShieldOff } from "lucide-react";
+import { DetailHeader } from "@/components/layout/detail-header";
+import { Hash, ShieldOff } from "lucide-react";
 import { CableUnitsEditor, CableUnitVM } from "./cable-units-editor";
 import { CableActionsButtons } from "./cable-actions-buttons";
 import { QrCodeDisplay } from "@/app/(app)/devices/[id]/qr-display";
@@ -80,38 +79,29 @@ export default async function CableDetailPage(props: {
     .join(" · ");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/material?tab=cables">
-            <ArrowLeft className="h-4 w-4" /> Zurück
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-4">
+      <DetailHeader
+        backHref="/material?tab=cables"
+        title={cable.name}
+        badges={
+          cable.inspectionExempt && (
+            <Badge variant="secondary">
+              <ShieldOff className="h-3 w-3" />
+              Prüfung nicht erforderlich
+            </Badge>
+          )
+        }
+        subtitle={subtitle}
+        actions={
+          <CableActionsButtons
+            cable={cableForDialog}
+            categories={categories}
+            unitsTotal={unitsVM.length}
+          />
+        }
+      />
 
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-[21px] font-extrabold tracking-tight">{cable.name}</h1>
-            {cable.inspectionExempt && (
-              <Badge variant="secondary" className="gap-1">
-                <ShieldOff className="h-3 w-3" />
-                Prüfung nicht erforderlich
-              </Badge>
-            )}
-          </div>
-          {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
-          )}
-        </div>
-        <CableActionsButtons
-          cable={cableForDialog}
-          categories={categories}
-          unitsTotal={unitsVM.length}
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Stammdaten</CardTitle>
@@ -158,7 +148,7 @@ export default async function CableDetailPage(props: {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               QR-Code
               <InfoHint text="Scannt direkt zum Kabel." />
             </CardTitle>

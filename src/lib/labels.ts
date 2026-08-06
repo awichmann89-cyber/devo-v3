@@ -9,9 +9,7 @@ export function projectKindLabel(kind: ProjectKind): string {
   }[kind];
 }
 
-export function projectKindVariant(
-  kind: ProjectKind
-): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" {
+export function projectKindVariant(kind: ProjectKind): BadgeVariant {
   return {
     SPENDE: "warning" as const,
     DRYHIRE: "outline" as const,
@@ -30,7 +28,7 @@ export function projectStatusLabel(status: ProjectStatus): string {
   }[status];
 }
 
-export function projectStatusVariant(status: ProjectStatus): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" {
+export function projectStatusVariant(status: ProjectStatus): BadgeVariant {
   return {
     DRAFT: "outline" as const,
     CONFIRMED: "secondary" as const,
@@ -65,6 +63,95 @@ export function projectStatusRowClass(status: ProjectStatus): string {
   }[status];
 }
 
+// ---------- Rechnungs-Status ----------
+// Analog zu den Projekt-Status-Helpern oben: Label und Badge-Variante gehören
+// zusammen und dürfen nicht pro Tabelle neu erfunden werden.
+
+export type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline"
+  | "success"
+  | "warning"
+  | "info"
+  | "subhire";
+
+export type InvoiceStatus = "open" | "overdue" | "paid";
+
+/** Leitet den Status aus Fälligkeit und Zahlungsdatum ab (tagesgenau). */
+export function invoiceStatus(invoice: {
+  paidAt: Date | string | null;
+  dueDate: Date | string;
+}): InvoiceStatus {
+  if (invoice.paidAt) return "paid";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(invoice.dueDate);
+  due.setHours(0, 0, 0, 0);
+  return due < today ? "overdue" : "open";
+}
+
+export function invoiceStatusLabel(status: InvoiceStatus): string {
+  return { open: "Offen", overdue: "Überfällig", paid: "Bezahlt" }[status];
+}
+
+export function invoiceStatusVariant(status: InvoiceStatus): BadgeVariant {
+  return {
+    open: "outline" as const,
+    overdue: "destructive" as const,
+    paid: "success" as const,
+  }[status];
+}
+
+/** Typ-Label einer Rechnung: Rechnung, Vorkasse oder (n-te) Mahnung. */
+export function invoiceKindLabel(invoice: {
+  kind: "INVOICE" | "REMINDER";
+  reminderLevel: number;
+  isPrepayment: boolean;
+}): string {
+  if (invoice.kind === "REMINDER") {
+    return invoice.reminderLevel > 1 ? `${invoice.reminderLevel}. Mahnung` : "Mahnung";
+  }
+  return invoice.isPrepayment ? "Vorkasse" : "Rechnung";
+}
+
+// ---------- Angebots-Status ----------
+
+export type QuoteStatus = "valid" | "accepted" | "expired" | "superseded";
+
+export function quoteStatus(quote: {
+  acceptedAt: Date | string | null;
+  expiresAt: Date | string;
+  supersededByQuoteId?: string | null;
+}): QuoteStatus {
+  if (quote.supersededByQuoteId) return "superseded";
+  if (quote.acceptedAt) return "accepted";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expires = new Date(quote.expiresAt);
+  expires.setHours(0, 0, 0, 0);
+  return expires < today ? "expired" : "valid";
+}
+
+export function quoteStatusLabel(status: QuoteStatus): string {
+  return {
+    valid: "Gültig",
+    accepted: "Angenommen",
+    expired: "Abgelaufen",
+    superseded: "Ersetzt",
+  }[status];
+}
+
+export function quoteStatusVariant(status: QuoteStatus): BadgeVariant {
+  return {
+    valid: "success" as const,
+    accepted: "success" as const,
+    expired: "secondary" as const,
+    superseded: "outline" as const,
+  }[status];
+}
+
 export function roleLabel(role: Role): string {
   return {
     ADMIN: "Administrator",
@@ -82,9 +169,7 @@ export function employmentTypeLabel(type: EmploymentType): string {
   }[type];
 }
 
-export function employmentTypeVariant(
-  type: EmploymentType
-): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" {
+export function employmentTypeVariant(type: EmploymentType): BadgeVariant {
   return {
     GESELLSCHAFTER: "default" as const,
     MITARBEITER: "secondary" as const,

@@ -163,7 +163,7 @@ export function AcceptanceForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <CheckCircle2 className="h-5 w-5 text-success" />
           Angebot annehmen
         </CardTitle>

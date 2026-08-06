@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { Pencil, Trash2 } from "lucide-react";
 import { deleteUser } from "./actions";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast";
 import { UserDialog } from "./user-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Role } from "@prisma/client";
@@ -28,24 +29,21 @@ export function UserActions({ user }: { user: UserVM }) {
         toast.success("Benutzer gelöscht");
         setConfirmOpen(false);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Löschen");
       }
     });
   }
 
   return (
-    <div className="flex justify-end gap-1">
-      <Button variant="ghost" size="icon" onClick={() => setEditing(true)}>
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setConfirmOpen(true)}
+    <RowActions density="comfortable">
+      <RowAction icon={Pencil} label="Bearbeiten" onClick={() => setEditing(true)} />
+      <RowAction
+        icon={Trash2}
+        label="Löschen"
+        destructive
         disabled={pending}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+        onClick={() => setConfirmOpen(true)}
+      />
       {editing && (
         <UserDialog user={user} open onOpenChange={(o) => !o && setEditing(false)} />
       )}
@@ -63,6 +61,6 @@ export function UserActions({ user }: { user: UserVM }) {
         pending={pending}
         onConfirm={onConfirmDelete}
       />
-    </div>
+    </RowActions>
   );
 }

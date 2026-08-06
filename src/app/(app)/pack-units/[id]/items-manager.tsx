@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { Cable, Category, Device } from "@prisma/client";
+import { toastError } from "@/lib/toast";
 
 type DeviceVM = Device & { category: Category | null };
 type CableVM = Cable & { category: Category | null };
@@ -99,7 +100,7 @@ export function ItemsManager({
         await addItemToPackUnit(packUnitId, { deviceId, quantity: 1 });
         toast.success("Gerät hinzugefügt");
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -109,7 +110,7 @@ export function ItemsManager({
       try {
         await updateItemQuantity(itemId, q);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -119,7 +120,7 @@ export function ItemsManager({
         await removeItemFromPackUnit(itemId);
         toast.success("Gerät entfernt");
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Löschen");
       }
     });
   }
@@ -145,7 +146,7 @@ export function ItemsManager({
         await addCableToPackUnit(packUnitId, { cableId, quantity: 1 });
         toast.success("Kabel hinzugefügt");
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -155,7 +156,7 @@ export function ItemsManager({
       try {
         await updateCableItemQuantity(itemId, q);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -165,7 +166,7 @@ export function ItemsManager({
         await removeCableFromPackUnit(itemId);
         toast.success("Kabel entfernt");
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Löschen");
       }
     });
   }
@@ -187,7 +188,7 @@ export function ItemsManager({
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <Package className="h-4 w-4" /> Verfügbare Geräte-Typen
             </CardTitle>
             <div className="relative">
@@ -237,8 +238,8 @@ export function ItemsManager({
                       </div>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
+                        size="iconSm"
+                        className="shrink-0 opacity-60 group-hover:opacity-100"
                         disabled={pending}
                         onClick={() => handleAddDevice(d.id)}
                         title="Zur Packeinheit hinzufügen"
@@ -255,7 +256,7 @@ export function ItemsManager({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
+            <CardTitle>
               Geräte in dieser Packeinheit ({items.length} Typen)
             </CardTitle>
           </CardHeader>
@@ -349,17 +350,17 @@ export function ItemsManager({
                           onChange={(v) => handleDeviceQty(it.id, v)}
                           disabled={pending}
                           className={cn(
-                            "h-8 w-16 text-right tabular-nums ml-auto",
+                            "h-8 w-16 num ml-auto text-right",
                             isOver && "border-destructive focus-visible:ring-destructive"
                           )}
                         />
                       </TableCell>
                       {stockQuantity > 1 && (
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="num text-right">
                           {it.quantity * stockQuantity}
                         </TableCell>
                       )}
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="num text-right">
                         {formatCurrency(Number(it.device.dailyRate) * it.quantity)}
                       </TableCell>
                       <TableCell>
@@ -388,7 +389,7 @@ export function ItemsManager({
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <CableIcon className="h-4 w-4" /> Verfügbare Kabel-Typen
             </CardTitle>
             <div className="relative">
@@ -436,8 +437,8 @@ export function ItemsManager({
                     </div>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100"
+                      size="iconSm"
+                      className="shrink-0 opacity-60 group-hover:opacity-100"
                       disabled={pending}
                       onClick={() => handleAddCable(c.id)}
                       title="Zur Packeinheit hinzufügen"
@@ -454,7 +455,7 @@ export function ItemsManager({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
+            <CardTitle>
               Kabel in dieser Packeinheit ({cableItems.length} Typen)
             </CardTitle>
           </CardHeader>
@@ -548,13 +549,13 @@ export function ItemsManager({
                         onChange={(v) => handleCableQty(it.id, v)}
                         disabled={pending}
                         className={cn(
-                          "h-8 w-16 text-right tabular-nums ml-auto",
+                          "h-8 w-16 num ml-auto text-right",
                           isOver && "border-destructive focus-visible:ring-destructive"
                         )}
                       />
                     </TableCell>
                     {stockQuantity > 1 && (
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="num text-right">
                         {it.quantity * stockQuantity}
                       </TableCell>
                     )}

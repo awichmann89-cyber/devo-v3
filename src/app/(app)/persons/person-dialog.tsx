@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { EmploymentType } from "@prisma/client";
 import { employmentTypeLabel } from "@/lib/labels";
 import { createPerson, updatePerson } from "./actions";
+import { toastError } from "@/lib/toast";
 
 export interface PersonVM {
   id: string;
@@ -119,14 +120,14 @@ export function PersonDialog({ open, onOpenChange, person, users }: Props) {
         }
         onOpenChange(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Speichern");
+        toastError(err, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{person ? "Person bearbeiten" : "Person anlegen"}</DialogTitle>
           <DialogDescription>

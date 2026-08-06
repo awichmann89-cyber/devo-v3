@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { Label } from "@/components/ui/label";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   /** Aktueller Wert in Tagen */
@@ -43,7 +43,7 @@ export function DaysSettingForm({
         await onSave(days);
         toast.success(successMessage);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

@@ -10,6 +10,7 @@ import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveReminderNumberSettings } from "./settings-actions";
 import { buildReminderNumber } from "@/lib/settings";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   initialPrefix: string;
@@ -47,7 +48,7 @@ export function ReminderNumberForm({
         await saveReminderNumberSettings(prefix, padding, nextSeq);
         toast.success("Mahnungsnummer-Einstellungen gespeichert");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

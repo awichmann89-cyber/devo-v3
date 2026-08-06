@@ -9,33 +9,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableEmpty } from "@/components/ui/table-empty";
+import { TableGroupRow, groupChildIndent } from "@/components/ui/table-group-row";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  ChevronDown,
-  ChevronRight,
-  Boxes,
-  Pencil,
-  Trash2,
-  X,
-  Folder,
-  FolderOpen,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Boxes, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { PackUnitDialog } from "@/app/(app)/pack-units/pack-unit-dialog";
-import { flattenCategoryTree, groupItemsByCategory } from "@/lib/category-tree";
+import { groupItemsByCategory } from "@/lib/category-tree";
 import { deletePackUnit } from "@/app/(app)/pack-units/actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { isRedirectError, toastError } from "@/lib/toast";
 import type {
   Category,
   Device,
@@ -56,11 +43,13 @@ interface Props {
   packUnits: PackUnitWithItems[];
   categories: Category[];
   locations: Location[];
+  /** Suchbegriff — die Filterleiste liegt im ListCard-Header der Seite. */
+  search: string;
 }
 
-export function PackUnitsSection({ packUnits, categories, locations }: Props) {
+export function PackUnitsSection({ packUnits, categories, locations, search }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<PackUnitWithItems | null>(null);
   const [deleting, setDeleting] = useState<PackUnitWithItems | null>(null);
   const [pending, startTransition] = useTransition();
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -82,10 +71,8 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
         toast.success("Packeinheit gelöscht");
         setDeleting(null);
       } catch (e) {
-        if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
-        toast.error("Löschen fehlgeschlagen", {
-          description: e instanceof Error ? e.message : "",
-        });
+        if (isRedirectError(e)) throw e;
+        toastError(e, "Löschen");
       }
     });
   }
@@ -108,32 +95,9 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
     })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
-  const hasFilter = !!search;
-
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Suche…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        {hasFilter && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSearch("")}
-          >
-            <X className="h-4 w-4" /> Filter zurücksetzen
-          </Button>
-        )}
-        <div className="ml-auto">
-          <PackUnitDialog locations={locations} categories={categories} />
-        </div>
-      </div>
-
-      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+      <Table density="comfortable">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[40px]"></TableHead>
@@ -142,18 +106,12 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead className="text-right">Inhalt</TableHead>
             <TableHead className="text-right">€ / Tag</TableHead>
-            <TableHead className="w-[90px]"></TableHead>
+            <TableHead className="w-[76px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                {packUnits.length === 0
-                  ? "Noch keine Packeinheiten angelegt"
-                  : "Keine Treffer für die Suche"}
-              </TableCell>
-            </TableRow>
+            <TableEmpty colSpan={7} hasData={packUnits.length > 0} entity="Packeinheiten" />
           ) : (
             groupItemsByCategory(filtered, categories).map((group) => {
               if (group.ancestorKeys.some((k) => collapsedCats.has(k))) {
@@ -162,34 +120,14 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
               const isCatCollapsed = collapsedCats.has(group.key);
               return (
                 <Fragment key={group.key}>
-                  <TableRow
-                    className="cursor-pointer bg-muted/30 hover:bg-muted/50"
-                    onClick={() => toggleCat(group.key)}
-                  >
-                    <TableCell colSpan={7} className="py-2">
-                      <div
-                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
-                        style={{ paddingLeft: `${group.depth * 1.5}rem` }}
-                      >
-                        {isCatCollapsed ? (
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                        )}
-                        {isCatCollapsed ? (
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{group.name}</span>
-                        {group.items.length > 0 && (
-                          <span className="ml-1 font-normal text-muted-foreground normal-case">
-                            ({group.items.length})
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <TableGroupRow
+                    colSpan={7}
+                    label={group.name}
+                    count={group.items.length}
+                    depth={group.depth}
+                    collapsed={isCatCollapsed}
+                    onToggle={() => toggleCat(group.key)}
+                  />
                   {!isCatCollapsed && group.items.map((pu) => {
                     const stock = pu.stockQuantity ?? 1;
                     const devicesPerUnit = pu.items.reduce((s, it) => s + it.quantity, 0);
@@ -199,18 +137,16 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                     );
                     const isOpen = expanded.has(pu.id);
                     const hasItems = pu.items.length > 0;
-                    const Icon = Boxes;
 
                     return (
                       <Fragment key={pu.id}>
                         <TableRow className="cursor-pointer" onClick={() => hasItems && toggle(pu.id)}>
-                          <TableCell
-                            style={{ paddingLeft: `${1 + (group.depth + 1) * 1.5}rem` }}
-                          >
+                          <TableCell style={{ paddingLeft: groupChildIndent(group.depth) }}>
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
+                              size="iconXs"
+                              aria-label={isOpen ? "Inhalt einklappen" : "Inhalt ausklappen"}
+                              title={isOpen ? "Inhalt einklappen" : "Inhalt ausklappen"}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggle(pu.id);
@@ -230,13 +166,13 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                               className="flex items-center gap-2 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
                               <div>
                                 <div className="flex items-center gap-2 font-medium">
                                   {pu.name}
                                   <Badge
                                     variant={pu.packMode === "VARIABLE" ? "outline" : "secondary"}
-                                    className="text-[10px]"
+                                    size="sm"
                                   >
                                     {pu.packMode === "VARIABLE" ? "Variabel" : "Fix"}
                                   </Badge>
@@ -250,44 +186,42 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                           <TableCell className="text-muted-foreground">
                             {pu.location?.name ?? "—"}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            <Badge variant="secondary" className="text-[10px]">
+                          <TableCell className="text-right">
+                            <Badge variant="secondary" size="sm">
                               {stock}×
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right text-sm">
-                            <span className="tabular-nums">{devicesPerUnit}</span>
+                          <TableCell className="text-right">
+                            <span className="num">{devicesPerUnit}</span>
                             {devicesPerUnit > 0 && (
                               <span className="ml-1 text-xs text-muted-foreground">
                                 (= {devicesPerUnit * stock})
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          <TableCell className="num text-right">
                             {formatCurrency(dailyRatePerUnit)}
                           </TableCell>
                           <TableCell>
-                            <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" asChild title="Bearbeiten">
-                                <Link href={`/pack-units/${pu.id}`}>
-                                  <Pencil className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Löschen"
+                            <RowActions density="comfortable">
+                              <RowAction
+                                icon={Pencil}
+                                label="Bearbeiten"
+                                onClick={() => setEditing(pu)}
+                              />
+                              <RowAction
+                                icon={Trash2}
+                                label="Löschen"
+                                destructive
                                 disabled={pending}
                                 onClick={() => setDeleting(pu)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                              />
+                            </RowActions>
                           </TableCell>
                         </TableRow>
                         {isOpen && hasItems && (
-                          <TableRow key={pu.id + "-items"} className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={7} className="p-0">
+                          <TableRow key={pu.id + "-items"} className="bg-secondary/60">
+                            <TableCell colSpan={7} className="!p-0">
                               <div className="px-12 py-3">
                                 <div className="mb-2 flex items-center justify-between">
                                   <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -295,38 +229,38 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
                                   </h4>
                                   <Link
                                     href={`/pack-units/${pu.id}`}
-                                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                                    className="text-xs text-muted-foreground underline hover:text-foreground"
                                   >
                                     Inhalt verwalten →
                                   </Link>
                                 </div>
                                 <table className="w-full text-sm">
                                   <thead>
-                                    <tr className="text-muted-foreground text-xs">
-                                      <th className="text-left py-1 w-[80px]">Stück pro Packeinheit</th>
-                                      <th className="text-left py-1">Bezeichnung</th>
-                                      <th className="text-left py-1">Beschreibung (extern)</th>
-                                      <th className="text-right py-1">€ / Tag</th>
+                                    <tr className="text-xs text-muted-foreground">
+                                      <th className="w-[80px] py-1 text-left">Stück pro Packeinheit</th>
+                                      <th className="py-1 text-left">Bezeichnung</th>
+                                      <th className="py-1 text-left">Beschreibung (extern)</th>
+                                      <th className="py-1 text-right">€ / Tag</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {pu.items.map((it) => (
                                       <tr key={it.id} className="border-t border-border/50">
-                                        <td className="py-1 tabular-nums text-xs font-medium">
+                                        <td className="num py-1 text-xs font-medium">
                                           {it.quantity}×
                                         </td>
                                         <td className="py-1">
                                           <Link
                                             href={`/devices/${it.device.id}`}
-                                            className="hover:underline font-medium"
+                                            className="font-medium hover:underline"
                                           >
                                             {it.device.name}
                                           </Link>
                                         </td>
-                                        <td className="py-1 text-muted-foreground text-xs">
+                                        <td className="py-1 text-xs text-muted-foreground">
                                           {it.device.description?.trim() || "—"}
                                         </td>
-                                        <td className="py-1 text-right tabular-nums text-xs">
+                                        <td className="num py-1 text-right text-xs">
                                           {formatCurrency(Number(it.device.dailyRate) * it.quantity)}
                                         </td>
                                       </tr>
@@ -346,6 +280,16 @@ export function PackUnitsSection({ packUnits, categories, locations }: Props) {
           )}
         </TableBody>
       </Table>
+
+      {editing && (
+        <PackUnitDialog
+          packUnit={editing}
+          locations={locations}
+          categories={categories}
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deleting}

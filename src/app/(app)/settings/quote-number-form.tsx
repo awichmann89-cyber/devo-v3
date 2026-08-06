@@ -10,6 +10,7 @@ import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveQuoteNumberSettings } from "./settings-actions";
 import { buildQuoteNumber } from "@/lib/settings";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   initialPrefix: string;
@@ -46,7 +47,7 @@ export function QuoteNumberForm({
         await saveQuoteNumberSettings(prefix, padding, nextSeq);
         toast.success("Angebotsnummer-Einstellungen gespeichert");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

@@ -9,7 +9,7 @@ export default async function InspectionPage() {
   await requireAuth();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/material">

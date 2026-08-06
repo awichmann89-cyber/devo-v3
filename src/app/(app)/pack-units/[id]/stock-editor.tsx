@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { updatePackUnitStock } from "../actions";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   packUnitId: string;
@@ -28,7 +29,7 @@ export function StockEditor({ packUnitId, stockQuantity, devicesPerUnit }: Props
         await updatePackUnitStock(packUnitId, n);
         toast.success("Lagerbestand aktualisiert");
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
         setValue(stockQuantity.toString());
       }
     });
@@ -56,7 +57,7 @@ export function StockEditor({ packUnitId, stockQuantity, devicesPerUnit }: Props
             }
           }}
           disabled={pending}
-          className="h-8 w-16 tabular-nums"
+          className="num h-8 w-16"
         />
         <span className="text-sm text-muted-foreground">× Packeinheit</span>
       </div>

@@ -383,8 +383,8 @@ export function EinsatzClient({
           {assignmentId && (
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               disabled={pending}
               onClick={() =>
                 setOpenForm({ assignmentId, initial: editForm(e) })
@@ -396,8 +396,8 @@ export function EinsatzClient({
           )}
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
+            size="iconXs"
+            className="text-destructive hover:text-destructive"
             disabled={pending}
             onClick={() => setDeleting(e)}
             title="Löschen"
@@ -415,7 +415,7 @@ export function EinsatzClient({
     return (
       <Card key={a.id}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">{a.projectName}</CardTitle>
+          <CardTitle>{a.projectName}</CardTitle>
           <CardDescription className="space-y-0.5">
             <span className="block">
               {a.serviceName}
@@ -544,7 +544,7 @@ export function EinsatzClient({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               <CalendarPlus className="h-4 w-4" /> Kalender abonnieren
               <InfoHint text={'Abonniere deine Einsätze in Google/Apple Kalender — neue Einsätze erscheinen automatisch. In der Kalender-App „Kalender abonnieren" bzw. „Per URL hinzufügen" wählen und diesen Link einfügen.'} />
             </CardTitle>

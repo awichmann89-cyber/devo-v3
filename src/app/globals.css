@@ -40,6 +40,10 @@
     --warning-subtle: 40 77% 92%; /* #FAEFD9 */
     --info: 191 100% 30%; /* #007E99 */
     --info-subtle: 189 41% 90%; /* #DBEDF0 */
+    /* Zumietung — eigene Statusfarbe, damit zugemietete Positionen sich von
+       den Erfolg/Warnung/Fehler-Zuständen unterscheiden lassen. */
+    --subhire: 292 69% 45%; /* #B024C4 */
+    --subhire-subtle: 292 60% 95%; /* #FAEBFD */
 
     --border: 189 12% 88%; /* #DEE4E5 */
     --input: 186 10% 80%; /* #C7D0D1 border-strong */
@@ -87,6 +91,8 @@
     --warning-subtle: 41 25% 18%;
     --info: 190 60% 53%; /* #3EB7CE */
     --info-subtle: 195 50% 16%;
+    --subhire: 289 85% 72%; /* #E67CF7 */
+    --subhire-subtle: 295 35% 18%;
 
     --border: 203 17% 21%; /* #2C373E */
     --input: 203 16% 28%; /* #3B4952 */
@@ -100,6 +106,21 @@
     --chart-3: 153 46% 48%;
     --chart-4: 35 69% 59%;
     --chart-5: 349 84% 63%;
+  }
+}
+
+@layer utilities {
+  /*
+   * Zahlen-Typografie. Beträge, Mengen und Nummernkreise laufen einheitlich in
+   * JetBrains Mono mit Tabellenziffern, damit Spalten optisch fluchten.
+   * Datumsangaben bleiben bewusst in der Sans — sie werden gelesen, nicht
+   * verglichen.
+   */
+  .num {
+    @apply font-mono tabular-nums;
+  }
+  .num-strong {
+    @apply font-mono font-medium tabular-nums;
   }
 }
 

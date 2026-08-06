@@ -165,7 +165,7 @@ export default async function ForecastPage(props: {
     });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ForecastView
         rows={rows}
         initialFrom={isoDate(from)}

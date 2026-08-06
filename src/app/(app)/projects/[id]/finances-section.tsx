@@ -59,6 +59,9 @@ import {
   createReplacementQuote,
   deleteQuote,
 } from "./finances-actions";
+import { toastError } from "@/lib/toast";
+import { useTransitionSaveStatus } from "@/lib/use-auto-save";
+import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 
 export interface FinancesGroupVM {
   id: string;
@@ -156,6 +159,7 @@ export function FinancesSection({
   personnelCost,
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const saveStatus = useTransitionSaveStatus(pending);
   const [invoiceDialog, setInvoiceDialog] = useState(false);
   const [quoteDialog, setQuoteDialog] = useState(false);
   const [deleteInv, setDeleteInv] = useState<FinancesInvoiceVM | null>(null);
@@ -236,7 +240,7 @@ export function FinancesSection({
       try {
         await updateGroupDiscount(groupId, v);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -252,7 +256,7 @@ export function FinancesSection({
       try {
         await updateBereichDiscount(projectId, kind, v);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -264,7 +268,7 @@ export function FinancesSection({
       try {
         await updateProjectDiscount(projectId, v);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -278,7 +282,7 @@ export function FinancesSection({
         toast.success("Rechnung gelöscht");
         setDeleteInv(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -292,7 +296,7 @@ export function FinancesSection({
         toast.success("Angebot gelöscht");
         setDeleteQ(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -332,7 +336,7 @@ export function FinancesSection({
               )}
             </button>
           </TableCell>
-          <TableCell className="text-right tabular-nums font-mono font-semibold">
+          <TableCell className="text-right num font-semibold">
             {formatCurrency(data.subtotal)}
           </TableCell>
           <TableCell className="text-right">
@@ -345,12 +349,12 @@ export function FinancesSection({
               onBlur={(e) =>
                 handleBereichDiscount(kind, e.target.value, data.discountPercent)
               }
-              className="ml-auto h-7 w-[72px] px-1.5 text-right font-mono text-xs tabular-nums"
+              className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
               disabled={data.items.length === 0}
             />
           </TableCell>
           <TableCell
-            className="text-right tabular-nums font-mono text-muted-foreground"
+            className="text-right num text-muted-foreground"
             title={
               data.groupDiscountsSum > 0
                 ? `${formatCurrency(data.groupDiscountsSum)} aus Gruppen-Rabatten` +
@@ -364,7 +368,7 @@ export function FinancesSection({
               ? "−" + formatCurrency(data.subtotal - data.net)
               : "—"}
           </TableCell>
-          <TableCell className="text-right tabular-nums font-mono font-semibold">
+          <TableCell className="text-right num font-semibold">
             {formatCurrency(data.net)}
           </TableCell>
         </TableRow>
@@ -383,14 +387,14 @@ export function FinancesSection({
                 <TableCell className="!pl-8 text-sm">
                   <span className={cn(!isBillable && "line-through")}>{g.name}</span>
                   {!isBillable && (
-                    <span className="ml-2 inline-block rounded-[5px] bg-warning-subtle px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                    <Badge variant="warning" size="sm" className="ml-2">
                       nicht abrechenbar
-                    </span>
+                    </Badge>
                   )}
                 </TableCell>
                 <TableCell
                   className={cn(
-                    "text-right tabular-nums font-mono text-sm",
+                    "text-right num text-sm",
                     !isBillable && "line-through"
                   )}
                 >
@@ -406,16 +410,16 @@ export function FinancesSection({
                     onBlur={(e) =>
                       handleGroupDiscount(g.id, e.target.value, g.discountPercent)
                     }
-                    className="ml-auto h-7 w-[72px] px-1.5 text-right font-mono text-xs tabular-nums"
+                    className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
                     disabled={!isBillable}
                   />
                 </TableCell>
-                <TableCell className="text-right tabular-nums font-mono text-muted-foreground text-sm">
+                <TableCell className="text-right num text-muted-foreground text-sm">
                   {isBillable ? (discount > 0 ? "−" + formatCurrency(discount) : "—") : "—"}
                 </TableCell>
                 <TableCell
                   className={cn(
-                    "text-right tabular-nums font-mono text-sm",
+                    "text-right num text-sm",
                     !isBillable && "line-through"
                   )}
                 >
@@ -432,6 +436,8 @@ export function FinancesSection({
     <div className="space-y-4">
       {/* Buttons */}
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {/* Rabatt-Felder speichern beim Verlassen des Feldes. */}
+        <AutoSaveIndicator status={saveStatus} className="mr-auto" />
         <Button variant="outline" onClick={() => setQuoteDialog(true)}>
           <FileText className="h-4 w-4" /> Angebot erstellen
         </Button>
@@ -450,13 +456,13 @@ export function FinancesSection({
       ) : (
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               Übersicht
               <InfoHint text="Rabatt pro Gruppe, pro Bereich (Material/Personal & Transport) und projektweit — werden in dieser Reihenfolge angewendet." />
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <Table className="[&_td]:px-2 [&_td]:py-1 [&_th]:px-2">
+            <Table density="dense">
               <TableHeader>
                 <TableRow className="hover:bg-secondary">
                   <TableHead>Bereich / Gruppe</TableHead>
@@ -480,7 +486,7 @@ export function FinancesSection({
                   <TableCell />
                   <TableCell />
                   <TableCell />
-                  <TableCell className="text-right tabular-nums font-mono font-medium">
+                  <TableCell className="text-right num-strong">
                     {formatCurrency(subAfterBereichDiscounts)}
                   </TableCell>
                 </TableRow>
@@ -499,10 +505,10 @@ export function FinancesSection({
                       max="100"
                       defaultValue={safePct(projectDiscountPercent)}
                       onBlur={(e) => handleProjectDiscount(e.target.value)}
-                      className="ml-auto h-7 w-[72px] px-1.5 text-right font-mono text-xs tabular-nums"
+                      className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
                     />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                  <TableCell className="text-right num text-muted-foreground">
                     {projectDiscountAmount > 0
                       ? "−" + formatCurrency(projectDiscountAmount)
                       : "—"}
@@ -516,7 +522,7 @@ export function FinancesSection({
                   <TableCell />
                   <TableCell />
                   <TableCell />
-                  <TableCell className="text-right tabular-nums font-mono font-bold text-base">
+                  <TableCell className="text-right num font-bold text-base">
                     {formatCurrency(grandTotal)}
                   </TableCell>
                 </TableRow>
@@ -529,17 +535,17 @@ export function FinancesSection({
       {showResult && (
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               Ergebnis nach Zusatzkosten
               <InfoHint text="Interne Gewinnkontrolle: Umsatz abzüglich Zumietungen, Personal aus dem Einsatzplan und manuellen Extrakosten. Diese Kosten erscheinen nicht auf Angeboten oder Rechnungen." />
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <Table className="border-t [&_td]:px-2 [&_td]:py-1">
+            <Table density="dense" className="border-t">
               <TableBody>
                 <TableRow>
                   <TableCell className="font-medium">Umsatz (Netto)</TableCell>
-                  <TableCell className="text-right tabular-nums font-mono font-medium">
+                  <TableCell className="text-right num-strong">
                     {formatCurrency(grandTotal)}
                   </TableCell>
                 </TableRow>
@@ -547,7 +553,7 @@ export function FinancesSection({
                   <TableCell className="text-muted-foreground">
                     Zumietkosten
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                  <TableCell className="text-right num text-muted-foreground">
                     {subhireTotal > 0 ? "−" + formatCurrency(subhireTotal) : "—"}
                   </TableCell>
                 </TableRow>
@@ -555,7 +561,7 @@ export function FinancesSection({
                   <TableCell className="text-muted-foreground">
                     Personal (Einsatzplan)
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                  <TableCell className="text-right num text-muted-foreground">
                     {personnelCost > 0 ? "−" + formatCurrency(personnelCost) : "—"}
                   </TableCell>
                 </TableRow>
@@ -563,7 +569,7 @@ export function FinancesSection({
                   <TableCell className="text-muted-foreground">
                     Extrakosten (manuell)
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                  <TableCell className="text-right num text-muted-foreground">
                     {extraCostTotal > 0 ? "−" + formatCurrency(extraCostTotal) : "—"}
                   </TableCell>
                 </TableRow>
@@ -571,8 +577,8 @@ export function FinancesSection({
                   className={cn(
                     "border-t-2",
                     result >= 0
-                      ? "bg-green-50/60 dark:bg-green-950/20"
-                      : "bg-red-50/70 dark:bg-red-950/25"
+                      ? "bg-success-subtle"
+                      : "bg-destructive-subtle"
                   )}
                 >
                   <TableCell className="font-bold text-base">
@@ -581,7 +587,7 @@ export function FinancesSection({
                       <span
                         className={cn(
                           "ml-2 text-xs font-medium",
-                          result >= 0 ? "text-green-700 dark:text-green-400" : "text-destructive"
+                          result >= 0 ? "text-success" : "text-destructive"
                         )}
                       >
                         Marge {marginPct.toFixed(1)} %
@@ -590,9 +596,9 @@ export function FinancesSection({
                   </TableCell>
                   <TableCell
                     className={cn(
-                      "text-right tabular-nums font-mono font-bold text-base",
+                      "text-right num font-bold text-base",
                       result >= 0
-                        ? "text-green-700 dark:text-green-400"
+                        ? "text-success"
                         : "text-destructive"
                     )}
                   >
@@ -622,10 +628,10 @@ export function FinancesSection({
       {invoices.length > 0 && (
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base">Erstellte Rechnungen</CardTitle>
+            <CardTitle>Erstellte Rechnungen</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <Table className="[&_td]:px-2 [&_td]:py-1 [&_th]:px-2">
+            <Table density="dense">
               <TableHeader>
                 <TableRow className="hover:bg-secondary">
                   <TableHead>Nummer</TableHead>
@@ -643,12 +649,12 @@ export function FinancesSection({
                       <span className="flex items-center gap-2">
                         {inv.number}
                         {inv.prepaymentPercent !== null && (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" size="sm">
                             Vorkasse {inv.prepaymentPercent}%
                           </Badge>
                         )}
                         {inv.isFinal && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" size="sm">
                             Schlussrechnung
                           </Badge>
                         )}
@@ -656,15 +662,15 @@ export function FinancesSection({
                     </TableCell>
                     <TableCell>{formatDate(inv.date)}</TableCell>
                     <TableCell>{formatDate(inv.dueDate)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
+                    <TableCell className="text-right num text-sm text-muted-foreground">
                       {formatCurrency(inv.totalNet)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                    <TableCell className="text-right num text-sm font-medium">
                       {formatCurrency(invoiceGross(inv))}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button asChild variant="ghost" size="icon" className="h-7 w-7">
+                        <Button asChild variant="ghost" size="iconXs" >
                           <a
                             href={`/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`}
                             download
@@ -676,8 +682,8 @@ export function FinancesSection({
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          size="iconXs"
+                          className="text-destructive hover:text-destructive"
                           onClick={() => setDeleteInv(inv)}
                           title="Rechnung löschen"
                         >
@@ -903,14 +909,14 @@ function InvoiceDialog({
         }
         onOpenChange(false);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>
             {kind === "REMINDER"
@@ -985,7 +991,7 @@ function InvoiceDialog({
                     Math.max(0, Math.min(100, Number(e.target.value) || 0))
                   )
                 }
-                className="tabular-nums"
+                className="num"
               />
               <p className="text-[11px] text-muted-foreground">
                 Bei unter 100% kannst du später eine Schlussrechnung erstellen,
@@ -1003,7 +1009,7 @@ function InvoiceDialog({
                     {p.number}
                     {p.prepaymentPercent !== null && ` (${p.prepaymentPercent}%)`}
                   </span>
-                  <span className="font-mono tabular-nums">
+                  <span className="num">
                     −{formatCurrency(p.totalNet)} netto
                   </span>
                 </div>
@@ -1035,7 +1041,7 @@ function InvoiceDialog({
 
           {willOverwrite && (
             <>
-              <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
+              <div className="rounded-md border border-warning/40 bg-warning-subtle p-3 text-xs">
                 Es {plainInvoices.length === 1 ? "existiert" : "existieren"} bereits{" "}
                 <strong>
                   {plainInvoices.length}{" "}
@@ -1076,7 +1082,7 @@ function InvoiceDialog({
                       ? "Restbetrag (netto)"
                       : "Rechnungsbetrag (netto)"}
               </span>
-              <span className="font-mono font-medium tabular-nums">
+              <span className="num-strong">
                 {formatCurrency(kind === "REMINDER" ? reminderAmount : previewNet)}
               </span>
             </div>
@@ -1185,14 +1191,14 @@ function QuoteDialog({
         triggerDownload(`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`);
         onOpenChange(false);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>
             {hasExisting ? "Angebot überschreiben?" : "Angebot erstellen"}
@@ -1204,7 +1210,7 @@ function QuoteDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {hasExisting && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/30 p-3 text-xs">
+            <div className="rounded-md border border-warning/40 bg-warning-subtle p-3 text-xs">
               Es {existingQuotes.length === 1 ? "existiert" : "existieren"} bereits{" "}
               <strong>
                 {existingQuotes.length}{" "}
@@ -1219,7 +1225,7 @@ function QuoteDialog({
           <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Angebotsbetrag</span>
-              <span className="font-mono font-medium tabular-nums">
+              <span className="num-strong">
                 {new Intl.NumberFormat("de-DE", {
                   style: "currency",
                   currency: "EUR",
@@ -1292,7 +1298,7 @@ function QuotesCard({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Erstellte Angebote</CardTitle>
+        <CardTitle>Erstellte Angebote</CardTitle>
         {supersededCount > 0 && (
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input
@@ -1306,7 +1312,7 @@ function QuotesCard({
         )}
       </CardHeader>
       <CardContent className="p-0">
-        <Table className="[&_td]:px-2 [&_td]:py-1 [&_th]:px-2">
+        <Table density="dense">
           <TableHeader>
             <TableRow className="hover:bg-secondary">
               <TableHead>Nummer</TableHead>
@@ -1329,21 +1335,20 @@ function QuotesCard({
                   <TableCell className="font-mono">{q.number}</TableCell>
                   <TableCell>{formatDate(q.date)}</TableCell>
                   <TableCell>{formatDate(q.expiresAt)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
+                  <TableCell className="text-right num text-sm text-muted-foreground">
                     {formatCurrency(q.totalNet)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                  <TableCell className="text-right num text-sm font-medium">
                     {formatCurrency(q.totalGross ?? q.totalNet)}
                   </TableCell>
                   <TableCell>
                     {isSuperseded ? (
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" size="sm">
                         Ersetzt
                       </Badge>
                     ) : q.acceptedAt ? (
                       <Badge
-                        variant="success"
-                        className="max-w-none gap-1 text-[10px]"
+                        variant="success" size="sm" className="max-w-none gap-1"
                         title={
                           q.acceptedByName
                             ? `Angenommen am ${formatDate(q.acceptedAt)} von ${q.acceptedByName}`
@@ -1354,14 +1359,14 @@ function QuotesCard({
                         Angenommen
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" size="sm">
                         Offen
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <Button asChild variant="ghost" size="icon" className="h-7 w-7">
+                      <Button asChild variant="ghost" size="iconXs" >
                         <a
                           href={`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`}
                           download
@@ -1373,8 +1378,8 @@ function QuotesCard({
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        size="iconXs"
+                        className="text-destructive hover:text-destructive"
                         onClick={() => onDelete(q)}
                         title="Angebot löschen"
                       >

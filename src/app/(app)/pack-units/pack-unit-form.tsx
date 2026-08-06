@@ -18,6 +18,7 @@ import { createPackUnit, updatePackUnit } from "./actions";
 import { toast } from "sonner";
 import type { Category, Location, PackUnit } from "@prisma/client";
 import { flattenCategoryTree } from "@/lib/category-tree";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   packUnit?: PackUnit;
@@ -65,7 +66,7 @@ export function PackUnitForm({ packUnit, locations, categories, onCancel }: Prop
         }
       } catch (e) {
         if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
-        toast.error("Fehler", { description: e instanceof Error ? e.message : String(e) });
+        toastError(e, "Speichern");
       }
     });
   }

@@ -2,17 +2,15 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Pencil } from "lucide-react";
 import type { Category, Location, PackUnit } from "@prisma/client";
-import { PackUnitForm } from "../pack-unit-form";
+import { PackUnitDialog } from "../pack-unit-dialog";
 
+/**
+ * „Bearbeiten"-Button im Kopf der Packeinheit-Detailseite. Der Dialog selbst
+ * ist derselbe wie in der Material-Liste (`PackUnitDialog`) — hier nur der
+ * Trigger, damit es keine zweite Dialog-Variante gibt.
+ */
 export function EditPackUnitButton({
   packUnit,
   locations,
@@ -24,23 +22,17 @@ export function EditPackUnitButton({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Pencil className="h-4 w-4" /> Bearbeiten
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Packeinheit bearbeiten</DialogTitle>
-        </DialogHeader>
-        <PackUnitForm
-          packUnit={packUnit}
-          locations={locations}
-          categories={categories}
-          onCancel={() => setOpen(false)}
-        />
-      </DialogContent>
-    </Dialog>
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Pencil className="h-4 w-4" /> Bearbeiten
+      </Button>
+      <PackUnitDialog
+        packUnit={packUnit}
+        locations={locations}
+        categories={categories}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }

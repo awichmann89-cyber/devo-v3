@@ -9,6 +9,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveCompanyAddress } from "./settings-actions";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   initialName: string;
@@ -38,7 +39,7 @@ export function CompanyAddressForm({
         await saveCompanyAddress(name, street, zipCity, vat);
         toast.success("Firmenadresse gespeichert");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

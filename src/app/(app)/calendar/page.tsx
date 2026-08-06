@@ -109,10 +109,9 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
   }));
 
   return (
-    <div className="space-y-6">
-
+    <div className="space-y-4">
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           <Timeline
             viewStart={viewStart.toISOString()}
             projects={projects.map((p) => ({
@@ -131,7 +130,7 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2">
             Kalender-Feeds zum Abonnieren
             <InfoHint
               text={

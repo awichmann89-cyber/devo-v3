@@ -1,10 +1,48 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-[13px]", className)} {...props} />
+/**
+ * Tabellen-Dichte. Regel:
+ *   comfortable → Stammdaten-Listen (Kunden, Geräte, Personen, …)
+ *   compact     → Finanz- und Zeitlisten (Rechnungen, Angebote, Forecast)
+ *   dense       → Zuordnungstabellen im Projekt (Material, Personal, Kosten)
+ *
+ * Immer über die Prop setzen, nie per `[&_td]:…`-className — sonst laufen die
+ * Stufen wieder auseinander.
+ */
+const DENSITIES = {
+  comfortable: "[&_td]:px-3 [&_td]:py-2 [&_th]:h-10 [&_th]:px-3",
+  compact: "[&_td]:px-3 [&_td]:py-1.5 [&_th]:h-9 [&_th]:px-3",
+  dense: "[&_td]:px-2 [&_td]:py-1 [&_th]:h-8 [&_th]:px-2",
+} as const;
+
+export type TableDensity = keyof typeof DENSITIES;
+
+interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  density?: TableDensity;
+  /**
+   * Umrahmt die Tabelle mit `rounded-lg border` und clippt die Ecken — das
+   * Redesign-Muster für Tabellen in Cards. Standard: an.
+   */
+  bordered?: boolean;
+  /** Klassen für den scrollenden Wrapper (z.B. `max-h-…`). */
+  wrapperClassName?: string;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, density = "comfortable", bordered = true, wrapperClassName, ...props }, ref) => (
+    <div
+      className={cn(
+        "relative w-full overflow-auto",
+        bordered && "rounded-lg border",
+        wrapperClassName
+      )}
+    >
+      <table
+        ref={ref}
+        className={cn("w-full caption-bottom text-[13px]", DENSITIES[density], className)}
+        {...props}
+      />
     </div>
   )
 );
@@ -26,7 +64,7 @@ const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttribut
   ({ className, ...props }, ref) => (
     <tfoot
       ref={ref}
-      className={cn("border-t bg-muted/50 font-medium [&>tr]:last:border-b-0", className)}
+      className={cn("border-t bg-secondary font-medium [&>tr]:last:border-b-0", className)}
       {...props}
     />
   )
@@ -37,7 +75,11 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
-      className={cn("border-b transition-colors hover:bg-secondary data-[state=selected]:bg-accent", className)}
+      className={cn(
+        // Hover nur auf Body-Zeilen — Kopfzeilen sollen nicht reagieren.
+        "border-b transition-colors data-[state=selected]:bg-accent [tbody_&]:hover:bg-secondary",
+        className
+      )}
       {...props}
     />
   )
@@ -50,7 +92,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
       ref={ref}
       className={cn(
         // Redesign: kompakte Kopfzeile — 10px Uppercase auf surface-2
-        "h-8 bg-secondary px-3 text-left align-middle text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        "bg-secondary text-left align-middle text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -61,7 +103,7 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("px-3 py-2 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
+    <td ref={ref} className={cn("align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
   )
 );
 TableCell.displayName = "TableCell";
@@ -73,4 +115,13 @@ const TableCaption = React.forwardRef<HTMLTableCaptionElement, React.HTMLAttribu
 );
 TableCaption.displayName = "TableCaption";
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+};

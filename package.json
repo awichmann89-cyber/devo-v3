@@ -7,6 +7,8 @@
     "build": "prisma generate && prisma migrate deploy && prisma db seed && next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "check:ui": "node scripts/check-ui-conventions.mjs",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",

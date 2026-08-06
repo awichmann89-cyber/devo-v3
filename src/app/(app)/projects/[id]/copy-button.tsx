@@ -87,7 +87,7 @@ export function CopyProjectButton({ id, name, planningStart, planningEnd }: Prop
         <Copy className="h-4 w-4" /> Kopieren
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Copy className="h-5 w-5" /> Projekt kopieren

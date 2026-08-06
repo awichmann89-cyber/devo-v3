@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
-import { Card, CardContent } from "@/components/ui/card";
 import { QuotesTable } from "../quotes-table";
 
 export default async function FinancesQuotesPage() {
@@ -30,19 +29,5 @@ export default async function FinancesQuotesPage() {
     supersededByQuoteId: q.supersededByQuoteId,
   }));
 
-  return (
-    <div className="space-y-6">
-
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Noch keine Angebote vorhanden. Erstelle ein Angebot im Finanzen-Tab
-            eines Projekts.
-          </CardContent>
-        </Card>
-      ) : (
-        <QuotesTable rows={rows} />
-      )}
-    </div>
-  );
+  return <QuotesTable rows={rows} />;
 }

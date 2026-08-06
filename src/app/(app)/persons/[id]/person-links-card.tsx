@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Copy, RefreshCw, Loader2, Check, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { regeneratePersonToken } from "../actions";
+import { toastError } from "@/lib/toast";
 
 /**
  * Persönliche Links einer Person: ICS-Kalender-Abo + Zeiterfassungs-Seite.
@@ -59,7 +60,7 @@ export function PersonLinksCard({
         setToken(fresh);
         toast.success("Neuer Token aktiv");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -67,7 +68,7 @@ export function PersonLinksCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-center gap-2">
           <Link2 className="h-4 w-4" /> Persönliche Links
           <InfoHint text="Beide Links an die Person weitergeben: Kalender-Abo zeigt die Einsätze, die Zeiterfassungs-Seite dient dem Nachtragen der Ist-Stunden. Kein Login nötig — der Link ist der Zugang." />
         </CardTitle>

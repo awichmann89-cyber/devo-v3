@@ -4,21 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { InfoHint } from "@/components/ui/info-hint";
-import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableEmpty } from "@/components/ui/table-empty";
 import { Badge } from "@/components/ui/badge";
+import { StatTile, StatTileGrid } from "@/components/ui/stat-tile";
+import { ListCard } from "@/components/layout/list-card";
 import {
   Select,
   SelectContent,
@@ -34,7 +31,7 @@ import {
   FilterResetButton,
   FilterDivider,
 } from "@/components/filters/filter-controls";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatCurrencySigned, formatDate } from "@/lib/utils";
 import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 import { ProjectStatus } from "@prisma/client";
 
@@ -188,235 +185,173 @@ export function ForecastView({ rows, initialFrom, initialTo, userId }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Kennzahlen */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Projektvolumen (Netto)"
-          amount={totals.total}
-          variant="default"
-        />
-        <StatCard
+      <StatTileGrid>
+        <StatTile label="Projektvolumen (Netto)" value={formatCurrency(totals.total)} />
+        <StatTile
           label="Zusatzkosten (Netto)"
-          amount={totals.costs}
-          variant="muted"
+          value={formatCurrencySigned(totals.costs, { negate: true })}
+          tone="muted"
         />
-        <StatCard
+        <StatTile
           label="Erwarteter Gewinn (Netto)"
-          amount={totals.profit}
-          variant="profit"
+          value={formatCurrency(totals.profit)}
+          tone={totals.profit < 0 ? "destructive" : "success"}
         />
-        <StatCard
+        <StatTile
           label="Noch offen (Netto)"
-          amount={totals.outstanding}
-          variant="success"
+          value={formatCurrency(totals.outstanding)}
+          tone="success"
         />
-      </div>
+      </StatTileGrid>
 
-      {/* Forecast-Card: Überschrift → Filterleiste → Tabelle */}
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="flex items-center gap-2 text-base">
-            Forecast
-            <InfoHint
-              text={
-                <>
-                  Erwarteter Umsatz und Gewinn aus geplanten Projekten im
-                  gewählten Zeitraum. Der Gewinn zieht interne Zusatzkosten
-                  (Zumietung + Extrakosten + Personal aus dem Einsatzplan) vom
-                  Projektwert ab — diese erscheinen nie auf
-                  Angeboten/Rechnungen. Sortiert nach Berechnungs-Start.{" "}
-                  <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).
-                </>
-              }
+      <ListCard
+        title="Forecast"
+        info={
+          <>
+            Erwarteter Umsatz und Gewinn aus geplanten Projekten im gewählten
+            Zeitraum. Der Gewinn zieht interne Zusatzkosten (Zumietung +
+            Extrakosten + Personal aus dem Einsatzplan) vom Projektwert ab — diese
+            erscheinen nie auf Angeboten/Rechnungen. Sortiert nach
+            Berechnungs-Start. <strong>Alle Beträge sind Nettowerte</strong> (vor MwSt.).
+          </>
+        }
+        count={{ shown: filtered.length, total: rows.length }}
+        filters={
+          <>
+            <DateRangeControls
+              from={from}
+              to={to}
+              onRangeChange={(f, t) => {
+                setFrom(f);
+                setTo(t);
+                if (f && t) applyRange(f, t);
+              }}
+              onPreset={setPreset}
             />
-          </CardTitle>
-        </CardHeader>
-
-        {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}
-        <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
-          <DateRangeControls
-            from={from}
-            to={to}
-            onRangeChange={(f, t) => {
-              setFrom(f);
-              setTo(t);
-              if (f && t) applyRange(f, t);
-            }}
-            onPreset={setPreset}
-          />
-          <Select
-            value={invoiceFilter}
-            onValueChange={(v) => setInvoiceFilter(v as InvoiceFilter)}
-          >
-            <SelectTrigger className="h-[34px] w-[170px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Rechnungen</SelectItem>
-              <SelectItem value="without">Nur ohne Rechnung</SelectItem>
-              <SelectItem value="with">Nur mit Rechnung</SelectItem>
-            </SelectContent>
-          </Select>
-          <FilterDivider />
-          <StatusChips selected={statusFilter} onToggle={toggleStatus} />
-          {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
-        </div>
-
-        <CardContent className="px-4 pb-4">
-          {filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              Keine Projekte mit diesen Filtern.
-            </p>
-          ) : (
-            <div className="overflow-hidden rounded-lg border">
-            <Table className="[&_td]:px-3 [&_td]:py-1.5">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Projekt / Kunde</TableHead>
-                  <TableHead>Berechnungs-Zeitraum</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Projektwert (Netto)</TableHead>
-                  <TableHead className="text-right">Zusatzkosten</TableHead>
-                  <TableHead className="text-right">Gewinn (Netto)</TableHead>
-                  <TableHead className="text-right">In Rechnung (Netto)</TableHead>
-                  <TableHead className="text-right">Offen (Netto)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <Link
-                        href={`/projects/${r.id}`}
-                        className="block hover:underline"
-                      >
-                        <div className="font-medium">{r.name}</div>
-                        {r.customerName && (
-                          <div className="text-[11px] text-muted-foreground">
-                            {r.customerName}
-                          </div>
-                        )}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {formatDate(r.billingStart)} – {formatDate(r.billingEnd)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={projectStatusVariant(r.status)}
-                        className="text-[10px]"
-                      >
-                        {projectStatusLabel(r.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm">
-                      {formatCurrency(r.total)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
-                      {r.costs > 0 ? "−" + formatCurrency(r.costs) : "—"}
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right tabular-nums font-mono text-sm font-medium",
-                        r.profit < 0
-                          ? "text-destructive"
-                          : "text-success"
-                      )}
-                    >
-                      {formatCurrency(r.profit)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-mono text-sm text-muted-foreground">
-                      {r.invoiced > 0 ? formatCurrency(r.invoiced) : "—"}
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right tabular-nums font-mono text-sm font-medium",
-                        r.outstanding > 0 && "text-success",
-                        r.outstanding < 0 && "text-destructive"
-                      )}
-                    >
-                      {formatCurrency(r.outstanding)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="border-t-2 bg-muted/40">
-                  <TableCell className="font-bold" colSpan={3}>
-                    Summe
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono font-bold">
-                    {formatCurrency(totals.total)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono font-bold text-muted-foreground">
-                    {totals.costs > 0 ? "−" + formatCurrency(totals.costs) : "—"}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right tabular-nums font-mono font-bold",
-                      totals.profit < 0
-                        ? "text-destructive"
-                        : "text-success"
-                    )}
+            <Select
+              value={invoiceFilter}
+              onValueChange={(v) => setInvoiceFilter(v as InvoiceFilter)}
+            >
+              <SelectTrigger className="w-[170px] text-xs" aria-label="Rechnungs-Filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Rechnungen</SelectItem>
+                <SelectItem value="without">Nur ohne Rechnung</SelectItem>
+                <SelectItem value="with">Nur mit Rechnung</SelectItem>
+              </SelectContent>
+            </Select>
+            <FilterDivider />
+            <StatusChips selected={statusFilter} onToggle={toggleStatus} />
+            {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
+          </>
+        }
+      >
+        <Table density="compact">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Projekt / Kunde</TableHead>
+              <TableHead>Berechnungs-Zeitraum</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Projektwert (Netto)</TableHead>
+              <TableHead className="text-right">Zusatzkosten</TableHead>
+              <TableHead className="text-right">Gewinn (Netto)</TableHead>
+              <TableHead className="text-right">In Rechnung (Netto)</TableHead>
+              <TableHead className="text-right">Offen (Netto)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 && (
+              <TableEmpty colSpan={8} hasData={rows.length > 0} entity="Projekte" />
+            )}
+            {filtered.map((r) => (
+              <TableRow
+                key={r.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/projects/${r.id}`)}
+              >
+                <TableCell>
+                  <Link
+                    href={`/projects/${r.id}`}
+                    className="block hover:underline"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {formatCurrency(totals.profit)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono font-bold">
-                    {formatCurrency(totals.invoiced)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-mono font-bold">
-                    {formatCurrency(totals.outstanding)}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-            </div>
+                    <div className="font-medium">{r.name}</div>
+                    {r.customerName && (
+                      <div className="text-[11px] text-muted-foreground">
+                        {r.customerName}
+                      </div>
+                    )}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  {formatDate(r.billingStart)} – {formatDate(r.billingEnd)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={projectStatusVariant(r.status)} size="sm">
+                    {projectStatusLabel(r.status)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="num text-right">{formatCurrency(r.total)}</TableCell>
+                <TableCell className="num text-right text-muted-foreground">
+                  {formatCurrencySigned(r.costs, { negate: true })}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "num-strong text-right",
+                    r.profit < 0 ? "text-destructive" : "text-success"
+                  )}
+                >
+                  {formatCurrency(r.profit)}
+                </TableCell>
+                <TableCell className="num text-right text-muted-foreground">
+                  {r.invoiced > 0 ? formatCurrency(r.invoiced) : "—"}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "num-strong text-right",
+                    r.outstanding > 0 && "text-success",
+                    r.outstanding < 0 && "text-destructive"
+                  )}
+                >
+                  {formatCurrency(r.outstanding)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+          {filtered.length > 0 && (
+            <TableFooter>
+              <TableRow>
+                <TableCell className="font-bold" colSpan={3}>
+                  Summe
+                </TableCell>
+                <TableCell className="num text-right font-bold">
+                  {formatCurrency(totals.total)}
+                </TableCell>
+                <TableCell className="num text-right font-bold text-muted-foreground">
+                  {formatCurrencySigned(totals.costs, { negate: true })}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "num text-right font-bold",
+                    totals.profit < 0 ? "text-destructive" : "text-success"
+                  )}
+                >
+                  {formatCurrency(totals.profit)}
+                </TableCell>
+                <TableCell className="num text-right font-bold">
+                  {formatCurrency(totals.invoiced)}
+                </TableCell>
+                <TableCell className="num text-right font-bold">
+                  {formatCurrency(totals.outstanding)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
           )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  amount,
-  variant,
-}: {
-  label: string;
-  amount: number;
-  variant: "default" | "muted" | "success" | "profit";
-}) {
-  // Beim Gewinn signalisiert die Farbe des Betrags Profit (grün) vs. Verlust (rot).
-  const profitNegative = variant === "profit" && amount < 0;
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-4",
-        variant === "profit" && "border-success/40",
-        profitNegative && "border-destructive/50"
-      )}
-    >
-      <div
-        className={cn(
-          "text-xs uppercase tracking-wide",
-          variant === "muted" && "text-muted-foreground",
-          variant === "success" && "text-success",
-          variant === "default" && "text-foreground",
-          variant === "profit" &&
-            (profitNegative ? "text-destructive" : "text-success")
-        )}
-      >
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-1 text-xl font-bold tabular-nums font-mono",
-          variant === "profit" &&
-            (profitNegative ? "text-destructive" : "text-success")
-        )}
-      >
-        {formatCurrency(amount)}
-      </div>
+        </Table>
+      </ListCard>
     </div>
   );
 }

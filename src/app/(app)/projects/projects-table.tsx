@@ -8,26 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { TableEmpty } from "@/components/ui/table-empty";
+import { ListCard } from "@/components/layout/list-card";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Search, X } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import Link from "next/link";
 import { formatDate, cn } from "@/lib/utils";
 import {
@@ -188,112 +173,109 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Projekte</CardTitle>
-        {action}
-      </CardHeader>
-
-      {/* Kompakte Filterleiste in der Card — wirkt sofort, wird pro Profil gespeichert. */}
-      <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
-        <FilterSearch value={search} onChange={setSearch} placeholder="Name oder Kunde…" />
-        <DateRangeControls
-          from={from}
-          to={to}
-          onRangeChange={(f, t) => {
-            setFrom(f);
-            setTo(t);
-            if (f && t) applyRange(f, t);
-          }}
-          onPreset={setPreset}
-        />
-        <FilterDivider />
-        <StatusChips selected={statusFilter} onToggle={toggleStatus} />
-        {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
-      </div>
-
-      <CardContent className="px-4 pb-4">
-        <div className="overflow-hidden rounded-lg border">
-          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Kategorie</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Kunde</TableHead>
-                <TableHead>Verantwortlich</TableHead>
-                <TableHead>Planungszeitraum</TableHead>
-                <TableHead>Berechnungszeitraum</TableHead>
-                <TableHead className="text-right">Geräte</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    {projects.length === 0
-                      ? "Keine Projekte im gewählten Zeitraum"
-                      : "Keine Treffer für diese Filter"}
-                  </TableCell>
-                </TableRow>
-              )}
-              {filtered.map((p) => (
-                <TableRow
-                  key={p.id}
-                  className={cn("cursor-pointer", projectStatusRowClass(p.status))}
-                  onClick={() => router.push(`/projects/${p.id}`)}
+    <ListCard
+      title="Projekte"
+      info="Veranstaltungen mit Planungs- und Berechnungszeitraum. Zeitraum und Status-Filter werden pro Benutzerprofil gespeichert."
+      action={action}
+      count={{ shown: filtered.length, total: projects.length }}
+      filters={
+        <>
+          <FilterSearch value={search} onChange={setSearch} placeholder="Name oder Kunde…" />
+          <DateRangeControls
+            from={from}
+            to={to}
+            onRangeChange={(f, t) => {
+              setFrom(f);
+              setTo(t);
+              if (f && t) applyRange(f, t);
+            }}
+            onPreset={setPreset}
+          />
+          <FilterDivider />
+          <StatusChips selected={statusFilter} onToggle={toggleStatus} />
+          {!filtersAtDefault && <FilterResetButton onClick={resetClientFilters} />}
+        </>
+      }
+    >
+      <Table density="comfortable">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Status</TableHead>
+            <TableHead>Kategorie</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Kunde</TableHead>
+            <TableHead>Verantwortlich</TableHead>
+            <TableHead>Planungszeitraum</TableHead>
+            <TableHead>Berechnungszeitraum</TableHead>
+            <TableHead className="text-right">Geräte</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filtered.length === 0 && (
+            <TableEmpty
+              colSpan={8}
+              hasData={projects.length > 0}
+              entity="Projekte"
+              emptyText="Keine Projekte im gewählten Zeitraum."
+            />
+          )}
+          {filtered.map((p) => (
+            <TableRow
+              key={p.id}
+              className={cn("cursor-pointer", projectStatusRowClass(p.status))}
+              onClick={() => router.push(`/projects/${p.id}`)}
+            >
+              <TableCell>
+                <Badge variant={projectStatusVariant(p.status)} size="sm">
+                  {projectStatusLabel(p.status)}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={projectKindVariant(p.kind)} size="sm">
+                  {projectKindLabel(p.kind)}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Link
+                  href={`/projects/${p.id}`}
+                  className="font-medium hover:underline"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <TableCell>
-                    <Badge variant={projectStatusVariant(p.status)}>
-                      {projectStatusLabel(p.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={projectKindVariant(p.kind)} className="text-[10px]">
-                      {projectKindLabel(p.kind)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/projects/${p.id}`} className="font-medium hover:underline">
-                      {p.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {p.customer?.name ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {p.maintainer ? (p.maintainer.name || p.maintainer.email) : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {p.billingPeriods.length === 0 ? (
-                      <span className="text-muted-foreground">—</span>
-                    ) : p.billingPeriods.length === 1 ? (
-                      <>
-                        {formatDate(p.billingPeriods[0].start)} –{" "}
-                        {formatDate(p.billingPeriods[0].end)}
-                      </>
-                    ) : (
-                      <>
-                        {formatDate(p.billingPeriods[0].start)} –{" "}
-                        {formatDate(p.billingPeriods[p.billingPeriods.length - 1].end)}
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          ({p.billingPeriods.length} Zeiträume)
-                        </span>
-                      </>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {p._count.assignments}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+                  {p.name}
+                </Link>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {p.customer?.name ?? "—"}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {p.maintainer ? p.maintainer.name || p.maintainer.email : "—"}
+              </TableCell>
+              <TableCell>
+                {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}
+              </TableCell>
+              <TableCell>
+                {p.billingPeriods.length === 0 ? (
+                  <span className="text-muted-foreground">—</span>
+                ) : p.billingPeriods.length === 1 ? (
+                  <>
+                    {formatDate(p.billingPeriods[0].start)} –{" "}
+                    {formatDate(p.billingPeriods[0].end)}
+                  </>
+                ) : (
+                  <>
+                    {formatDate(p.billingPeriods[0].start)} –{" "}
+                    {formatDate(p.billingPeriods[p.billingPeriods.length - 1].end)}
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      ({p.billingPeriods.length} Zeiträume)
+                    </span>
+                  </>
+                )}
+              </TableCell>
+              <TableCell className="num text-right">{p._count.assignments}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </ListCard>
   );
 }

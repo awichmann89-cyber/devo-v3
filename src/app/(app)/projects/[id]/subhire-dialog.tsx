@@ -25,6 +25,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { addSubhire, updateSubhire } from "./costs-actions";
+import { toastError } from "@/lib/toast";
 
 /** Editierbarer Zustand einer Zumietung im Dialog. `id` gesetzt → Bearbeiten. */
 export interface SubhireFormValue {
@@ -161,7 +162,7 @@ export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, 
         }
         onClose();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -251,7 +252,7 @@ export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, 
                 step={1}
                 value={form.quantity}
                 onChange={(e) => set("quantity", Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                className="tabular-nums"
+                className="num"
               />
             </div>
             <div className="space-y-1.5">
@@ -263,14 +264,14 @@ export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, 
                 step="0.01"
                 value={form.unitCost}
                 onChange={(e) => set("unitCost", Math.max(0, Number(e.target.value) || 0))}
-                className="tabular-nums"
+                className="num"
               />
             </div>
           </div>
 
           <div className="flex justify-between border-t pt-2 text-sm">
             <span className="text-muted-foreground">Zumietkosten gesamt</span>
-            <span className="font-mono font-medium tabular-nums">
+            <span className="num-strong">
               {formatCurrency(lineTotal)}
             </span>
           </div>

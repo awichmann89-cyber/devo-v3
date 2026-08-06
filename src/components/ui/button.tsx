@@ -16,13 +16,24 @@ const buttonVariants = cva(
           "border border-input bg-card text-secondary-foreground hover:border-primary hover:text-primary",
         secondary: "bg-secondary text-secondary-foreground hover:bg-accent",
         ghost: "hover:bg-accent hover:text-accent-foreground",
+        // Destruktive Zeilen-Aktion (Löschen in Tabellen, Listen, Karten).
+        // Immer diese Variante verwenden — nie `text-destructive` per className.
+        ghostDestructive:
+          "text-destructive hover:bg-destructive-subtle hover:text-destructive",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
+        // 34px = Standard-Controlhöhe (identisch zu Input und SelectTrigger).
         default: "h-[34px] px-3.5",
         sm: "h-[30px] rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-6",
+        // Icon-Größen sind an die Tabellen-Dichte gekoppelt:
+        //   icon   → density="comfortable"
+        //   iconSm → density="compact"
+        //   iconXs → density="dense"
         icon: "h-[34px] w-[34px]",
+        iconSm: "h-8 w-8",
+        iconXs: "h-7 w-7",
       },
     },
     defaultVariants: {

@@ -1,26 +1,22 @@
 "use client";
 
 import { Fragment, useState, useTransition } from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableEmpty } from "@/components/ui/table-empty";
+import { TableGroupRow, groupChildIndent } from "@/components/ui/table-group-row";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
+import { Badge } from "@/components/ui/badge";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { type Category, type Location } from "@prisma/client";
 import { DeviceDialog } from "@/app/(app)/devices/device-dialog";
 import { deleteDevice } from "@/app/(app)/devices/actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
-import { flattenCategoryTree, groupItemsByCategory } from "@/lib/category-tree";
+import { toastError } from "@/lib/toast";
+import { groupItemsByCategory } from "@/lib/category-tree";
 
 export interface DeviceVM {
   id: string;
@@ -34,6 +30,7 @@ export interface DeviceVM {
   weight: number | null;
   powerWatts: number | null;
   inspectionExempt: boolean;
+  showOnDocuments: boolean;
   categoryId: string | null;
   category: Category | null;
   createdAt: string;
@@ -46,13 +43,16 @@ export interface DeviceVM {
 export function DevicesSection({
   devices,
   categories,
-  locations,
+  search,
 }: {
   devices: DeviceVM[];
   categories: Category[];
-  locations: Location[];
+  locations?: Location[];
+  /** Suchbegriff — die Filterleiste liegt im ListCard-Header der Seite. */
+  search: string;
 }) {
-  const [search, setSearch] = useState("");
+  const router = useRouter();
+  const [editing, setEditing] = useState<DeviceVM | null>(null);
   const [deleting, setDeleting] = useState<DeviceVM | null>(null);
   const [pending, startTransition] = useTransition();
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -74,9 +74,7 @@ export function DevicesSection({
         toast.success("Gerät gelöscht");
         setDeleting(null);
       } catch (e) {
-        toast.error("Löschen fehlgeschlagen", {
-          description: e instanceof Error ? e.message : "",
-        });
+        toastError(e, "Löschen");
       }
     });
   }
@@ -94,19 +92,7 @@ export function DevicesSection({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Suche…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        <div className="ml-auto">
-          <DeviceDialog categories={categories} />
-        </div>
-      </div>
-
-      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+      <Table density="comfortable">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -114,18 +100,12 @@ export function DevicesSection({
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead>Geprüft</TableHead>
             <TableHead className="text-right">€ / Tag</TableHead>
-            <TableHead className="w-[90px]"></TableHead>
+            <TableHead className="w-[76px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                {devices.length === 0
-                  ? "Noch keine Geräte angelegt"
-                  : "Keine Treffer für die Suche"}
-              </TableCell>
-            </TableRow>
+            <TableEmpty colSpan={6} hasData={devices.length > 0} entity="Geräte" />
           ) : (
             groupItemsByCategory(filtered, categories).map((group) => {
               if (group.ancestorKeys.some((k) => collapsedCats.has(k))) {
@@ -134,53 +114,39 @@ export function DevicesSection({
               const isCollapsed = collapsedCats.has(group.key);
               return (
                 <Fragment key={group.key}>
-                  <TableRow
-                    className="cursor-pointer bg-muted/30 hover:bg-muted/50"
-                    onClick={() => toggleCat(group.key)}
-                  >
-                    <TableCell colSpan={6} className="py-2">
-                      <div
-                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
-                        style={{ paddingLeft: `${group.depth * 1.5}rem` }}
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                        )}
-                        {isCollapsed ? (
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{group.name}</span>
-                        {group.items.length > 0 && (
-                          <span className="ml-1 font-normal text-muted-foreground normal-case">
-                            ({group.items.length})
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <TableGroupRow
+                    colSpan={6}
+                    label={group.name}
+                    count={group.items.length}
+                    depth={group.depth}
+                    collapsed={isCollapsed}
+                    onToggle={() => toggleCat(group.key)}
+                  />
                   {!isCollapsed &&
                     group.items.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell
-                          style={{ paddingLeft: `${1 + (group.depth + 1) * 1.5}rem` }}
-                        >
-                          <Link href={`/devices/${d.id}`} className="font-medium hover:underline">
+                      <TableRow
+                        key={d.id}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/devices/${d.id}`)}
+                      >
+                        <TableCell style={{ paddingLeft: groupChildIndent(group.depth) }}>
+                          <Link
+                            href={`/devices/${d.id}`}
+                            className="font-medium hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             {d.name}
                           </Link>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                        <TableCell className="text-muted-foreground">
                           {d.description?.trim() || "—"}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">
+                        <TableCell className="num-strong text-right">
                           {d.stockQuantity}
                         </TableCell>
                         <TableCell>
                           {d.inspectionExempt ? (
-                            <Badge variant="secondary" className="text-[10px]">
+                            <Badge variant="secondary" size="sm">
                               Nicht erforderlich
                             </Badge>
                           ) : d.serialsTotal === 0 ? (
@@ -190,32 +156,30 @@ export function DevicesSection({
                               variant={
                                 d.serialsInspected === d.serialsTotal ? "success" : "warning"
                               }
-                              className="text-[10px]"
+                              size="sm"
                             >
                               {d.serialsInspected} / {d.serialsTotal}
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="num text-right">
                           {formatCurrency(Number(d.dailyRate))}
                         </TableCell>
                         <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" asChild title="Bearbeiten">
-                              <Link href={`/devices/${d.id}`}>
-                                <Pencil className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Löschen"
+                          <RowActions density="comfortable">
+                            <RowAction
+                              icon={Pencil}
+                              label="Bearbeiten"
+                              onClick={() => setEditing(d)}
+                            />
+                            <RowAction
+                              icon={Trash2}
+                              label="Löschen"
+                              destructive
                               disabled={pending}
                               onClick={() => setDeleting(d)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                            />
+                          </RowActions>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -225,6 +189,15 @@ export function DevicesSection({
           )}
         </TableBody>
       </Table>
+
+      {editing && (
+        <DeviceDialog
+          categories={categories}
+          device={editing}
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deleting}

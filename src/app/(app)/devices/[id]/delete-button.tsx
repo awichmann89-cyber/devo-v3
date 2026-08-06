@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { deleteDevice } from "../actions";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toastError } from "@/lib/toast";
 
 export function DeleteDeviceButton({ id, name }: { id: string; name: string }) {
   const [open, setOpen] = useState(false);
@@ -21,7 +22,7 @@ export function DeleteDeviceButton({ id, name }: { id: string; name: string }) {
         setOpen(false);
         router.push("/material?tab=devices");
       } catch (e) {
-        toast.error("Löschen fehlgeschlagen", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }

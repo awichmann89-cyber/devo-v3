@@ -19,6 +19,7 @@ import {
   getOrCreatePackToken,
   regeneratePackToken,
 } from "./scan-actions";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   projectId: string;
@@ -46,7 +47,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
         const t = await getOrCreatePackToken(projectId);
         setToken(t);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Konnte Token nicht laden");
+        toastError(e, "Speichern");
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +111,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <QrCode className="h-5 w-5" /> Digital Packen
@@ -143,7 +144,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
             {totalCount > 0 && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Fortschritt:</span>
-                <span className="font-semibold tabular-nums">
+                <span className="num font-semibold">
                   {packedCount} / {totalCount}
                 </span>
                 {done && (

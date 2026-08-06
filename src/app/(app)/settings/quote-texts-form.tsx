@@ -8,6 +8,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveQuoteTexts } from "./settings-actions";
+import { toastError } from "@/lib/toast";
 
 interface Props {
   initialIntro: string;
@@ -26,7 +27,7 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
         await saveQuoteTexts(intro, outro);
         toast.success("Angebots-Texte gespeichert");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

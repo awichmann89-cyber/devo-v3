@@ -89,7 +89,7 @@ export default async function PublicPackUnitPage(props: {
                 >
                   {/* Anzahl nach vorne — auf einen Blick erkennbar, wie
                       viele Stück von jedem Gerät in der Packeinheit liegen. */}
-                  <div className="shrink-0 text-sm tabular-nums">
+                  <div className="shrink-0 num text-sm">
                     <span className="font-semibold">{it.quantity}</span>×
                   </div>
                   <div className="min-w-0 flex-1">

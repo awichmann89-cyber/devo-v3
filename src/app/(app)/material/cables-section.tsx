@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Table,
@@ -10,30 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { TableEmpty } from "@/components/ui/table-empty";
+import { TableGroupRow, groupChildIndent } from "@/components/ui/table-group-row";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Search,
-  X,
-  Cable as CableIcon,
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-} from "lucide-react";
+import { Pencil, Trash2, Cable as CableIcon } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast";
 import { deleteCable } from "./cables-actions";
 import { CableDialog } from "./cable-dialog";
 import { groupItemsByCategory } from "@/lib/category-tree";
@@ -50,6 +35,8 @@ export interface CableVM {
   categoryId: string | null;
   categoryName: string | null;
   inspectionExempt: boolean;
+  replacementValue: number | null;
+  weight: number | null;
   unitsTotal: number;
   unitsWithBarcode: number;
   unitsInspected: number;
@@ -64,11 +51,13 @@ interface CategoryOpt {
 interface Props {
   cables: CableVM[];
   categories: CategoryOpt[];
+  /** Suchbegriff — die Filterleiste liegt im ListCard-Header der Seite. */
+  search: string;
 }
 
-export function CablesSection({ cables, categories }: Props) {
-  const [search, setSearch] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
+export function CablesSection({ cables, categories, search }: Props) {
+  const router = useRouter();
+  const [editing, setEditing] = useState<CableVM | null>(null);
   const [deleting, setDeleting] = useState<CableVM | null>(null);
   const [pending, startTransition] = useTransition();
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -102,40 +91,14 @@ export function CablesSection({ cables, categories }: Props) {
         toast.success("Kabel gelöscht");
         setDeleting(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Name, Typ, Stecker…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64 pl-8"
-          />
-        </div>
-        {search && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSearch("")}
-          >
-            <X className="h-4 w-4" /> Filter zurücksetzen
-          </Button>
-        )}
-        <div className="ml-auto">
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Neues Kabel
-          </Button>
-        </div>
-      </div>
-
-      <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+    <>
+      <Table density="comfortable">
         <TableHeader>
           <TableRow>
             <TableHead>Bezeichnung</TableHead>
@@ -143,18 +106,12 @@ export function CablesSection({ cables, categories }: Props) {
             <TableHead>Stecker</TableHead>
             <TableHead className="text-right">Bestand</TableHead>
             <TableHead>Geprüft</TableHead>
-            <TableHead className="w-[90px]"></TableHead>
+            <TableHead className="w-[76px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                {cables.length === 0
-                  ? "Noch keine Kabel angelegt"
-                  : "Keine Treffer für die Suche"}
-              </TableCell>
-            </TableRow>
+            <TableEmpty colSpan={6} hasData={cables.length > 0} entity="Kabel" />
           ) : (
             groupItemsByCategory(filtered, categories).map((group) => {
               if (group.ancestorKeys.some((k) => collapsedCats.has(k))) {
@@ -163,42 +120,29 @@ export function CablesSection({ cables, categories }: Props) {
               const isCollapsed = collapsedCats.has(group.key);
               return (
                 <Fragment key={group.key}>
-                  <TableRow
-                    className="cursor-pointer bg-muted/30 hover:bg-muted/50"
-                    onClick={() => toggleCat(group.key)}
-                  >
-                    <TableCell colSpan={6} className="py-2">
-                      <div
-                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
-                        style={{ paddingLeft: `${group.depth * 1.25}rem` }}
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                        )}
-                        {isCollapsed ? (
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{group.name}</span>
-                        {group.items.length > 0 && (
-                          <span className="ml-1 font-normal text-muted-foreground normal-case">
-                            ({group.items.length})
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <TableGroupRow
+                    colSpan={6}
+                    label={group.name}
+                    count={group.items.length}
+                    depth={group.depth}
+                    collapsed={isCollapsed}
+                    onToggle={() => toggleCat(group.key)}
+                  />
                   {!isCollapsed &&
                     group.items.map((c) => {
-                      const inspectionProgress = `${c.unitsInspected} / ${c.unitsTotal}`;
                       const allInspected = c.unitsInspected === c.unitsTotal;
                       return (
-                        <TableRow key={c.id} className="hover:bg-accent/30">
-                          <TableCell>
-                            <Link href={`/material/cables/${c.id}`} className="block hover:underline">
+                        <TableRow
+                          key={c.id}
+                          className="cursor-pointer"
+                          onClick={() => router.push(`/material/cables/${c.id}`)}
+                        >
+                          <TableCell style={{ paddingLeft: groupChildIndent(group.depth) }}>
+                            <Link
+                              href={`/material/cables/${c.id}`}
+                              className="block hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <div className="flex items-center gap-2 font-medium">
                                 <CableIcon className="h-4 w-4 text-muted-foreground" />
                                 {c.name}
@@ -210,7 +154,7 @@ export function CablesSection({ cables, categories }: Props) {
                               )}
                             </Link>
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">
+                          <TableCell className="num text-right">
                             {c.lengthMeters ? `${c.lengthMeters} m` : "—"}
                           </TableCell>
                           <TableCell className="text-xs">
@@ -218,40 +162,35 @@ export function CablesSection({ cables, categories }: Props) {
                               ? `${c.connectorA} → ${c.connectorB}`
                               : c.connectorA || c.connectorB || "—"}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">
+                          <TableCell className="num-strong text-right">
                             {c.stockQuantity}
                           </TableCell>
                           <TableCell>
                             {c.inspectionExempt ? (
-                              <Badge variant="secondary" className="text-[10px]">
+                              <Badge variant="secondary" size="sm">
                                 Nicht erforderlich
                               </Badge>
                             ) : (
-                              <Badge
-                                variant={allInspected ? "success" : "warning"}
-                                className="text-[10px]"
-                              >
-                                {inspectionProgress}
+                              <Badge variant={allInspected ? "success" : "warning"} size="sm">
+                                {c.unitsInspected} / {c.unitsTotal}
                               </Badge>
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" asChild title="Bearbeiten">
-                                <Link href={`/material/cables/${c.id}`}>
-                                  <Pencil className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Löschen"
+                            <RowActions density="comfortable">
+                              <RowAction
+                                icon={Pencil}
+                                label="Bearbeiten"
+                                onClick={() => setEditing(c)}
+                              />
+                              <RowAction
+                                icon={Trash2}
+                                label="Löschen"
+                                destructive
                                 disabled={pending}
                                 onClick={() => setDeleting(c)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                              />
+                            </RowActions>
                           </TableCell>
                         </TableRow>
                       );
@@ -263,12 +202,14 @@ export function CablesSection({ cables, categories }: Props) {
         </TableBody>
       </Table>
 
-      <CableDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        cable={null}
-        categories={categories}
-      />
+      {editing && (
+        <CableDialog
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          cable={editing}
+          categories={categories}
+        />
+      )}
 
       <ConfirmDialog
         open={deleting !== null}
@@ -286,6 +227,6 @@ export function CablesSection({ cables, categories }: Props) {
         pending={pending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }

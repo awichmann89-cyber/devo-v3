@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { createInspection, findInspectionTarget } from "../cables-actions";
 import { InspectionResult } from "@prisma/client";
+import { toastError } from "@/lib/toast";
 
 interface InspectionTarget {
   kind: "CABLE_UNIT" | "DEVICE_SERIAL";
@@ -99,7 +100,7 @@ export function InspectionScanner() {
         setTarget(res);
         setNotes("");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -126,7 +127,7 @@ export function InspectionScanner() {
         setNotes("");
         setTimeout(focusScan, 50);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -136,7 +137,7 @@ export function InspectionScanner() {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <ScanLine className="h-5 w-5" /> Scannen
               <InfoHint text="Barcode-Scanner ins Feld richten oder manuell eingeben und Enter drücken. Kabel-Barcodes, Geräte-Barcodes und Geräte-Seriennummern funktionieren." />
             </CardTitle>
@@ -166,7 +167,7 @@ export function InspectionScanner() {
         {target && (
           <Card className="border-primary/40">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2">
                 {target.kind === "CABLE_UNIT" ? (
                   <CableIcon className="h-5 w-5 text-muted-foreground" />
                 ) : (
@@ -290,7 +291,7 @@ export function InspectionScanner() {
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">
                     Letzte Prüfungen
                   </div>
-                  <Table className="[&_td]:py-1.5 [&_td]:px-2 [&_th]:h-8 [&_th]:px-2">
+                  <Table density="dense">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Datum</TableHead>
@@ -304,7 +305,7 @@ export function InspectionScanner() {
                         <TableRow key={i.id}>
                           <TableCell className="text-sm">{formatDate(i.date)}</TableCell>
                           <TableCell>
-                            <Badge variant={resultVariant[i.result]} className="text-[10px]">
+                            <Badge variant={resultVariant[i.result]} size="sm">
                               {resultLabel[i.result]}
                             </Badge>
                           </TableCell>
@@ -326,7 +327,7 @@ export function InspectionScanner() {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               Diese Sitzung
               <InfoHint text="Bereits geprüfte Einheiten (nur diese Browsersitzung)." />
             </CardTitle>
@@ -340,7 +341,7 @@ export function InspectionScanner() {
               <ul className="space-y-1.5">
                 {recent.map((r, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm">
-                    <Badge variant={resultVariant[r.result]} className="text-[10px] shrink-0">
+                    <Badge variant={resultVariant[r.result]} size="sm" className="shrink-0">
                       {resultLabel[r.result]}
                     </Badge>
                     <span className="truncate flex-1">{r.label}</span>

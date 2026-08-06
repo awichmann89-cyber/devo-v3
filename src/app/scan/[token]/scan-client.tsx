@@ -334,7 +334,7 @@ export function ScanClient({
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Fortschritt
               </div>
-              <div className={cn("text-2xl font-bold tabular-nums", done && "text-success")}>
+              <div className={cn("num text-2xl font-bold", done && "text-success")}>
                 {totalScanned} / {totalRequired}
               </div>
             </div>
@@ -367,7 +367,7 @@ export function ScanClient({
       {/* Scanner */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Code scannen</CardTitle>
+          <CardTitle>Code scannen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Kamera-Vorschau via nimiq/qr-scanner — die Lib übernimmt
@@ -484,7 +484,7 @@ export function ScanClient({
       {/* Packlisten-Items */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Packliste</CardTitle>
+          <CardTitle>Packliste</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {items.length === 0 ? (
@@ -546,7 +546,7 @@ export function ScanClient({
                         </div>
                         <div
                           className={cn(
-                            "tabular-nums text-sm font-semibold",
+                            "num text-sm font-semibold",
                             complete ? "text-success" : "text-foreground"
                           )}
                         >
@@ -591,7 +591,7 @@ export function ScanClient({
       {recentScans.length > 0 && (
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Letzte Scans</CardTitle>
+            <CardTitle>Letzte Scans</CardTitle>
             <Button
               variant="ghost"
               size="sm"

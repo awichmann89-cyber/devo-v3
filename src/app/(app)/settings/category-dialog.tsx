@@ -23,6 +23,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createCategory, updateCategory } from "./actions";
 import { flattenCategoryTree } from "@/lib/category-tree";
+import { toastError } from "@/lib/toast";
 
 type CategoryNode = {
   id: string;
@@ -91,7 +92,7 @@ export function CategoryDialog(props: Props) {
         }
         onOpenChange(false);
       } catch (e) {
-        toast.error("Fehler", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -105,7 +106,7 @@ export function CategoryDialog(props: Props) {
               ? "Kategorie bearbeiten"
               : props.parent
                 ? `Unterkategorie zu "${props.parent.name}"`
-                : "Neue Hauptkategorie"}
+                : "Hauptkategorie anlegen"}
           </DialogTitle>
           <DialogDescription>
             Kategorien gelten für Geräte und Packeinheiten gleichermaßen.

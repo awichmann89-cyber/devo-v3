@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { saveDayFactorMap } from "./settings-actions";
+import { toastError } from "@/lib/toast";
 
 export function DayFactorForm({ initial }: { initial: Record<number, number> }) {
   const [values, setValues] = useState<Record<number, string>>(() => {
@@ -34,7 +35,7 @@ export function DayFactorForm({ initial }: { initial: Record<number, number> }) 
         await saveDayFactorMap(parsed);
         toast.success("Faktoren gespeichert");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }

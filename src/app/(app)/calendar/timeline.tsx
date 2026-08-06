@@ -201,7 +201,7 @@ export function Timeline({
       start: dayFloor(a.start),
       end: dayFloor(a.end),
       label: `${projectStatusEmoji(a.status)} ${a.projectName} — ${a.serviceName}`,
-      chip: "bg-fuchsia-600 hover:bg-fuchsia-500 text-white",
+      chip: "bg-subhire text-primary-foreground hover:opacity-90",
       assignment: a,
     }));
     for (const p of filtered) {
@@ -445,14 +445,14 @@ export function Timeline({
         <LegendItem color="bg-faint" label="Abgeschlossen" />
         <LegendItem color="bg-destructive/60" label="Storniert" />
         {myAssignments.length > 0 && (
-          <LegendItem color="bg-fuchsia-600" label="Meine Einsätze" />
+          <LegendItem color="bg-subhire" label="Meine Einsätze" />
         )}
       </div>
 
       {/* Info-Popup: gebündelte Infos + Button zum Projekt (wie im ICS-Kalender,
           nur mit Absprung ins Projekt). */}
       <Dialog open={selected !== null} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           {selected?.kind === "project" && (
             <>
               <DialogHeader>

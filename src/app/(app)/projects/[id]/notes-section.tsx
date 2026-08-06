@@ -16,6 +16,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
+import { formatDate } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +36,7 @@ import {
   updateProjectNote,
   deleteProjectNote,
 } from "./notes-actions";
+import { toastError } from "@/lib/toast";
 
 export interface NoteVM {
   id: string;
@@ -74,7 +78,7 @@ export function NotesSection({
         toast.success("Notiz gelöscht");
         setConfirmDelete(null);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Löschen");
+        toastError(err, "Löschen");
       }
     });
   }
@@ -107,83 +111,75 @@ export function NotesSection({
         </Button>
       </div>
 
-      <Card className="p-4">
-        <CardHeader className="px-0 pt-0 pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
-          <CardTitle className="text-base flex items-center gap-2">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="flex items-center gap-2">
             <StickyNote className="h-4 w-4" /> Notizen
             {notes.length > 0 && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline">
                 {notes.length} {notes.length === 1 ? "Notiz" : "Notizen"}
               </Badge>
             )}
           </CardTitle>
           {canWrite && (
             <Button size="sm" variant="outline" onClick={openCreate}>
-              <Plus className="h-4 w-4" /> Neue Notiz
+              <Plus className="h-4 w-4" /> Notiz anlegen
             </Button>
           )}
         </CardHeader>
-        <CardContent className="px-0 pb-0">
-
-      {notes.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
-            <StickyNote className="h-8 w-8 opacity-40" />
-            <p className="text-sm">Noch keine Notizen für dieses Projekt.</p>
-            {canWrite && (
-              <Button variant="outline" size="sm" onClick={openCreate}>
-                <Plus className="h-4 w-4" /> Erste Notiz anlegen
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {notes.map((note) => (
-            <Card key={note.id} className="flex flex-col">
-              <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
-                <div className="min-w-0">
-                  <CardTitle className="text-base truncate">{note.title}</CardTitle>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Aktualisiert{" "}
-                    {new Date(note.updatedAt).toLocaleDateString("de-DE", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-                {canWrite && (
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => openEdit(note)}
-                      title="Bearbeiten"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => setConfirmDelete(note)}
-                      title="Löschen"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+        <CardContent>
+          {notes.length === 0 ? (
+            <EmptyState
+              bare
+              icon={StickyNote}
+              title="Noch keine Notizen für dieses Projekt."
+              action={
+                canWrite && (
+                  <Button variant="outline" size="sm" onClick={openCreate}>
+                    <Plus className="h-4 w-4" /> Erste Notiz anlegen
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            /* Notizen als abgesetzte Blöcke — keine verschachtelten Cards,
+               sonst liegt Rahmen auf Rahmen. */
+            <ul className="divide-y rounded-lg border">
+              {notes.map((note) => (
+                <li key={note.id} className="p-4">
+                  <div className="flex flex-row items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-bold leading-tight tracking-tight">
+                        {note.title}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Aktualisiert {formatDate(note.updatedAt)}
+                      </p>
+                    </div>
+                    {canWrite && (
+                      <RowActions density="comfortable" className="shrink-0">
+                        <RowAction
+                          icon={Pencil}
+                          label="Bearbeiten"
+                          onClick={() => openEdit(note)}
+                        />
+                        <RowAction
+                          icon={Trash2}
+                          label="Löschen"
+                          destructive
+                          onClick={() => setConfirmDelete(note)}
+                        />
+                      </RowActions>
+                    )}
                   </div>
-                )}
-              </CardHeader>
-              <CardContent className="flex-1">
-                <MarkdownView content={note.content} />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-      </CardContent>
+                  <div className="mt-3">
+                    <MarkdownView content={note.content} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
       </Card>
 
       <NoteDialog
@@ -261,16 +257,16 @@ function NoteDialog({
         }
         onOpenChange(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Speichern");
+        toastError(err, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent size="xl">
         <DialogHeader>
-          <DialogTitle>{note ? "Notiz bearbeiten" : "Neue Notiz"}</DialogTitle>
+          <DialogTitle>{note ? "Notiz bearbeiten" : "Notiz anlegen"}</DialogTitle>
           <DialogDescription>
             Beschreibung unterstützt Markdown (Überschriften, Listen, Links, Code,
             Tabellen).

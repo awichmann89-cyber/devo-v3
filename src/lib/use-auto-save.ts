@@ -58,3 +58,39 @@ export function useAutoSave<T>(
 
   return { status, error };
 }
+
+/**
+ * Speicher-Status für Bereiche, die **imperativ** speichern — Inline-Felder mit
+ * `onBlur`, Mengen-Stepper, Gruppen-Umbenennungen. Diese laufen alle über
+ * `useTransition`; der Hook leitet daraus „Speichert … → Gespeichert" ab.
+ *
+ * Damit bekommen auch die Projekt-Tabs eine Rückmeldung, ohne jede der ~40
+ * Save-Aufrufstellen anzufassen. Fehler kommen weiterhin als Toast — der Hook
+ * sieht sie nicht und behauptet deshalb auch keinen Erfolg, solange die
+ * Transition läuft.
+ *
+ * @param pending `pending` aus `useTransition()`
+ */
+export function useTransitionSaveStatus(pending: boolean): AutoSaveStatus {
+  const [status, setStatus] = useState<AutoSaveStatus>("idle");
+  const wasPending = useRef(false);
+
+  useEffect(() => {
+    if (pending) {
+      wasPending.current = true;
+      setStatus("saving");
+      return;
+    }
+    // Nur nach einem echten Speichervorgang „Gespeichert" zeigen — nicht beim
+    // ersten Render.
+    if (!wasPending.current) return;
+    wasPending.current = false;
+    setStatus("saved");
+    const t = setTimeout(() => {
+      setStatus((s) => (s === "saved" ? "idle" : s));
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [pending]);
+
+  return status;
+}

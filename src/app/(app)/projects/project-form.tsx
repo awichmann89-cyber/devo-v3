@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { CustomerDialog } from "@/app/(app)/customers/customer-dialog";
 import { useAutoSave } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
+import { toastError } from "@/lib/toast";
 
 function toLocalInput(d: Date | string | undefined | null): string {
   if (!d) return "";
@@ -177,7 +178,7 @@ export function ProjectForm({
         }
       } catch (e) {
         if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
-        toast.error("Fehler", { description: e instanceof Error ? e.message : String(e) });
+        toastError(e, "Speichern");
       }
     });
   }
@@ -345,8 +346,8 @@ export function ProjectForm({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
+                    size="iconXs"
+                    
                     onClick={() => removePeriod(i)}
                     title="Zeitraum entfernen"
                   >

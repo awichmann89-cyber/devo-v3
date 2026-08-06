@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
-import { Card, CardContent } from "@/components/ui/card";
 import { ProjectKind, ProjectStatus } from "@prisma/client";
 import { PendingTable } from "./pending-table";
 
@@ -38,19 +37,5 @@ export default async function PendingInvoicingPage() {
     customerName: p.customer?.name ?? null,
   }));
 
-  return (
-    <div className="space-y-6">
-
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Alles abgerechnet — aktuell stehen keine Projekte zur Fakturierung
-            an.
-          </CardContent>
-        </Card>
-      ) : (
-        <PendingTable rows={rows} />
-      )}
-    </div>
-  );
+  return <PendingTable rows={rows} />;
 }

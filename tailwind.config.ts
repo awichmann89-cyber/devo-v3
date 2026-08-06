@@ -25,7 +25,9 @@ const config: Config = {
           "Arial",
           "sans-serif",
         ],
-        // JetBrains Mono für Zahlen, Datums- und Nummernkreis-Spalten.
+        // JetBrains Mono für Beträge, Mengen und Nummernkreise — angewendet
+        // über die Utilities `.num` / `.num-strong` (siehe globals.css).
+        // Datumsspalten bleiben bewusst in der Sans.
         mono: [
           "var(--font-mono)",
           "ui-monospace",
@@ -79,6 +81,11 @@ const config: Config = {
         info: {
           DEFAULT: "hsl(var(--info))",
           subtle: "hsl(var(--info-subtle))",
+        },
+        // Zumietung — siehe globals.css
+        subhire: {
+          DEFAULT: "hsl(var(--subhire))",
+          subtle: "hsl(var(--subhire-subtle))",
         },
         faint: "hsl(var(--faint))",
         sidebar: {

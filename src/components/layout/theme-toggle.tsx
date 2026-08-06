@@ -32,8 +32,8 @@ export function ThemeToggle() {
   return (
     <Button
       variant="outline"
-      size="icon"
-      className="h-8 w-8 bg-secondary hover:border-primary hover:text-primary"
+      size="iconSm"
+      className="bg-secondary hover:border-primary hover:text-primary"
       onClick={toggle}
       title="Theme wechseln"
       aria-label="Theme wechseln"

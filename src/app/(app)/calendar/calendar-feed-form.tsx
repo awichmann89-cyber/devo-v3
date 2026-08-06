@@ -8,6 +8,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { Copy, RefreshCw, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { regenerateCalendarToken } from "../settings/settings-actions";
+import { toastError } from "@/lib/toast";
 
 export function CalendarFeedForm({
   initialToken,
@@ -63,7 +64,7 @@ export function CalendarFeedForm({
         setToken(fresh);
         toast.success("Neuer Token aktiv");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }

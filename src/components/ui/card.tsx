@@ -15,11 +15,23 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("text-sm font-bold leading-tight tracking-tight", className)} {...props} />
-  )
-);
+// `text-base` ist der Standard für Card-Titel. Wo ein leiserer Tier gebraucht
+// wird, explizit `<CardTitle size="sm">` verwenden — nicht per className, damit
+// die Skala nicht wieder auseinanderläuft.
+const CardTitle = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { size?: "default" | "sm" }
+>(({ className, size = "default", ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "font-bold leading-tight tracking-tight",
+      size === "sm" ? "text-sm" : "text-base",
+      className
+    )}
+    {...props}
+  />
+));
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(

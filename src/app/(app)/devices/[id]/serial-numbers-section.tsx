@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { InspectionResult } from "@prisma/client";
 import { formatDate } from "@/lib/utils";
+import { toastError } from "@/lib/toast";
 
 interface SerialNumberVM {
   id: string;
@@ -88,9 +89,7 @@ export function SerialNumbersSection({
         setNewNotes("");
         toast.success("Seriennummer hinzugefügt");
       } catch (e) {
-        toast.error("Fehler", {
-          description: e instanceof Error ? e.message : "",
-        });
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -101,9 +100,7 @@ export function SerialNumbersSection({
         await deleteSerialNumber(id);
         toast.success("Seriennummer entfernt");
       } catch (e) {
-        toast.error("Fehler", {
-          description: e instanceof Error ? e.message : "",
-        });
+        toastError(e, "Löschen");
       }
     });
   }
@@ -141,7 +138,7 @@ export function SerialNumbersSection({
       </CardHeader>
       <CardContent className="space-y-3">
         {serialNumbers.length > 0 && (
-          <Table className="[&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:px-3">
+          <Table density="comfortable">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]">#</TableHead>
@@ -230,7 +227,7 @@ function SerialRow({
       try {
         await updateSerialNumber(serial.id, payload);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -281,7 +278,7 @@ function SerialRow({
         <TableCell>
           {serial.lastInspection ? (
             <div className="flex items-center gap-2">
-              <Badge variant={resultVariant[serial.lastInspection.result]} className="text-[10px]">
+              <Badge variant={resultVariant[serial.lastInspection.result]} size="sm">
                 {resultLabel[serial.lastInspection.result]}
               </Badge>
               <span className="text-xs text-muted-foreground">{formatDate(serial.lastInspection.date)}</span>
@@ -293,7 +290,7 @@ function SerialRow({
         </TableCell>
       )}
       <TableCell>
-        <Button variant="ghost" size="icon" onClick={onDelete} disabled={pending || rowPending} className="h-8 w-8">
+        <Button variant="ghost" size="iconSm" onClick={onDelete} disabled={pending || rowPending} >
           <Trash2 className="h-4 w-4" />
         </Button>
       </TableCell>

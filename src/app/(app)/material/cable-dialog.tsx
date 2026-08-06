@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createCable, updateCable } from "./cables-actions";
+import { toastError } from "@/lib/toast";
 
 export interface CableForDialog {
   id: string;
@@ -117,16 +118,16 @@ export function CableDialog({ open, onOpenChange, cable, categories }: Props) {
         }
         onOpenChange(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler");
+        toastError(err, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle>{cable ? "Kabel bearbeiten" : "Neues Kabel"}</DialogTitle>
+          <DialogTitle>{cable ? "Kabel bearbeiten" : "Kabel anlegen"}</DialogTitle>
           <DialogDescription>
             Beim Anlegen werden automatisch so viele Einzel-Einheiten erstellt wie der Bestand groß ist. Barcodes (DGUV V3) kannst du danach pro Einheit nachpflegen.
           </DialogDescription>

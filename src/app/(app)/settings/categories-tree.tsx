@@ -17,6 +17,7 @@ import { deleteCategory } from "./actions";
 import { toast } from "sonner";
 import { CategoryDialog } from "./category-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toastBlocked } from "@/lib/toast";
 
 type CategoryNode = {
   id: string;
@@ -74,9 +75,7 @@ export function CategoriesTree({ categories }: Props) {
         toast.success("Kategorie gelöscht");
         setDeleting(null);
       } catch (e) {
-        toast.error("Löschen nicht möglich", {
-          description: e instanceof Error ? e.message : "",
-        });
+        toastBlocked(e, "Löschen");
       }
     });
   }
@@ -120,12 +119,12 @@ export function CategoriesTree({ categories }: Props) {
 
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             {c._count.devices > 0 && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" size="sm">
                 {c._count.devices} Geräte
               </Badge>
             )}
             {c._count.packUnits > 0 && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" size="sm">
                 {c._count.packUnits} Packeinheiten
               </Badge>
             )}
@@ -134,8 +133,8 @@ export function CategoriesTree({ categories }: Props) {
           <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               title="Unterkategorie hinzufügen"
               onClick={() => setDialogState({ mode: "create", parent: c })}
             >
@@ -143,8 +142,8 @@ export function CategoriesTree({ categories }: Props) {
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               title="Bearbeiten"
               onClick={() => setDialogState({ mode: "edit", category: c })}
             >
@@ -152,8 +151,8 @@ export function CategoriesTree({ categories }: Props) {
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="iconXs"
+              
               title="Löschen"
               disabled={pending}
               onClick={() => setDeleting(c)}
@@ -179,7 +178,7 @@ export function CategoriesTree({ categories }: Props) {
           {categories.length} Kategorien insgesamt
         </p>
         <Button onClick={() => setDialogState({ mode: "create", parent: null })}>
-          <Plus className="h-4 w-4" /> Neue Hauptkategorie
+          <Plus className="h-4 w-4" /> Hauptkategorie anlegen
         </Button>
       </div>
 

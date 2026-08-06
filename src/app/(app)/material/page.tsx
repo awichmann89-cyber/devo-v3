@@ -1,13 +1,7 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Boxes, Package, MapPin, Cable as CableIcon, ScanLine } from "lucide-react";
-import { PackUnitsSection } from "./pack-units-section";
-import { DevicesSection, DeviceVM } from "./devices-section";
-import { LocationsSection } from "./locations-section";
-import { CablesSection, CableVM } from "./cables-section";
+import { MaterialView } from "./material-view";
+import { DeviceVM } from "./devices-section";
+import { CableVM } from "./cables-section";
 import { serialize } from "@/lib/utils";
 
 interface SearchParams {
@@ -65,6 +59,7 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
     weight: d.weight ? Number(d.weight) : null,
     powerWatts: d.powerWatts,
     inspectionExempt: d.inspectionExempt,
+    showOnDocuments: d.showOnDocuments,
     categoryId: d.categoryId,
     category: d.category,
     createdAt: d.createdAt.toISOString(),
@@ -86,89 +81,23 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
     categoryId: c.categoryId,
     categoryName: c.category?.name ?? null,
     inspectionExempt: c.inspectionExempt,
+    // Für den Bearbeiten-Dialog: sonst würden diese Werte beim Speichern aus
+    // der Liste heraus auf null zurückfallen.
+    replacementValue: c.replacementValue ? Number(c.replacementValue) : null,
+    weight: c.weight ? Number(c.weight) : null,
     unitsTotal: c.units.length,
     unitsWithBarcode: c.units.filter((u) => u.barcode).length,
     unitsInspected: c.units.filter((u) => u._count.inspections > 0).length,
   }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-end gap-4">
-        <Button variant="outline" asChild>
-          <Link href="/material/inspection">
-            <ScanLine className="h-4 w-4" /> Prüfungsmodus
-          </Link>
-        </Button>
-      </div>
-
-      <Tabs defaultValue={tab}>
-        <TabsList>
-          <TabsTrigger value="devices">
-            <Package className="h-4 w-4" /> Geräte ({devices.length})
-          </TabsTrigger>
-          <TabsTrigger value="pack-units">
-            <Boxes className="h-4 w-4" /> Packeinheiten ({packUnits.length})
-          </TabsTrigger>
-          <TabsTrigger value="cables">
-            <CableIcon className="h-4 w-4" /> Kabel ({cables.length})
-          </TabsTrigger>
-          <TabsTrigger value="locations">
-            <MapPin className="h-4 w-4" /> Lagerorte ({locations.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="devices">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{devices.length} Geräte-Typen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DevicesSection
-                devices={devicesVM}
-                categories={categories}
-                locations={locations}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pack-units">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{packUnits.length} Packeinheiten</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PackUnitsSection
-                packUnits={serialize(packUnits)}
-                categories={categories}
-                locations={locations}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="cables">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{cables.length} Kabel-Typen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CablesSection cables={cablesVM} categories={categories} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="locations">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{locations.length} Lagerorte</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LocationsSection locations={locations} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+    <MaterialView
+      tab={tab}
+      devices={devicesVM}
+      packUnits={serialize(packUnits)}
+      cables={cablesVM}
+      locations={locations}
+      categories={categories}
+    />
   );
 }

@@ -30,7 +30,7 @@ export function ProjectDialog({ customers, users, currentUserId }: Props) {
           <Plus className="h-4 w-4" /> Projekt anlegen
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>Projekt anlegen</DialogTitle>
           <DialogDescription>

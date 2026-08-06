@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { deletePackUnit } from "../actions";
-import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toastError } from "@/lib/toast";
 
 export function DeletePackUnitButton({ id, name }: { id: string; name: string }) {
   const [open, setOpen] = useState(false);
@@ -17,7 +17,7 @@ export function DeletePackUnitButton({ id, name }: { id: string; name: string })
         await deletePackUnit(id);
       } catch (e) {
         if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
-        toast.error("Löschen fehlgeschlagen", { description: e instanceof Error ? e.message : "" });
+        toastError(e, "Speichern");
       }
     });
   }

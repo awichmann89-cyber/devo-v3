@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition, type ReactNode } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -101,6 +101,9 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
+import { toastError } from "@/lib/toast";
+import { useTransitionSaveStatus } from "@/lib/use-auto-save";
+import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 
 /** Icon je Extrakosten-Kategorie — gleiche Icons wie auf „Personal & Transport". */
 function extraCostKindIcon(kind: ExtraCostKind) {
@@ -219,6 +222,7 @@ export function CostsSection({
   orphanTime,
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const saveStatus = useTransitionSaveStatus(pending);
 
   // ----- Dialog-/Lösch-State -----
   const [subhireDialog, setSubhireDialog] = useState<SubhireFormValue | null>(null);
@@ -356,7 +360,7 @@ export function CostsSection({
           ordered.map((r) => ({ kind: r.kind, id: r.id }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Sortieren");
+        toastError(err, "Verschieben");
       }
     });
   }
@@ -379,7 +383,7 @@ export function CostsSection({
         else setActiveExtraGroupId(res.id);
         setGroupDialog(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -389,7 +393,7 @@ export function CostsSection({
       try {
         await renameProjectGroup(id, name);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -403,7 +407,7 @@ export function CostsSection({
       try {
         await reorderProjectGroups(ids);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -422,7 +426,7 @@ export function CostsSection({
         await deleteProjectGroup(id, moveTo);
         setDeleteGroup(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -433,7 +437,7 @@ export function CostsSection({
       try {
         await addGroupComment(projectId, groupId, "Zwischenüberschrift");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Anlegen");
       }
     });
   }
@@ -443,7 +447,7 @@ export function CostsSection({
       try {
         await updateGroupComment(id, text);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -453,7 +457,7 @@ export function CostsSection({
       try {
         await deleteGroupComment(id);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -465,7 +469,7 @@ export function CostsSection({
       try {
         await updateSubhireQuantity(id, q);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -475,7 +479,7 @@ export function CostsSection({
       try {
         await moveSubhireToCostGroup(id, groupId);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -489,7 +493,7 @@ export function CostsSection({
         toast.success("Zumietung entfernt");
         setSubhireDelete(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -520,7 +524,7 @@ export function CostsSection({
         }
         setExtraDialog(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Speichern");
       }
     });
   }
@@ -530,7 +534,7 @@ export function CostsSection({
       try {
         await moveExtraCostToGroup(id, groupId);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Verschieben");
       }
     });
   }
@@ -544,7 +548,7 @@ export function CostsSection({
         toast.success("Extrakosten entfernt");
         setExtraDelete(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fehler");
+        toastError(e, "Löschen");
       }
     });
   }
@@ -591,8 +595,8 @@ export function CostsSection({
         )}
         <Button
           variant="ghost"
-          size="icon"
-          className="h-7 w-7"
+          size="iconXs"
+          
           title="Bearbeiten"
           onClick={opts.onEdit}
         >
@@ -600,8 +604,8 @@ export function CostsSection({
         </Button>
         <Button
           variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-destructive hover:text-destructive"
+          size="iconXs"
+          className="text-destructive hover:text-destructive"
           title="Entfernen"
           onClick={opts.onDelete}
           disabled={pending}
@@ -624,7 +628,7 @@ export function CostsSection({
             </div>
           )}
           {(s.deviceId || s.adHocItemId) && (
-            <div className="flex items-center gap-1 text-[11px] text-fuchsia-600 dark:text-fuchsia-400">
+            <div className="flex items-center gap-1 text-[11px] text-subhire">
               <Link2 className="h-3 w-3" />
               verknüpft
               {linkedName(s) && linkedName(s) !== s.name && (
@@ -643,10 +647,10 @@ export function CostsSection({
             disabled={pending}
           />
         </TableCell>
-        <TableCell className="text-right tabular-nums font-mono text-sm">
+        <TableCell className="text-right num text-sm">
           {formatCurrency(s.unitCost)}
         </TableCell>
-        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+        <TableCell className="text-right num text-sm font-medium">
           {formatCurrency(s.unitCost * s.quantity)}
         </TableCell>
         <TableCell>
@@ -662,14 +666,14 @@ export function CostsSection({
     );
     if (!sortable) {
       return (
-        <TableRow key={sortId} className="[&_td]:px-2 [&_td]:py-1">
+        <TableRow key={sortId}>
           <TableCell />
           {cells}
         </TableRow>
       );
     }
     return (
-      <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1">
+      <SortableRow id={sortId} key={sortId}>
         <DragHandleCell />
         {cells}
       </SortableRow>
@@ -697,7 +701,7 @@ export function CostsSection({
         </TableCell>
         <TableCell className="text-center text-xs text-muted-foreground">—</TableCell>
         <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+        <TableCell className="text-right num text-sm font-medium">
           {formatCurrency(c.amount)}
         </TableCell>
         <TableCell>
@@ -721,14 +725,14 @@ export function CostsSection({
     );
     if (!sortable) {
       return (
-        <TableRow key={sortId} className="[&_td]:px-2 [&_td]:py-1">
+        <TableRow key={sortId}>
           <TableCell />
           {cells}
         </TableRow>
       );
     }
     return (
-      <SortableRow id={sortId} key={sortId} className="[&_td]:px-2 [&_td]:py-1">
+      <SortableRow id={sortId} key={sortId}>
         <DragHandleCell />
         {cells}
       </SortableRow>
@@ -826,8 +830,8 @@ export function CostsSection({
     // Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
     // 52px-Headers + Abstände) und clippt intern, sodass die Kosten-Tabelle in
     // ihrer eigenen Fläche scrollt statt die ganze Seite wachsen zu lassen.
-    <Card className="p-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
-      <div className="flex flex-col lg:min-h-0 lg:flex-1">
+    <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-4">
         {/* Kopfzeile: Summen links, Aktionen rechts. */}
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -840,6 +844,8 @@ export function CostsSection({
             <InfoHint text="Rein interne Kosten — erscheinen nicht auf Angeboten, Rechnungen oder Packlisten und ändern die Planung nicht." />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Mengen und Gruppennamen speichern sofort. */}
+            <AutoSaveIndicator status={saveStatus} className="mr-1" />
             <Button
               size="sm"
               variant="outline"
@@ -877,7 +883,7 @@ export function CostsSection({
                 </p>
               </div>
             ) : (
-              <Table className="[&_td]:px-2 [&_td]:py-1">
+              <Table density="dense">
                 <TableHeader>
                   <TableRow className="hover:bg-secondary">
                     <TableHead className="w-8"></TableHead>
@@ -1019,7 +1025,7 @@ export function CostsSection({
                                   ? "Lohn"
                                   : "—"}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                        <TableCell className="text-right num text-sm font-medium">
                           {p.effCost > 0 ? formatCurrency(p.effCost) : "—"}
                         </TableCell>
                         <TableCell />
@@ -1035,7 +1041,7 @@ export function CostsSection({
                           {formatMinutes(orphanTime.minutes)} h
                         </TableCell>
                         <TableCell />
-                        <TableCell className="text-right tabular-nums font-mono text-sm font-medium">
+                        <TableCell className="text-right num text-sm font-medium">
                           {orphanTime.cost > 0 ? formatCurrency(orphanTime.cost) : "—"}
                         </TableCell>
                         <TableCell />
@@ -1062,19 +1068,19 @@ export function CostsSection({
           >
             <span>
               Zumietung{" "}
-              <span className="font-mono tabular-nums">{formatCurrency(subhireTotal)}</span>
+              <span className="num">{formatCurrency(subhireTotal)}</span>
             </span>
             <span>
               Personal{" "}
-              <span className="font-mono tabular-nums">{formatCurrency(extraPersonal)}</span>
+              <span className="num">{formatCurrency(extraPersonal)}</span>
             </span>
             <span>
               Sonstiges{" "}
-              <span className="font-mono tabular-nums">{formatCurrency(extraOther)}</span>
+              <span className="num">{formatCurrency(extraOther)}</span>
             </span>
             <span className="inline-flex items-center gap-1">
               Personal (Einsatzplan){" "}
-              <span className="font-mono tabular-nums">{formatCurrency(personnelCost)}</span>
+              <span className="num">{formatCurrency(personnelCost)}</span>
               <InfoHint text="Wird automatisch aus Einsätzen (Freelancer-Sätze) und erfassten Stunden (Minijobber) berechnet — Pflege im Tab Personal & Transport. Hier nicht doppelt als Extrakosten erfassen." />
             </span>
             <span>Kosten gesamt</span>
@@ -1083,13 +1089,13 @@ export function CostsSection({
             </span>
           </GroupTableFooter>
         </div>
-      </div>
+      </CardContent>
 
       {/* -------------------- Dialoge -------------------- */}
 
       {/* Gruppe anlegen */}
       <Dialog open={groupDialog !== null} onOpenChange={(o) => !o && setGroupDialog(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>
               {groupDialog?.kind === "SUBHIRE"
@@ -1243,7 +1249,7 @@ export function CostsSection({
                         amount: Math.max(0, Number(e.target.value) || 0),
                       })
                     }
-                    className="tabular-nums"
+                    className="num"
                   />
                 </div>
               </div>

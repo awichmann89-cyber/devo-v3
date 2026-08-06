@@ -32,6 +32,7 @@ import {
   addPersonAssignment,
   updatePersonAssignment,
 } from "./person-assignments-actions";
+import { toastError } from "@/lib/toast";
 
 /** Aktive Person für die Auswahl im Dialog. */
 export interface PersonOptionVM {
@@ -300,14 +301,14 @@ export function PersonAssignmentDialog({
         }
         onOpenChange(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Speichern");
+        toastError(err, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>
             {assignment ? "Einsatz bearbeiten" : "Person einplanen"}

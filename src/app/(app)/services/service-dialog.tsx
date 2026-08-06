@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { BillingUnit, ServiceItemKind } from "@prisma/client";
 import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
 import { createServiceItem, updateServiceItem } from "./actions";
+import { toastError } from "@/lib/toast";
 
 export interface ServiceItemVM {
   id: string;
@@ -93,14 +94,14 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
         }
         onOpenChange(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Fehler beim Speichern");
+        toastError(err, "Speichern");
       }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{item ? "Position bearbeiten" : "Position anlegen"}</DialogTitle>
           <DialogDescription>

@@ -75,8 +75,7 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-
+    <div className="space-y-4">
       <Tabs defaultValue="categories">
         <TabsList>
           <TabsTrigger value="categories">
@@ -148,7 +147,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="letterhead" className="space-y-6">
+        <TabsContent value="letterhead" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -176,7 +175,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="invoices" className="space-y-6">
+        <TabsContent value="invoices" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -261,7 +260,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="quotes" className="space-y-6">
+        <TabsContent value="quotes" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

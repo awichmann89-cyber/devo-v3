@@ -1,11 +1,13 @@
 "use client";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { TableEmpty } from "@/components/ui/table-empty";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { deleteLocation } from "./actions";
 import { toast } from "sonner";
+import { isRedirectError, toastError } from "@/lib/toast";
 import { LocationDialog } from "./location-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Location } from "@prisma/client";
@@ -25,52 +27,45 @@ export function LocationsTable({ locations }: { locations: Row[] }) {
         toast.success("Lagerort gelöscht");
         setDeleting(null);
       } catch (err) {
-        if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
-        toast.error("Fehler beim Löschen", { description: err instanceof Error ? err.message : "" });
+        if (isRedirectError(err)) throw err;
+        toastError(err, "Löschen");
       }
     });
   }
 
   return (
     <>
-      <Table>
+      <Table density="comfortable">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Adresse</TableHead>
             <TableHead className="text-right">Packeinheiten</TableHead>
-            <TableHead className="w-[100px]"></TableHead>
+            <TableHead className="w-[76px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {locations.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                Noch keine Lagerorte angelegt
-              </TableCell>
-            </TableRow>
+            <TableEmpty colSpan={4} hasData={false} entity="Lagerorte" />
           )}
           {locations.map((loc) => (
             <TableRow key={loc.id}>
               <TableCell className="font-medium">{loc.name}</TableCell>
-              <TableCell className="text-muted-foreground whitespace-pre-line text-sm">
+              <TableCell className="whitespace-pre-line text-muted-foreground">
                 {loc.address ?? "—"}
               </TableCell>
-              <TableCell className="text-right">{loc._count.packUnits}</TableCell>
+              <TableCell className="num text-right">{loc._count.packUnits}</TableCell>
               <TableCell>
-                <div className="flex justify-end gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => setEditing(loc)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                <RowActions density="comfortable">
+                  <RowAction icon={Pencil} label="Bearbeiten" onClick={() => setEditing(loc)} />
+                  <RowAction
+                    icon={Trash2}
+                    label="Löschen"
+                    destructive
                     disabled={pending}
                     onClick={() => setDeleting(loc)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                  />
+                </RowActions>
               </TableCell>
             </TableRow>
           ))}

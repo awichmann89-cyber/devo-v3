@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, CalendarClock, Receipt, UserRound } from "lucide-react";
+import { DetailHeader } from "@/components/layout/detail-header";
+import { CalendarClock, Receipt } from "lucide-react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { employmentTypeLabel, employmentTypeVariant } from "@/lib/labels";
 import { hasClockTime } from "@/lib/personnel-schedule";
@@ -112,30 +112,25 @@ export default async function PersonDetailPage(props: {
     .sort((a, b) => +b.start - +a.start);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/persons" title="Zurück zum Personalstamm">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <UserRound className="h-5 w-5" />
-            {person.name}
-          </h2>
-          <Badge variant={employmentTypeVariant(person.employmentType)}>
-            {employmentTypeLabel(person.employmentType)}
-          </Badge>
-          {!person.active && <Badge variant="outline">Inaktiv</Badge>}
-        </div>
-        <PersonEditButton person={personVM} users={users} />
-      </div>
+    <div className="space-y-4">
+      <DetailHeader
+        backHref="/persons"
+        title={person.name}
+        badges={
+          <>
+            <Badge variant={employmentTypeVariant(person.employmentType)}>
+              {employmentTypeLabel(person.employmentType)}
+            </Badge>
+            {!person.active && <Badge variant="outline">Inaktiv</Badge>}
+          </>
+        }
+        actions={<PersonEditButton person={personVM} users={users} />}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Stammdaten</CardTitle>
+            <CardTitle>Stammdaten</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <dl className="grid grid-cols-[120px_1fr] gap-y-1.5">
@@ -181,7 +176,7 @@ export default async function PersonDetailPage(props: {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2">
             <CalendarClock className="h-4 w-4" /> Einsätze
             <InfoHint text="Alle Einsätze — geplant wird im Projekt (Tab Personal & Transport)." />
           </CardTitle>

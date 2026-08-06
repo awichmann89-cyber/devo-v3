@@ -1,6 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { InfoHint } from "@/components/ui/info-hint";
 import { ServicesTable } from "./services-table";
 
 export default async function ServicesPage() {
@@ -20,20 +18,5 @@ export default async function ServicesPage() {
     _count: s._count,
   }));
 
-  return (
-    <div className="space-y-6">
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Positionen
-            <InfoHint text="Positionen mit Preis und Einheit (Stunde, Tag, Pauschale, Stück). Sie können im Projekt mehrfach mit eigener Menge und optionalem Preis-Override gebucht werden." />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ServicesTable items={vmItems} />
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <ServicesTable items={vmItems} />;
 }

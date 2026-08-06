@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
-import { Card, CardContent } from "@/components/ui/card";
 import { InvoicesTable } from "../invoices-table";
 
 export default async function FinancesInvoicesPage() {
@@ -33,19 +32,5 @@ export default async function FinancesInvoicesPage() {
     customerName: inv.project.customer?.name ?? null,
   }));
 
-  return (
-    <div className="space-y-6">
-
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Noch keine Rechnungen vorhanden. Erstelle eine Rechnung im Finanzen-Tab
-            eines Projekts.
-          </CardContent>
-        </Card>
-      ) : (
-        <InvoicesTable rows={rows} />
-      )}
-    </div>
-  );
+  return <InvoicesTable rows={rows} />;
 }

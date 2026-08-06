@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { DetailHeader } from "@/components/layout/detail-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
-import { ArrowLeft, Boxes, ShieldOff } from "lucide-react";
+import { Boxes, ShieldOff } from "lucide-react";
 import { formatCurrency, formatDate, serialize } from "@/lib/utils";
-import { projectStatusVariant } from "@/lib/labels";
+import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 import { DeviceDialog } from "../device-dialog";
 import { DeviceQr } from "./device-qr";
 import { DeleteDeviceButton } from "./delete-button";
@@ -17,7 +17,7 @@ import { SerialNumbersSection } from "./serial-numbers-section";
 export default async function DeviceDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
 
-  const [device, categories, locations] = await Promise.all([
+  const [device, categories] = await Promise.all([
     prisma.device.findUnique({
       where: { id },
       include: {
@@ -39,47 +39,40 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
       },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
-    prisma.location.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   if (!device) notFound();
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/material?tab=devices"><ArrowLeft className="h-4 w-4" /> Zurück</Link>
-        </Button>
-      </div>
+    <div className="space-y-4">
+      <DetailHeader
+        backHref="/material?tab=devices"
+        title={device.name}
+        badges={
+          device.inspectionExempt && (
+            <Badge variant="secondary">
+              <ShieldOff className="h-3 w-3" />
+              Prüfung nicht erforderlich
+            </Badge>
+          )
+        }
+        subtitle={
+          (device.manufacturer || device.model) &&
+          [device.manufacturer, device.model].filter(Boolean).join(" ")
+        }
+        actions={
+          <>
+            <DeviceDialog
+              categories={categories}
+              device={serialize(device)}
+              editTrigger
+            />
+            <DeleteDeviceButton id={device.id} name={device.name} />
+          </>
+        }
+      />
 
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-[21px] font-extrabold tracking-tight">{device.name}</h1>
-            {device.inspectionExempt && (
-              <Badge variant="secondary" className="gap-1">
-                <ShieldOff className="h-3 w-3" />
-                Prüfung nicht erforderlich
-              </Badge>
-            )}
-          </div>
-          {(device.manufacturer || device.model) && (
-            <p className="text-sm text-muted-foreground">
-              {[device.manufacturer, device.model].filter(Boolean).join(" ")}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <DeviceDialog
-            categories={categories}
-            device={serialize(device)}
-            editTrigger
-          />
-          <DeleteDeviceButton id={device.id} name={device.name} />
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Stammdaten</CardTitle></CardHeader>
           <CardContent>
@@ -108,7 +101,7 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               QR-Code
               <InfoHint text="Scannt zur öffentlichen Geräteübersicht." />
             </CardTitle>
@@ -208,11 +201,11 @@ export default async function DeviceDetailPage(props: { params: Promise<{ id: st
                       {formatDate(a.project.planningStart)} – {formatDate(a.project.planningEnd)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={projectStatusVariant(a.project.status)} className="text-[10px]">
-                        {a.project.status}
+                      <Badge variant={projectStatusVariant(a.project.status)} size="sm">
+                        {projectStatusLabel(a.project.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
+                    <TableCell className="num-strong text-right">
                       {a.quantity}×
                     </TableCell>
                   </TableRow>

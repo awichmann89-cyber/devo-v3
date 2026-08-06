@@ -67,8 +67,8 @@ export function Header({ user }: HeaderProps) {
       {/* Burger-Button — nur Mobile */}
       <Button
         variant="ghost"
-        size="icon"
-        className="h-8 w-8 lg:hidden"
+        size="iconSm"
+        className="lg:hidden"
         onClick={() => setOpen(true)}
         aria-label="Menü öffnen"
       >
