@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +8,14 @@ import { cn } from "@/lib/utils";
  *
  * Der Akzentbalken links ist Standard; `tone` färbt ihn und (bei den
  * Signal-Tönen) den Wert.
+ *
+ * KEIN `"use client"`: Die Kachel wird auch aus Server-Komponenten heraus
+ * gerendert (Dashboard, Projekt-Kopfzahlen), und die dürfen die `icon`-Prop —
+ * eine Komponente — nicht über die Client-Grenze reichen. Mit der Direktive
+ * bricht das Dashboard mit „Functions cannot be passed directly to Client
+ * Components". Die `onClick`-Variante funktioniert trotzdem: Wer sie nutzt
+ * (Forecast, Rechnungsliste), ist selbst eine Client-Komponente und zieht die
+ * Kachel damit ins Client-Bundle.
  */
 
 type Tone = "default" | "muted" | "success" | "warning" | "destructive" | "info";
