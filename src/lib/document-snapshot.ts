@@ -178,23 +178,42 @@ export function buildSnapshotFromProject(
     });
   }
 
+  // Kommentar-Zeilen sind Zwischenüberschriften und teilen eine Gruppe optisch
+  // in Abschnitte („Hauptbeschallung", „Delaybeschallung", …). Für die
+  // Aggregation unten brauchen wir deshalb pro Zeile den Abschnitt, in dem sie
+  // steht: die Anzahl der Kommentare, die davor liegen. „Davor" heißt echt
+  // kleinerer sortOrder — beim Rendern werden Zeilen mit gleichem sortOrder
+  // stabil sortiert und Geräte kommen vor Kommentaren, gehören also noch zum
+  // vorherigen Abschnitt.
+  const commentSortOrdersByGroup = new Map<string, number[]>();
+  for (const c of project.groupComments) {
+    const arr = commentSortOrdersByGroup.get(c.groupId) ?? [];
+    arr.push(c.sortOrder ?? 0);
+    commentSortOrdersByGroup.set(c.groupId, arr);
+  }
+  const sectionIndexOf = (groupId: string, sortOrder: number): number =>
+    (commentSortOrdersByGroup.get(groupId) ?? []).filter((s) => s < sortOrder)
+      .length;
+
   // Aggregierte Material-Zeilen pro Gruppe — gleicher Algorithmus wie früher
   // in den PDF-Routen, hier zentral.
+  //
+  // Zusammengefasst wird nur INNERHALB eines Abschnitts: dasselbe Gerät unter
+  // zwei verschiedenen Zwischenüberschriften bleiben zwei Zeilen, genau wie in
+  // der Materialliste im Projekt. Ohne den Abschnitt im Schlüssel würden z.B.
+  // 2x unter „Hauptbeschallung" und 2x unter „Delaybeschallung" zu einer
+  // 4x-Zeile unter der ersten Überschrift verschmelzen und der zweite
+  // Abschnitt bliebe leer.
   type MaterialRow = DocumentSnapshot["groups"][number]["materialRows"][number];
   const materialByGroup = new Map<string, MaterialRow[]>();
+  const materialLookup = new Map<string, MaterialRow>();
   for (const a of project.assignments) {
     if (!a.device.showOnDocuments) continue;
     const groupMap = materialByGroup.get(a.groupId) ?? ([] as MaterialRow[]);
-    const lookup = new Map<string, MaterialRow>();
-    for (const r of groupMap) {
-      lookup.set(
-        `${r.name}|${r.manufacturer}|${r.model}|${r.dailyRate}`,
-        r,
-      );
-    }
     const aSort = a.sortOrder ?? 0;
-    const key = `${a.device.name}|${a.device.manufacturer}|${a.device.model}|${Number(a.device.dailyRate)}`;
-    const existing = lookup.get(key);
+    const section = sectionIndexOf(a.groupId, aSort);
+    const key = `${a.groupId}|${section}|${a.device.name}|${a.device.manufacturer}|${a.device.model}|${Number(a.device.dailyRate)}`;
+    const existing = materialLookup.get(key);
     if (existing) {
       existing.quantity += a.quantity;
       if (aSort < existing.sortOrder) existing.sortOrder = aSort;
@@ -208,7 +227,7 @@ export function buildSnapshotFromProject(
         quantity: a.quantity,
         sortOrder: aSort,
       };
-      lookup.set(key, row);
+      materialLookup.set(key, row);
       groupMap.push(row);
     }
     materialByGroup.set(a.groupId, groupMap);
