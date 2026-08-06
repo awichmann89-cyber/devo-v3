@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
+import type { ResolvedPos } from "@tiptap/pm/model";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -37,6 +39,7 @@ import {
   Trash2,
   Undo2,
   Unlink,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,7 +157,7 @@ export function MarkdownEditor({
     editor?.setEditable(!disabled);
   }, [editor, disabled]);
 
-  /* ---- @-Vorschlagsliste ---- */
+  /* ---- Kürzel-Hilfen: @ öffnet die Benutzerliste, ! die Datumsauswahl ---- */
 
   const [dismissedFrom, setDismissedFrom] = React.useState<number | null>(null);
   const [activeIndex, setActiveIndex] = React.useState(0);
@@ -162,29 +165,35 @@ export function MarkdownEditor({
   const query = useEditorState({
     editor,
     selector: ({ editor: instance }) =>
-      instance && people?.length ? findMentionQuery(instance) : null,
+      instance ? findSuggestion(instance, Boolean(people?.length)) : null,
   });
 
   const matches = React.useMemo(() => {
-    if (!query || !people) return [];
+    if (query?.kind !== "mention" || !people) return [];
     const needle = query.query.trim().toLowerCase();
     return people
       .filter((person) => person.name.toLowerCase().includes(needle))
       .slice(0, 8);
   }, [query, people]);
 
-  const suggestionOpen =
-    query !== null && query.from !== dismissedFrom && matches.length > 0 && !disabled;
+  const visible =
+    query !== null && query.from !== dismissedFrom && !disabled
+      ? query.kind === "mention" && matches.length > 0
+        ? "mention"
+        : query.kind === "due"
+          ? "due"
+          : null
+      : null;
 
   React.useEffect(() => setActiveIndex(0), [query?.from, query?.query]);
 
-  const insertMention = React.useCallback(
-    (person: MentionCandidate) => {
+  const replaceQuery = React.useCallback(
+    (text: string) => {
       if (!editor || !query) return;
       editor
         .chain()
         .focus()
-        .insertContentAt({ from: query.from, to: query.to }, `@${person.name} `)
+        .insertContentAt({ from: query.from, to: query.to }, text)
         .run();
       setDismissedFrom(null);
     },
@@ -192,7 +201,19 @@ export function MarkdownEditor({
   );
 
   keyHandlerRef.current = (event) => {
-    if (!suggestionOpen || !query) return false;
+    if (!visible || !query) return false;
+
+    // Ausblenden merken wir uns an der Position des Kürzels — solange der
+    // Cursor an diesem `@`/`!` weiterschreibt, bleibt die Hilfe zu.
+    if (event.key === "Escape") {
+      setDismissedFrom(query.from);
+      return true;
+    }
+
+    // Bei der Datumsauswahl bleiben alle anderen Tasten beim Editor: Wer das
+    // Datum lieber tippt, soll nicht ausgebremst werden.
+    if (visible !== "mention") return false;
+
     switch (event.key) {
       case "ArrowDown":
         setActiveIndex((i) => (i + 1) % matches.length);
@@ -202,10 +223,7 @@ export function MarkdownEditor({
         return true;
       case "Enter":
       case "Tab":
-        insertMention(matches[Math.min(activeIndex, matches.length - 1)]);
-        return true;
-      case "Escape":
-        setDismissedFrom(query.from);
+        replaceQuery(`@${matches[Math.min(activeIndex, matches.length - 1)].name} `);
         return true;
       default:
         return false;
@@ -364,56 +382,195 @@ export function MarkdownEditor({
 
       <EditorContent editor={editor} />
 
-      {suggestionOpen && query && (
-        <ul
-          role="listbox"
-          aria-label="Benutzer erwähnen"
-          className="fixed z-50 max-h-64 w-64 overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
-          style={{ left: query.left, top: query.bottom + 4 }}
-        >
-          {matches.map((person, index) => (
-            <li key={person.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={index === activeIndex}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => insertMention(person)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  index === activeIndex
-                    ? "bg-accent text-accent-foreground"
-                    : "text-popover-foreground"
-                )}
-              >
-                <AtSign className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{person.name}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+      {visible === "mention" && query && (
+        <CaretPopover caret={query} height={matches.length * 32 + 8}>
+          <ul role="listbox" aria-label="Benutzer erwähnen">
+            {matches.map((person, index) => (
+              <li key={person.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeIndex}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => replaceQuery(`@${person.name} `)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    index === activeIndex
+                      ? "bg-accent text-accent-foreground"
+                      : "text-popover-foreground"
+                  )}
+                >
+                  <AtSign className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{person.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </CaretPopover>
+      )}
+
+      {visible === "due" && query && (
+        <CaretPopover caret={query} height={124}>
+          <DuePicker
+            onPick={(date) => replaceQuery(`!${formatDueValue(date)} `)}
+            onDismiss={() => setDismissedFrom(query.from)}
+          />
+        </CaretPopover>
       )}
     </div>
   );
 }
 
 /**
- * Erkennt, ob direkt vor dem Cursor eine `@`-Erwähnung getippt wird.
+ * Blase an der Schreibmarke.
  *
- * Namen dürfen ein Leerzeichen enthalten ("Alex Wichmann"), der Ausdruck endet
- * aber bewusst auf einem Wortzeichen: Nach dem Einfügen steht ein Leerzeichen
- * hinter dem Namen, und die Liste schließt sich von selbst.
+ * Zwingend über ein Portal am <body>: `DialogContent` ist per
+ * `translate-x-[-50%]` verschoben, und ein Transform macht das Element zum
+ * Bezugsrahmen für `position: fixed`. Innerhalb des Dialogs gerendert würden
+ * die Bildschirmkoordinaten aus `coordsAtPos()` deshalb um den Dialog-Versatz
+ * verrutschen — die Blase landete unten rechts statt am Cursor.
+ */
+function CaretPopover({
+  caret,
+  height,
+  children,
+}: {
+  caret: { left: number; top: number; bottom: number };
+  /** Geschätzte Höhe — entscheidet, ob nach oben geklappt wird. */
+  height: number;
+  children: React.ReactNode;
+}) {
+  if (typeof document === "undefined") return null;
+
+  const WIDTH = 256;
+  const GAP = 4;
+  const flipUp = caret.bottom + GAP + height > window.innerHeight;
+
+  return createPortal(
+    <div
+      className="fixed z-50 max-h-64 w-64 overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
+      style={{
+        left: Math.max(8, Math.min(caret.left, window.innerWidth - WIDTH - 8)),
+        top: flipUp ? Math.max(8, caret.top - height - GAP) : caret.bottom + GAP,
+      }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * Datumsauswahl hinter dem `!`. Bewusst mit dem nativen Datumsfeld — dieselbe
+ * Eingabe wie in der Filterleiste, und wer das Datum lieber tippt, schreibt
+ * einfach weiter: Sobald hinter dem `!` eine Ziffer steht, verschwindet die
+ * Auswahl von selbst.
+ */
+function DuePicker({
+  onPick,
+  onDismiss,
+}: {
+  onPick: (date: Date) => void;
+  onDismiss: () => void;
+}) {
+  const today = new Date();
+
+  const shortcuts: { label: string; date: Date }[] = [
+    { label: "Heute", date: today },
+    { label: "Morgen", date: addDays(today, 1) },
+    { label: "In einer Woche", date: addDays(today, 7) },
+  ];
+
+  return (
+    <div className="space-y-1.5 p-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Fällig am
+        </span>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onDismiss}
+          title="Ausblenden — nur ein Ausrufezeichen schreiben"
+          aria-label="Datumsauswahl ausblenden"
+          className="rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-0.5">
+        {shortcuts.map((shortcut) => (
+          <button
+            key={shortcut.label}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onPick(shortcut.date)}
+            className="flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-[13px] text-popover-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span>{shortcut.label}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {formatDueValue(shortcut.date)}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <Input
+        type="date"
+        aria-label="Anderes Datum"
+        className="h-[30px] text-xs"
+        onChange={(e) => {
+          const [year, month, day] = e.target.value.split("-").map(Number);
+          if (!year || !month || !day) return;
+          onPick(new Date(year, month - 1, day));
+        }}
+      />
+      <p className="px-1 text-[10px] text-muted-foreground">
+        Esc blendet aus · oder Datum direkt tippen
+      </p>
+    </div>
+  );
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+/** Tagesgenaues Datum als `20.08.2026` — so, wie es in der Notiz steht. */
+function formatDueValue(date: Date): string {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}.${month}.${date.getFullYear()}`;
+}
+
+/**
+ * Erkennt, ob direkt vor dem Cursor ein Kürzel getippt wird.
+ *
+ * `@`: Namen dürfen ein Leerzeichen enthalten ("Alex Wichmann"), der Ausdruck
+ * endet aber bewusst auf einem Wortzeichen — nach dem Einfügen steht ein
+ * Leerzeichen hinter dem Namen und die Liste schließt sich von selbst.
+ *
+ * `!`: nur das nackte Ausrufezeichen. Sobald eine Ziffer folgt, tippt jemand
+ * das Datum selbst, und die Auswahl verschwindet ohne Zutun.
  */
 const MENTION_QUERY = /(?:^|[\s(])@([\p{L}\p{N}_.-]*(?: [\p{L}\p{N}_.-]+)?)$/u;
+const DUE_QUERY = /(?:^|[\s(])!$/;
 
-function findMentionQuery(editor: Editor): {
+interface CaretQuery {
+  kind: "mention" | "due";
   from: number;
   to: number;
   query: string;
   left: number;
+  top: number;
   bottom: number;
-} | null {
+}
+
+function findSuggestion(editor: Editor, hasPeople: boolean): CaretQuery | null {
   const { selection } = editor.state;
   if (!selection.empty) return null;
 
@@ -421,13 +578,37 @@ function findMentionQuery(editor: Editor): {
   if (!$from.parent.isTextblock) return null;
 
   const textBefore = $from.parent.textBetween(0, $from.parentOffset, undefined, "￼");
-  const match = MENTION_QUERY.exec(textBefore);
-  if (!match) return null;
 
+  const mention = hasPeople ? MENTION_QUERY.exec(textBefore) : null;
+  // Die Datumsauswahl nur in Aufgaben: Außerhalb hat `!Datum` keine Bedeutung,
+  // und im Fließtext wäre eine aufspringende Auswahl reine Störung.
+  const due = DUE_QUERY.test(textBefore) && isInTaskItem(selection.$from);
+
+  const kind: CaretQuery["kind"] | null = mention ? "mention" : due ? "due" : null;
+  if (!kind) return null;
+
+  const query = mention?.[1] ?? "";
   const to = selection.from;
-  const from = to - match[1].length - 1;
+  // Position des Kürzelzeichens selbst: Cursor minus Abfrage minus "@" bzw. "!".
+  const from = to - query.length - 1;
   const coords = editor.view.coordsAtPos(from);
-  return { from, to, query: match[1], left: coords.left, bottom: coords.bottom };
+
+  return {
+    kind,
+    from,
+    to,
+    query,
+    left: coords.left,
+    top: coords.top,
+    bottom: coords.bottom,
+  };
+}
+
+function isInTaskItem($from: ResolvedPos): boolean {
+  for (let depth = $from.depth; depth > 0; depth--) {
+    if ($from.node(depth).type.name === "taskItem") return true;
+  }
+  return false;
 }
 
 /**
