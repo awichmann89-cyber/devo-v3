@@ -107,6 +107,44 @@ er laufende Instanzen nicht anfasst:
 neuen `SEED_ADMIN_PASSWORD` setzen, einmal redeployen, danach die Variable wieder
 auf `false` setzen. Bleibt sie stehen, überschreibt jeder Deploy das Passwort.
 
+## Migrationen
+
+**Namenskonvention: zweistelliges Präfix.** Prisma wendet Migrationen in
+lexikographischer Reihenfolge der Ordnernamen an, nicht numerisch. Ein Ordner
+`7_…` liefe sonst nach `16_…` — auf einer bereits migrierten Datenbank fällt das
+nie auf, weil dort jede Migration einzeln zum Entwicklungszeitpunkt lief. Eine
+frische Kundeninstanz wendet dagegen alle Migrationen am Stück an und bricht ab.
+Neue Migrationen deshalb immer als `27_…`, `28_…` benennen.
+
+`npm run check:migrations` prüft das ohne Datenbank: es liest die
+migration.sql-Dateien in Prismas Reihenfolge und meldet jede Tabelle, die
+referenziert wird, bevor sie angelegt wurde. Nach jeder neuen Migration laufen
+lassen.
+
+Vor einer neuen Kundeninstanz zusätzlich einmal echt gegen eine leere Datenbank
+durchspielen — das deckt auch Datenfehler ab, die eine statische Prüfung nicht
+sieht:
+
+```bash
+createdb migrationstest
+DATABASE_URL="postgresql://…/migrationstest" \
+DIRECT_URL="postgresql://…/migrationstest" \
+  npx prisma migrate deploy
+```
+
+### Fehler P3018 („A migration failed to apply")
+
+Eine Migration ist mittendrin gescheitert und blockiert alle weiteren Deploys.
+
+*Auf einer frischen Instanz ohne Kundendaten* ist Zurücksetzen der schnellste
+Weg — Datenbank leeren (bei Neon: Branch löschen und neu anlegen) und erneut
+deployen. Kein `migrate resolve` nötig.
+
+*Auf einer laufenden Instanz mit Daten* siehe
+https://pris.ly/d/migrate-resolve — hier muss der Teil-Effekt der gescheiterten
+Migration von Hand nachgezogen und die Migration mit
+`prisma migrate resolve --applied <name>` als erledigt markiert werden.
+
 ## Updates ausrollen
 
 Alle Instanzen hängen am selben Repo. Zwei Varianten:
