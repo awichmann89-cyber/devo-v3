@@ -53,11 +53,14 @@ cp .env.example .env
 # openssl rand -base64 32
 ```
 
+Für lokale Entwicklung `SEED_DEMO_DATA="true"` gesetzt lassen — sonst startet die
+App ohne Beispiel-Stammdaten.
+
 ### 4. Datenbank initialisieren
 
 ```bash
 npm run db:push      # Schema in DB pushen
-npm run db:seed      # Beispieldaten + Admin-User anlegen
+npm run db:seed      # Admin-User (+ Beispieldaten bei SEED_DEMO_DATA=true)
 ```
 
 ### 5. Entwicklungsserver starten
@@ -69,8 +72,14 @@ npm run dev
 Die App läuft auf [http://localhost:3000](http://localhost:3000).
 
 **Login (Seed-Daten):**
-- Admin: `admin@devo.local` / `admin123`
-- Disponent: `disponent@devo.local` / `disponent123`
+- Admin: `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` aus der `.env`
+- Disponent (nur mit `SEED_DEMO_DATA=true`): `disponent@cratel.local` / `disponent123`
+
+## Deployment
+
+Die App wird pro Kunde als eigene Instanz betrieben (eigenes Vercel-Projekt,
+eigene Datenbank, eigener Blob-Store). Details und Schritt-für-Schritt-Checkliste:
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Befehle
 

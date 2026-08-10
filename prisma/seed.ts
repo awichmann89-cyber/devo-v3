@@ -8,16 +8,76 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+/**
+ * Seed-Skript. Läuft bei JEDEM Deploy mit (siehe `build` in der package.json),
+ * muss also idempotent sein und darf bestehende Kundendaten nicht anfassen.
+ *
+ * Steuerung über Env-Vars:
+ *   * SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD — initialer Admin-Account.
+ *     In Produktion Pflicht; ohne die Werte bricht der Seed ab, statt einen
+ *     Account mit Default-Passwort anzulegen.
+ *   * SEED_ADMIN_FORCE_PASSWORD=true — setzt das Passwort eines bereits
+ *     existierenden Admins auf SEED_ADMIN_PASSWORD zurück (Notnagel bei
+ *     ausgesperrtem Kunden). Standard: bestehender Admin bleibt unangetastet.
+ *   * SEED_DEMO_DATA=true — legt Demo-Stammdaten an (Disponent-Account,
+ *     Beispiel-Lagerorte, -Kategorien und -Positionen mit Beispielpreisen).
+ *     Standard: aus. Eine frische Kundeninstanz startet leer.
+ */
+
+/** Auf Vercel und in jedem Production-Build gelten die strengeren Regeln. */
+const isProduction =
+  process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+
+const seedDemoData = process.env.SEED_DEMO_DATA === "true";
+const forceAdminPassword = process.env.SEED_ADMIN_FORCE_PASSWORD === "true";
+
 async function main() {
-  // ---------- Admin-User (Pflicht — wird auf Vercel via ENV-Vars gesetzt) ----------
+  await seedAdmin();
+
+  if (!seedDemoData) {
+    console.log("✓ Seed abgeschlossen (ohne Demo-Daten)");
+    console.log("  Beispiel-Stammdaten bei Bedarf mit SEED_DEMO_DATA=true.");
+    return;
+  }
+
+  await seedDemoUsers();
+  await seedDemoBaseData();
+  await seedDemoServiceItems();
+
+  console.log("✓ Seed abgeschlossen (inkl. Demo-Daten)");
+  console.log("  Disponent: disponent@cratel.local / disponent123");
+}
+
+// ---------- Admin-User ----------
+
+async function seedAdmin() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@cratel.local";
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
 
-  const passwordHash = await bcrypt.hash(adminPassword, 10);
+  const existing = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    select: { id: true },
+  });
 
-  // Admin wird IMMER aus den .env-Werten synchronisiert — wenn du
-  // SEED_ADMIN_PASSWORD in der .env änderst und `prisma db seed` läufst,
-  // wird das neue Passwort übernommen.
+  // Der Normalfall bei jedem Deploy einer laufenden Instanz: Admin ist da,
+  // also nichts tun. Ein vom Kunden geändertes Passwort bleibt erhalten.
+  if (existing && !forceAdminPassword) {
+    console.log(`✓ Admin ${adminEmail} existiert bereits — unverändert.`);
+    return;
+  }
+
+  if (!adminPassword && isProduction) {
+    throw new Error(
+      `SEED_ADMIN_PASSWORD ist nicht gesetzt.\n` +
+        `Eine Produktions-Instanz darf nicht mit einem Default-Passwort ` +
+        `starten. Setze SEED_ADMIN_EMAIL und SEED_ADMIN_PASSWORD in den ` +
+        `Environment-Variablen des Projekts und deploye erneut.`,
+    );
+  }
+
+  const password = adminPassword ?? "admin123";
+  const passwordHash = await bcrypt.hash(password, 10);
+
   await prisma.user.upsert({
     where: { email: adminEmail },
     update: { passwordHash, role: Role.ADMIN },
@@ -29,7 +89,20 @@ async function main() {
     },
   });
 
-  // ---------- Demo-Disponent ----------
+  console.log(
+    existing
+      ? `✓ Admin-Passwort für ${adminEmail} zurückgesetzt (SEED_ADMIN_FORCE_PASSWORD).`
+      : `✓ Admin ${adminEmail} angelegt.`,
+  );
+  // Klartext-Passwort niemals in die Vercel-Build-Logs schreiben.
+  if (!isProduction) {
+    console.log(`  Passwort: ${password}`);
+  }
+}
+
+// ---------- Demo-Daten (nur mit SEED_DEMO_DATA=true) ----------
+
+async function seedDemoUsers() {
   const disponentHash = await bcrypt.hash("disponent123", 10);
   await prisma.user.upsert({
     where: { email: "disponent@cratel.local" },
@@ -41,8 +114,10 @@ async function main() {
       role: Role.DISPONENT,
     },
   });
+}
 
-  // ---------- Lagerorte (Stammdaten — idempotent) ----------
+async function seedDemoBaseData() {
+  // ---------- Lagerorte ----------
   await prisma.location.upsert({
     where: { name: "Hauptlager" },
     update: {},
@@ -54,29 +129,19 @@ async function main() {
     create: { name: "Außenlager", description: "Zweitlager" },
   });
 
-  // ---------- Kategorien (Stammdaten — idempotent) ----------
-  await prisma.category.upsert({
-    where: { name: "Ton" },
-    update: {},
-    create: { name: "Ton" },
-  });
-  await prisma.category.upsert({
-    where: { name: "Licht" },
-    update: {},
-    create: { name: "Licht" },
-  });
-  await prisma.category.upsert({
-    where: { name: "Video" },
-    update: {},
-    create: { name: "Video" },
-  });
-  await prisma.category.upsert({
-    where: { name: "Rigging" },
-    update: {},
-    create: { name: "Rigging" },
-  });
+  // ---------- Kategorien ----------
+  for (const name of ["Ton", "Licht", "Video", "Rigging"]) {
+    await prisma.category.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+}
 
-  // ---------- Personal- und Transport-Positionen (Stammdaten) ----------
+async function seedDemoServiceItems() {
+  // Personal- und Transport-Positionen. Die Preise sind Beispielwerte und
+  // gehören deshalb hinter SEED_DEMO_DATA — jeder Betrieb kalkuliert anders.
   const services: Array<{
     name: string;
     kind: ServiceItemKind;
@@ -129,6 +194,7 @@ async function main() {
       unitPrice: 120,
     },
   ];
+
   for (const s of services) {
     await prisma.serviceItem.upsert({
       where: { name: s.name },
@@ -136,14 +202,6 @@ async function main() {
       create: s,
     });
   }
-
-  // HINWEIS: Demo-Geräte, -Packeinheiten und -Projekt werden bewusst NICHT mehr
-  // beim Deploy angelegt. Wer Beispieldaten will, kann sie über das UI anlegen
-  // oder die alten Seed-Blöcke aus der git-Historie wieder einbauen.
-
-  console.log("✓ Seed abgeschlossen");
-  console.log(`  Admin Login:    ${adminEmail} / ${adminPassword}`);
-  console.log("  Disponent:      disponent@cratel.local / disponent123");
 }
 
 main()
