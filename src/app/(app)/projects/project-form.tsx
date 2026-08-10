@@ -398,7 +398,15 @@ export function ProjectForm({
         onCreated={handleCustomerCreated}
       />
 
-      <div className="flex items-center justify-end gap-2 border-t pt-4">
+      {/* Im Dialog (Anlegen-Modus) klebt die Leiste am unteren Rand des
+          scrollenden DialogBody, damit „Anlegen" immer erreichbar bleibt. */}
+      <div
+        className={
+          isEditMode
+            ? "flex items-center justify-end gap-2 border-t pt-4"
+            : "sticky bottom-0 -mx-1 flex items-center justify-end gap-2 border-t bg-background px-1 pt-4"
+        }
+      >
         {isEditMode ? (
           <AutoSaveIndicator status={autoSaveStatus} error={autoSaveError} />
         ) : (

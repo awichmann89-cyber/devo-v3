@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -37,12 +38,15 @@ export function ProjectDialog({ customers, users, currentUserId }: Props) {
             Material wird nach dem Anlegen auf der Detailseite zugewiesen.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm
-          customers={customers}
-          users={users}
-          currentUserId={currentUserId}
-          onCancel={() => setOpen(false)}
-        />
+        {/* DialogBody scrollt — sonst wachsen die Berechnungszeiträume aus dem Dialog heraus. */}
+        <DialogBody>
+          <ProjectForm
+            customers={customers}
+            users={users}
+            currentUserId={currentUserId}
+            onCancel={() => setOpen(false)}
+          />
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );
