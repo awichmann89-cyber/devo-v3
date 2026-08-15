@@ -30,6 +30,15 @@ export const SETTING_DEFAULTS = {
   // den Trennstrich über der Zwischensumme verwendet. Hex-String, z.B.
   // "#1e3a8a". Bei leerem Wert fällt das PDF auf einen neutralen Grauton zurück.
   pdfAccentColor: "#1e3a8a",
+  // Vorgefertigte Texte für den "Per E-Mail senden"-Dialog beim Erstellen
+  // eines Angebots/einer Rechnung. Platzhalter {{kunde}}, {{nummer}},
+  // {{projekt}} werden beim Vorbefüllen des Dialogs ersetzt.
+  quoteEmailSubject: "Ihr Angebot {{nummer}} — {{projekt}}",
+  quoteEmailBody:
+    "Guten Tag {{kunde}},\n\nvielen Dank für Ihr Interesse. Anbei erhalten Sie unser Angebot {{nummer}} zum Projekt \"{{projekt}}\".\n\nBei Rückfragen stehen wir gerne zur Verfügung.",
+  invoiceEmailSubject: "Ihre Rechnung {{nummer}} — {{projekt}}",
+  invoiceEmailBody:
+    "Guten Tag {{kunde}},\n\nanbei erhalten Sie die Rechnung {{nummer}} zum Projekt \"{{projekt}}\".\n\nBei Rückfragen stehen wir gerne zur Verfügung.",
 } as const;
 
 /**

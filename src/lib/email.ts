@@ -21,7 +21,7 @@ const BUTTON_COLOR = "#F45B28";
  * Request-Headers ermittelte Origin (= Domain, über die der Kunde die Seite
  * gerade aufgerufen hat), sonst AUTH_URL, sonst localhost (Dev).
  */
-function getBaseUrl(override?: string | null): string {
+export function getBaseUrl(override?: string | null): string {
   return (override || process.env.AUTH_URL || "http://localhost:3000").replace(
     /\/+$/,
     "",
@@ -366,6 +366,82 @@ export async function sendInvoiceOverdueEmail(
     return true;
   } catch (err) {
     console.error(`[email] Versand fehlgeschlagen:`, err);
+    return false;
+  }
+}
+
+export interface SendDocumentEmailParams {
+  kind: "quote" | "invoice";
+  documentNumber: string;
+  to: string;
+  /** Immer gesetzt — Kopie an den sendenden, angemeldeten Nutzer. */
+  ccEmail: string;
+  subject: string;
+  /** Freitext aus dem Sende-Dialog, bereits Platzhalter-ersetzt. */
+  bodyText: string;
+  /** Signatur des sendenden Nutzers (Tiptap-HTML) — vom Nutzer selbst im
+   * Profil gepflegt, daher als vertrauenswürdiges HTML eingebettet. */
+  signatureHtml: string | null;
+  attachment: { filename: string; bytes: Uint8Array };
+}
+
+/**
+ * Verschickt ein Angebots-/Rechnungs-PDF als E-Mail-Anhang an den Kunden,
+ * mit Kopie an den sendenden Nutzer. Anders als die reinen Benachrichtigungs-
+ * Mails oben wird der Erfolg an den Aufrufer (Server Action) zurückgemeldet
+ * und dort dem Nutzer als Fehler angezeigt — ein "Versand" der sichtbar
+ * fehlschlägt, wäre sonst ein stiller Datenverlust für den Nutzer.
+ */
+export async function sendDocumentEmail(
+  params: SendDocumentEmailParams,
+): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const label = params.kind === "quote" ? "Angebot" : "Rechnung";
+  if (!apiKey) {
+    console.warn(
+      `[email] RESEND_API_KEY nicht gesetzt — Versand von ${label} ${params.documentNumber} übersprungen.`,
+    );
+    return false;
+  }
+  const resend = new Resend(apiKey);
+  const { from, footer } = await getMailContext(label);
+
+  const bodyHtml = escapeHtml(params.bodyText).replaceAll("\n", "<br/>");
+  const signatureBlock = params.signatureHtml
+    ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e4e4e7;">${params.signatureHtml}</div>`
+    : `<p style="margin-top:24px;">Mit freundlichen Grüßen</p>`;
+
+  const html = renderLayout(`<div>${bodyHtml}</div>${signatureBlock}`, footer);
+  const text = params.bodyText;
+
+  try {
+    const result = await resend.emails.send({
+      from,
+      to: params.to,
+      cc: params.ccEmail,
+      subject: params.subject,
+      html,
+      text,
+      attachments: [
+        {
+          filename: params.attachment.filename,
+          content: Buffer.from(params.attachment.bytes),
+        },
+      ],
+    });
+    if (result.error) {
+      console.error(
+        `[email] Resend-Fehler beim Versand von ${label} ${params.documentNumber} an ${params.to}:`,
+        result.error,
+      );
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(
+      `[email] Versand von ${label} ${params.documentNumber} fehlgeschlagen:`,
+      err,
+    );
     return false;
   }
 }

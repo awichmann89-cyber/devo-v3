@@ -1039,6 +1039,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               prepaymentPercent:
                 inv.prepaymentPercent !== null ? Number(inv.prepaymentPercent) : null,
               isFinal: inv.deductions !== null && inv.deductions !== undefined,
+              emailSentAt: inv.emailSentAt ? inv.emailSentAt.toISOString() : null,
+              emailSentTo: inv.emailSentTo,
             }))}
             quotes={project.quotes.map((q) => ({
               id: q.id,
@@ -1050,6 +1052,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               acceptedAt: q.acceptedAt ? q.acceptedAt.toISOString() : null,
               acceptedByName: q.acceptedByName,
               supersededByQuoteId: q.supersededByQuoteId,
+              emailSentAt: q.emailSentAt ? q.emailSentAt.toISOString() : null,
+              emailSentTo: q.emailSentTo,
             }))}
             invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
             quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}
@@ -1057,6 +1061,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             extraPersonal={extraPersonal}
             extraOther={extraOther}
             personnelCost={personnelCost}
+            customerEmail={project.customer?.email ?? null}
+            customerName={project.customer?.name ?? null}
+            currentUserEmail={session?.user.email ?? ""}
+            quoteEmailSubjectTemplate={appSettings.quoteEmailSubject}
+            quoteEmailBodyTemplate={appSettings.quoteEmailBody}
+            invoiceEmailSubjectTemplate={appSettings.invoiceEmailSubject}
+            invoiceEmailBodyTemplate={appSettings.invoiceEmailBody}
           />
         </TabsContent>
       </Tabs>

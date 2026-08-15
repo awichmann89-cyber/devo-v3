@@ -6,6 +6,9 @@ import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { Prisma } from "@prisma/client";
 import { getSettings, buildInvoiceNumber, buildQuoteNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
 import { buildSnapshotFromProject } from "@/lib/document-snapshot";
+import { buildQuotePdf } from "@/lib/quote-pdf";
+import { buildInvoicePdf } from "@/lib/invoice-pdf";
+import { sendDocumentEmail, getBaseUrl } from "@/lib/email";
 
 /**
  * Lädt das Projekt mit allen für den Snapshot benötigten Relationen.
@@ -458,4 +461,100 @@ export async function createReplacementQuote(
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/finances/quotes");
   return created;
+}
+
+/**
+ * Verschickt ein Angebot als PDF-Anhang per E-Mail (statt/zusätzlich zum
+ * Download). Kopie geht immer an den sendenden Nutzer. Anders als die reinen
+ * Benachrichtigungs-Mails wirft diese Action bei Fehlschlag, damit der
+ * Nutzer im Sende-Dialog eine sichtbare Fehlermeldung bekommt.
+ */
+export async function sendQuoteEmail(
+  quoteId: string,
+  to: string,
+  subject: string,
+  body: string
+): Promise<{ sentAt: Date; sentTo: string }> {
+  const session = await requireRole(CAN_WRITE);
+  const trimmedTo = to.trim();
+  if (!trimmedTo) throw new Error("Bitte eine Empfänger-Adresse angeben");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, signatureHtml: true },
+  });
+  if (!user) throw new Error("Nutzer nicht gefunden");
+
+  const built = await buildQuotePdf(quoteId, getBaseUrl(null));
+  if (!built) throw new Error("Angebot nicht gefunden");
+
+  const ok = await sendDocumentEmail({
+    kind: "quote",
+    documentNumber: built.quote.number,
+    to: trimmedTo,
+    ccEmail: user.email,
+    subject,
+    bodyText: body,
+    signatureHtml: user.signatureHtml,
+    attachment: { filename: built.filename, bytes: built.bytes },
+  });
+  if (!ok) {
+    throw new Error("E-Mail-Versand fehlgeschlagen. Bitte später erneut versuchen.");
+  }
+
+  const sentAt = new Date();
+  await prisma.quote.update({
+    where: { id: quoteId },
+    data: { emailSentAt: sentAt, emailSentTo: trimmedTo },
+  });
+  revalidatePath(`/projects/${built.quote.projectId}`);
+  revalidatePath("/finances/quotes");
+  return { sentAt, sentTo: trimmedTo };
+}
+
+/**
+ * Verschickt eine Rechnung/Mahnung als PDF-Anhang per E-Mail. Siehe
+ * sendQuoteEmail für Details zum Verhalten bei Fehlschlag.
+ */
+export async function sendInvoiceEmail(
+  invoiceId: string,
+  to: string,
+  subject: string,
+  body: string
+): Promise<{ sentAt: Date; sentTo: string }> {
+  const session = await requireRole(CAN_WRITE);
+  const trimmedTo = to.trim();
+  if (!trimmedTo) throw new Error("Bitte eine Empfänger-Adresse angeben");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, signatureHtml: true },
+  });
+  if (!user) throw new Error("Nutzer nicht gefunden");
+
+  const built = await buildInvoicePdf(invoiceId);
+  if (!built) throw new Error("Rechnung nicht gefunden");
+
+  const ok = await sendDocumentEmail({
+    kind: "invoice",
+    documentNumber: built.invoice.number,
+    to: trimmedTo,
+    ccEmail: user.email,
+    subject,
+    bodyText: body,
+    signatureHtml: user.signatureHtml,
+    attachment: { filename: built.filename, bytes: built.bytes },
+  });
+  if (!ok) {
+    throw new Error("E-Mail-Versand fehlgeschlagen. Bitte später erneut versuchen.");
+  }
+
+  const sentAt = new Date();
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { emailSentAt: sentAt, emailSentTo: trimmedTo },
+  });
+  revalidatePath(`/projects/${built.invoice.projectId}`);
+  revalidatePath("/finances/invoices");
+  return { sentAt, sentTo: trimmedTo };
 }

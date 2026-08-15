@@ -66,6 +66,25 @@ export async function saveQuoteTexts(introText: string, outroText: string) {
 }
 
 /**
+ * Vorgefertigte Betreffs/Texte für den "Per E-Mail senden"-Dialog beim
+ * Erstellen eines Angebots/einer Rechnung. Platzhalter {{kunde}}, {{nummer}},
+ * {{projekt}} bleiben in der Vorlage unersetzt gespeichert.
+ */
+export async function saveEmailTexts(
+  quoteSubject: string,
+  quoteBody: string,
+  invoiceSubject: string,
+  invoiceBody: string
+) {
+  await requireRole(CAN_ADMIN);
+  await setSetting("quoteEmailSubject" as SettingKey, (quoteSubject ?? "").trim().slice(0, 200));
+  await setSetting("quoteEmailBody" as SettingKey, (quoteBody ?? "").slice(0, 4000));
+  await setSetting("invoiceEmailSubject" as SettingKey, (invoiceSubject ?? "").trim().slice(0, 200));
+  await setSetting("invoiceEmailBody" as SettingKey, (invoiceBody ?? "").slice(0, 4000));
+  revalidatePath("/settings");
+}
+
+/**
  * Akzentfarbe für die Angebots-/Rechnungs-PDFs. Validiert auf das Hex-Format
  * "#RRGGBB". Ungültige Werte werden abgewiesen.
  */

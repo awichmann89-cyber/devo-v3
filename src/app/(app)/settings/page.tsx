@@ -3,12 +3,13 @@ import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
-import { FolderTree, Receipt, FileText, Building2, CalendarClock } from "lucide-react";
+import { FolderTree, Receipt, FileText, Building2, CalendarClock, Mail } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
 import { ReminderNumberForm } from "./reminder-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
 import { QuoteTextsForm } from "./quote-texts-form";
+import { EmailTextsForm } from "./email-texts-form";
 import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
@@ -95,6 +96,9 @@ export default async function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="company">
             <Building2 className="h-4 w-4" /> Firmenadresse
+          </TabsTrigger>
+          <TabsTrigger value="email">
+            <Mail className="h-4 w-4" /> E-Mail
           </TabsTrigger>
         </TabsList>
 
@@ -314,6 +318,25 @@ export default async function SettingsPage() {
               <QuoteTextsForm
                 initialIntro={settings.quoteIntroText}
                 initialOutro={settings.quoteOutroText}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="email">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Vorgefertigte Texte für den E-Mail-Versand
+                <InfoHint text={'Betreff und Text, mit denen der "Per E-Mail senden"-Dialog beim Erstellen eines Angebots/einer Rechnung vorbefüllt wird. Vor dem Versand im Dialog editierbar.'} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EmailTextsForm
+                initialQuoteSubject={settings.quoteEmailSubject}
+                initialQuoteBody={settings.quoteEmailBody}
+                initialInvoiceSubject={settings.invoiceEmailSubject}
+                initialInvoiceBody={settings.invoiceEmailBody}
               />
             </CardContent>
           </Card>

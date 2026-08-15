@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Menu, UserCog } from "lucide-react";
 import { useMobileNav } from "@/components/layout/mobile-nav-context";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { roleLabel } from "@/lib/labels";
@@ -43,6 +44,7 @@ const TITLES: [prefix: string, title: string, sub: string][] = [
   ["/persons", "Personalstamm", "Personen, Löhne und Einsatz-Links"],
   ["/users", "Benutzer", "Zugänge und Rollen verwalten"],
   ["/settings", "Einstellungen", "Firma, Nummernkreise und Dokumente"],
+  ["/profile", "Mein Profil", "Persönliche E-Mail-Signatur"],
 ];
 
 function usePageTitle(): { title: string; sub: string } {
@@ -111,6 +113,12 @@ export function Header({ user }: HeaderProps) {
             <div className="text-xs font-normal text-muted-foreground">Angemeldet als</div>
             <div className="font-medium">{user.email}</div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/profile">
+              <UserCog className="mr-2 h-4 w-4" /> Mein Profil
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
             <LogOut className="mr-2 h-4 w-4" /> Abmelden

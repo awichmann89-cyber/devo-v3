@@ -27,14 +27,17 @@ model User {
   name          String?
   passwordHash  String
   role          Role     @default(READER)
+  // E-Mail-Signatur (Tiptap-HTML, Formatierung/Farbe als Inline-Styles) —
+  // wird beim Versand von Angebots-/Rechnungs-Mails unter den Text gesetzt.
+  signatureHtml String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  createdProjects     Project[] @relation("ProjectCreator")
-  maintainedProjects  Project[] @relation("ProjectMaintainer")
-  uploadedFiles       ProjectFile[] @relation("ProjectFileUploader")
+  createdProjects    Project[]     @relation("ProjectCreator")
+  maintainedProjects Project[]     @relation("ProjectMaintainer")
+  uploadedFiles      ProjectFile[] @relation("ProjectFileUploader")
   // Verknüpfte Person aus dem Personalstamm (optional, 1:1)
-  person              Person?
+  person             Person?
 }
 
 // ---------- Stammdaten ----------
@@ -47,19 +50,19 @@ model Location {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  packUnits  PackUnit[]
+  packUnits PackUnit[]
 }
 
 model Category {
-  id         String     @id @default(cuid())
-  name       String     @unique
-  parentId   String?
-  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children   Category[] @relation("CategoryHierarchy")
+  id       String     @id @default(cuid())
+  name     String     @unique
+  parentId String?
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryHierarchy")
 
-  devices    Device[]
-  packUnits  PackUnit[]
-  cables     Cable[]
+  devices   Device[]
+  packUnits PackUnit[]
+  cables    Cable[]
 
   @@index([parentId])
 }
@@ -67,25 +70,25 @@ model Category {
 // Device = Typ. stockQuantity sagt, wie viele physisch im Lager sind.
 // Pro Stück optional eine Seriennummer (siehe DeviceSerialNumber).
 model Device {
-  id               String       @id @default(cuid())
+  id               String   @id @default(cuid())
   // 8-Zeichen Uppercase-Token aus den letzten 8 Stellen der cuid (oder
   // separat gesetzt). Wird im QR-Code statt der vollen cuid verwendet —
   // bringt den QR-Code von Version 4 auf Version 2 (50% kleinere Module
   // bei gleicher Druckgröße, deutlich besser scanbar auf 1,5 cm Stickern).
-  shortId          String       @unique
+  shortId          String   @unique
   name             String
   manufacturer     String?
   model            String?
   description      String?
-  stockQuantity    Int          @default(1) // Anzahl physisch im Lager
-  dailyRate        Decimal      @default(0) @db.Decimal(10, 2) // EUR pro Tag pro Stück
-  replacementValue Decimal?     @db.Decimal(10, 2)
-  weight           Decimal?     @db.Decimal(8, 2) // kg pro Stück
-  powerWatts       Int?         // Stromaufnahme W pro Stück
-  inspectionExempt Boolean      @default(false) // Muss nicht geprüft werden (DGUV V3 nicht erforderlich)
-  showOnDocuments  Boolean      @default(true)  // Auf Angeboten/Rechnungen anzeigen
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  stockQuantity    Int      @default(1) // Anzahl physisch im Lager
+  dailyRate        Decimal  @default(0) @db.Decimal(10, 2) // EUR pro Tag pro Stück
+  replacementValue Decimal? @db.Decimal(10, 2)
+  weight           Decimal? @db.Decimal(8, 2) // kg pro Stück
+  powerWatts       Int? // Stromaufnahme W pro Stück
+  inspectionExempt Boolean  @default(false) // Muss nicht geprüft werden (DGUV V3 nicht erforderlich)
+  showOnDocuments  Boolean  @default(true) // Auf Angeboten/Rechnungen anzeigen
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -128,10 +131,10 @@ model Cable {
   id               String   @id @default(cuid())
   name             String
   description      String?
-  cableType        String?  // z.B. "DMX", "Strom", "XLR"
+  cableType        String? // z.B. "DMX", "Strom", "XLR"
   lengthMeters     Decimal? @db.Decimal(8, 2)
-  connectorA       String?  // z.B. "XLR 5pol male"
-  connectorB       String?  // z.B. "XLR 5pol female"
+  connectorA       String? // z.B. "XLR 5pol male"
+  connectorB       String? // z.B. "XLR 5pol female"
   stockQuantity    Int      @default(1)
   replacementValue Decimal? @db.Decimal(10, 2)
   weight           Decimal? @db.Decimal(8, 2)
@@ -142,10 +145,10 @@ model Cable {
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  units       CableUnit[]
-  assignments ProjectCableAssignment[]
+  units         CableUnit[]
+  assignments   ProjectCableAssignment[]
   packUnitItems PackUnitCable[]
-  packingScans PackingScan[]
+  packingScans  PackingScan[]
 
   @@index([categoryId])
 }
@@ -167,16 +170,16 @@ model CableUnit {
 }
 
 enum InspectionResult {
-  PASSED              // bestanden
-  PASSED_CONDITIONAL  // bestanden mit Einschränkungen
-  FAILED              // durchgefallen
+  PASSED // bestanden
+  PASSED_CONDITIONAL // bestanden mit Einschränkungen
+  FAILED // durchgefallen
 }
 
 // Prüfhistorie für DGUV V3 — gilt für DeviceSerialNumbers UND CableUnits.
 // Jede Prüfung wird als eigener Datensatz gespeichert für volle Nachvollziehbarkeit.
 model Inspection {
-  id             String           @id @default(cuid())
-  date           DateTime         @default(now())
+  id             String              @id @default(cuid())
+  date           DateTime            @default(now())
   result         InspectionResult
   testerName     String?
   notes          String?
@@ -184,8 +187,8 @@ model Inspection {
   deviceSerialId String?
   deviceSerial   DeviceSerialNumber? @relation(fields: [deviceSerialId], references: [id], onDelete: Cascade)
   cableUnitId    String?
-  cableUnit      CableUnit?       @relation(fields: [cableUnitId], references: [id], onDelete: Cascade)
-  createdAt      DateTime         @default(now())
+  cableUnit      CableUnit?          @relation(fields: [cableUnitId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
 
   @@index([deviceSerialId])
   @@index([cableUnitId])
@@ -194,19 +197,19 @@ model Inspection {
 
 // Buchung eines Kabel-Typs für ein Projekt (analog zu ProjectAssignment für PackUnits).
 model ProjectCableAssignment {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  cableId   String
-  cable     Cable    @relation(fields: [cableId], references: [id], onDelete: Cascade)
+  cableId String
+  cable   Cable  @relation(fields: [cableId], references: [id], onDelete: Cascade)
 
-  groupId   String
-  group     ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+  group   ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  quantity  Int      @default(1)
+  quantity  Int     @default(1)
   notes     String?
-  sortOrder Int      @default(0)
+  sortOrder Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -240,8 +243,8 @@ model PackUnit {
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
-  items PackUnitDevice[]
-  cableItems PackUnitCable[]
+  items        PackUnitDevice[]
+  cableItems   PackUnitCable[]
   packingScans PackingScan[]
 
   @@index([categoryId])
@@ -257,7 +260,7 @@ enum PackMode {
 
 // Welche Devices sind in einer Packeinheit enthalten — mit Anzahl pro Case-Instanz.
 model PackUnitDevice {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   packUnitId String
   packUnit   PackUnit @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
   deviceId   String
@@ -275,7 +278,7 @@ model PackUnitDevice {
 // Welche Kabel sind in einer Packeinheit enthalten — analog zu PackUnitDevice.
 // Werden auf der Packliste/PDF unter dem Case als 'Inhalt' mit ausgegeben.
 model PackUnitCable {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   packUnitId String
   packUnit   PackUnit @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
   cableId    String
@@ -323,71 +326,71 @@ model Customer {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  projects      Project[]
+  projects Project[]
 }
 
 model Project {
-  id              String        @id @default(cuid())
-  name            String
-  customerId      String?
-  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  description     String?
-  status          ProjectStatus @default(DRAFT)
-  kind            ProjectKind   @default(DRYHIRE)
+  id          String        @id @default(cuid())
+  name        String
+  customerId  String?
+  customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  kind        ProjectKind   @default(DRYHIRE)
 
   // Planungszeitraum: blockt Material für andere Projekte
-  planningStart   DateTime
-  planningEnd     DateTime
+  planningStart DateTime
+  planningEnd   DateTime
 
-  discountPercent Decimal       @default(0) @db.Decimal(5, 2)
+  discountPercent         Decimal @default(0) @db.Decimal(5, 2)
   // Rabatt auf den gesamten Material-Bereich (zusätzlich zu Gruppen-Rabatten)
   materialDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
   // Rabatt auf den gesamten Personal-&-Transport-Bereich
   servicesDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
-  notes           String?
+  notes                   String?
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   // Zeitpunkt des erstmaligen Übergangs in Status CONFIRMED — entscheidet bei
   // Material-Konflikten, welches Projekt die physische Reservierung gewinnt.
-  confirmedAt     DateTime?
+  confirmedAt DateTime?
 
-  createdById     String?
-  createdBy       User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?   @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
   // Verantwortlicher für das Projekt (kann unabhängig vom Ersteller sein)
-  maintainerId    String?
-  maintainer      User?         @relation("ProjectMaintainer", fields: [maintainerId], references: [id], onDelete: SetNull)
+  maintainerId String?
+  maintainer   User?   @relation("ProjectMaintainer", fields: [maintainerId], references: [id], onDelete: SetNull)
 
-  assignments     ProjectAssignment[]
-  cableAssignments ProjectCableAssignment[]
-  adHocItems      ProjectAdHocItem[]
-  groupComments   ProjectGroupComment[]
+  assignments       ProjectAssignment[]
+  cableAssignments  ProjectCableAssignment[]
+  adHocItems        ProjectAdHocItem[]
+  groupComments     ProjectGroupComment[]
   // Berechnungszeiträume: Tage für die Mietkalkulation (mehrere möglich)
-  billingPeriods  BillingPeriod[]
+  billingPeriods    BillingPeriod[]
   // Freie Markdown-Notizen mit Titel
-  projectNotes    ProjectNote[]
+  projectNotes      ProjectNote[]
   // Personal- und Transport-Positionen
-  services        ProjectService[]
+  services          ProjectService[]
   // Gruppen für Material und Personal & Transport (separat pro Tab via kind)
-  groups          ProjectGroup[]
+  groups            ProjectGroup[]
   // Erzeugte Rechnungen
-  invoices        Invoice[]
+  invoices          Invoice[]
   // Erzeugte Angebote
-  quotes          Quote[]
+  quotes            Quote[]
   // Token für die Public-Scan-Seite (/scan/[token]) zum Abhaken beim Packen.
   // Lazy generiert, beim Klick auf "Token neu generieren" zurückgesetzt.
-  packToken       String?       @unique
-  packingScans    PackingScan[]
+  packToken         String?                  @unique
+  packingScans      PackingScan[]
   // Frei hochgeladene Dateien (PDFs, Bilder, Office-Dokumente) zur Doku.
-  files           ProjectFile[]
+  files             ProjectFile[]
   // Zugemietetes Material (rein interne Kostenpositionen, nie auf Dokumenten)
-  subhires        ProjectSubhire[]
+  subhires          ProjectSubhire[]
   // Sonstige / personaltechnische Extrakosten (rein intern)
-  extraCosts      ProjectExtraCost[]
+  extraCosts        ProjectExtraCost[]
   // Personaleinsätze (denormalisiert; primär an ProjectService)
   personAssignments PersonAssignment[]
   // Erfasste Ist-Arbeitszeiten (Lohn-Belege, Restrict — siehe TimeEntry)
-  timeEntries     TimeEntry[]
+  timeEntries       TimeEntry[]
 
   @@index([status])
   @@index([customerId])
@@ -437,9 +440,9 @@ model ProjectGroup {
   comments         ProjectGroupComment[]
   // Freie (nicht mit einem Gerät verknüpfte) Zumietungen, die als eigene
   // blaue Zeile in dieser Gruppe erscheinen.
-  subhires         ProjectSubhire[] @relation("SubhireMaterialGroup")
+  subhires         ProjectSubhire[]         @relation("SubhireMaterialGroup")
   // Zumietungen, die auf der Kosten-Seite in dieser Gruppe (kind SUBHIRE) stehen.
-  costSubhires     ProjectSubhire[] @relation("SubhireCostGroup")
+  costSubhires     ProjectSubhire[]         @relation("SubhireCostGroup")
   // Extrakosten, die auf der Kosten-Seite in dieser Gruppe (kind EXTRA) stehen.
   extraCosts       ProjectExtraCost[]
 
@@ -451,15 +454,15 @@ model ProjectGroup {
 // teilt sich den `sortOrder`-Raum mit den anderen Zeilen der Gruppe (Geräte,
 // Kabel, Services, AdHoc-Items).
 model ProjectGroupComment {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   groupId   String
   group     ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   text      String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@index([projectId])
   @@index([groupId])
@@ -469,24 +472,24 @@ model ProjectGroupComment {
 // nicht im Stammdaten-Lager geführt werden. Hat einen festen Stückpreis und
 // wird NICHT mit dem Miet-Tagesfaktor multipliziert.
 model ProjectAdHocItem {
-  id          String      @id @default(cuid())
-  projectId   String
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  groupId     String
-  group       ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  id        String       @id @default(cuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  name        String      // z.B. „iPad Pro 12.9″"
-  description String?     // Optionale Zusatzbeschreibung für die Rechnung
-  quantity    Int         @default(1)
+  name        String // z.B. „iPad Pro 12.9″"
+  description String? // Optionale Zusatzbeschreibung für die Rechnung
+  quantity    Int     @default(1)
   // Stückpreis (Netto). Wird NICHT mit billingFactor multipliziert.
-  unitPrice   Decimal     @db.Decimal(10, 2)
-  sortOrder   Int         @default(0)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  sortOrder   Int     @default(0)
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Zumietungen, die auf diese Ad-hoc-Position verweisen (interne Kostenannotation)
-  subhires    ProjectSubhire[]
+  subhires ProjectSubhire[]
 
   @@index([projectId])
   @@index([groupId])
@@ -503,36 +506,36 @@ enum ExtraCostKind {
 // buildSnapshotFromProject ein. Dient dazu, fehlendes Material extern zuzumieten
 // und die Kosten im Blick zu behalten.
 model ProjectSubhire {
-  id          String        @id @default(cuid())
-  projectId   String
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  projectId     String
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // Optionale Verknüpfung zu einem Katalog-Gerät. Ist gesetzt und das Gerät im
   // Projekt gebucht, wird dessen Material-Zeile blau markiert.
-  deviceId    String?
-  device      Device?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  deviceId      String?
+  device        Device?           @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   // Optionale Verknüpfung zu einer Ad-hoc-Position („Vorübergehendes Gerät").
   // Ist gesetzt, wird deren Material-Zeile blau markiert.
-  adHocItemId String?
-  adHocItem   ProjectAdHocItem? @relation(fields: [adHocItemId], references: [id], onDelete: SetNull)
+  adHocItemId   String?
+  adHocItem     ProjectAdHocItem? @relation(fields: [adHocItemId], references: [id], onDelete: SetNull)
   // Optionale Material-Gruppe, in der eine NICHT verknüpfte Zumietung als eigene
   // blaue Zeile erscheint. Bei verknüpften Zumietungen i.d.R. leer.
-  groupId     String?
-  group       ProjectGroup? @relation("SubhireMaterialGroup", fields: [groupId], references: [id], onDelete: SetNull)
+  groupId       String?
+  group         ProjectGroup?     @relation("SubhireMaterialGroup", fields: [groupId], references: [id], onDelete: SetNull)
   // Gruppe auf der Kosten-Seite (kind SUBHIRE). Getrennt von `groupId`, weil
   // dieses die Platzierung im Material-Tab steuert.
-  costGroupId String?
-  costGroup   ProjectGroup? @relation("SubhireCostGroup", fields: [costGroupId], references: [id], onDelete: SetNull)
-  name        String        // Bezeichnung (bei Verknüpfung Default = Gerätename)
-  supplier    String?       // Von wem (Vermieter/Lieferant)
-  quantity    Int           @default(1)
-  unitCost    Decimal       @db.Decimal(10, 2) // Kosten pro Stück (netto), pauschal
-  notes       String?
-  sortOrder   Int           @default(0)
+  costGroupId   String?
+  costGroup     ProjectGroup?     @relation("SubhireCostGroup", fields: [costGroupId], references: [id], onDelete: SetNull)
+  name          String // Bezeichnung (bei Verknüpfung Default = Gerätename)
+  supplier      String? // Von wem (Vermieter/Lieferant)
+  quantity      Int               @default(1)
+  unitCost      Decimal           @db.Decimal(10, 2) // Kosten pro Stück (netto), pauschal
+  notes         String?
+  sortOrder     Int               @default(0)
   // Reihenfolge innerhalb der Kosten-Gruppe (getrennt von `sortOrder`, das die
   // Reihenfolge freier Zumietungen in der Material-Gruppe steuert).
-  costSortOrder Int         @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  costSortOrder Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([projectId])
   @@index([deviceId])
@@ -544,19 +547,19 @@ model ProjectSubhire {
 // Sonstige / personaltechnische Extrakosten. Rein interne Kostenposition,
 // erscheint nicht auf Kundendokumenten.
 model ProjectExtraCost {
-  id          String        @id @default(cuid())
-  projectId   String
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String        @id @default(cuid())
+  projectId String
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // Gruppe auf der Kosten-Seite (kind EXTRA).
-  groupId     String?
-  group       ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  label       String
-  kind        ExtraCostKind @default(SONSTIGES)
-  amount      Decimal       @db.Decimal(10, 2) // Gesamtbetrag (netto)
-  notes       String?
-  sortOrder   Int           @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  groupId   String?
+  group     ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  label     String
+  kind      ExtraCostKind @default(SONSTIGES)
+  amount    Decimal       @db.Decimal(10, 2) // Gesamtbetrag (netto)
+  notes     String?
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([projectId])
   @@index([groupId])
@@ -588,44 +591,44 @@ model LetterheadTemplate {
 
 // Rechnung an einem Projekt — mit fortlaufender Nummer und Zahlungsfrist
 enum InvoiceKind {
-  INVOICE  // Reguläre Rechnung
+  INVOICE // Reguläre Rechnung
   REMINDER // Mahnung zu einer bestehenden Rechnung
 }
 
 model Invoice {
-  id        String      @id @default(cuid())
-  number    String      @unique
-  projectId String
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  id                String      @id @default(cuid())
+  number            String      @unique
+  projectId         String
+  project           Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
   // Art des Dokuments — bestimmt Titel im PDF und UI
-  kind      InvoiceKind @default(INVOICE)
+  kind              InvoiceKind @default(INVOICE)
   // Mahnstufe (1 = 1. Mahnung, 2 = 2., 3 = letzte). Bei kind=INVOICE immer 0.
-  reminderLevel Int    @default(0)
+  reminderLevel     Int         @default(0)
   // Vorkasse-Flag: Wenn true, ist dies eine Vorkasse-/Anzahlungsrechnung.
   // Im PDF wird „Zahlbar bis" durch „Vorkasse" ersetzt.
-  isPrepayment Boolean @default(false)
+  isPrepayment      Boolean     @default(false)
   // Bei Vorkasse-Rechnungen: berechneter Prozentsatz des Gesamtauftrags
   // (z.B. 50.00). totalNet/totalGross enthalten dann den anteiligen Betrag.
-  prepaymentPercent Decimal? @db.Decimal(5, 2)
+  prepaymentPercent Decimal?    @db.Decimal(5, 2)
   // Bei Schlussrechnungen: Liste der abgezogenen Vorkasse-Rechnungen als JSON
   // ([{ number, netAmount, grossAmount }]). totalNet/totalGross sind dann der
   // Restbetrag (Gesamtauftrag abzüglich der Anzahlungen). Null bei normalen
   // Rechnungen.
-  deductions Json?
+  deductions        Json?
   // Bei kind=REMINDER: Verweis auf die ursprüngliche Rechnung
-  relatedInvoiceId String?
-  relatedInvoice   Invoice?  @relation("InvoiceReminders", fields: [relatedInvoiceId], references: [id], onDelete: Cascade)
-  reminders        Invoice[] @relation("InvoiceReminders")
-  date      DateTime @default(now())
-  dueDate   DateTime
+  relatedInvoiceId  String?
+  relatedInvoice    Invoice?    @relation("InvoiceReminders", fields: [relatedInvoiceId], references: [id], onDelete: Cascade)
+  reminders         Invoice[]   @relation("InvoiceReminders")
+  date              DateTime    @default(now())
+  dueDate           DateTime
   // Snapshot der Beträge zum Zeitpunkt der Erstellung
-  totalNet   Decimal  @db.Decimal(10, 2)
+  totalNet          Decimal     @db.Decimal(10, 2)
   // Brutto-Betrag (Netto + MwSt zum damaligen Steuersatz)
-  totalGross Decimal? @db.Decimal(10, 2)
+  totalGross        Decimal?    @db.Decimal(10, 2)
   // MwSt-Satz in Prozent zum Zeitpunkt der Erstellung
-  vatPercent Decimal  @default(0) @db.Decimal(5, 2)
+  vatPercent        Decimal     @default(0) @db.Decimal(5, 2)
   // Zahlungseingang — null wenn noch nicht bezahlt
-  paidAt    DateTime?
+  paidAt            DateTime?
   // Zeitpunkt, zu dem der Projekt-Verantwortliche über die überschrittene
   // Zahlungsfrist benachrichtigt wurde (Cron /api/cron/overdue-invoices).
   // Null = noch nicht benachrichtigt — verhindert Mehrfach-Mails.
@@ -635,8 +638,11 @@ model Invoice {
   // Wird im PDF verwendet, damit nachträgliche Änderungen am Projekt die
   // ausgegebene Rechnung NICHT mehr verändern (GoBD/§14 UStG).
   // Bei Alt-Rechnungen ohne Snapshot wird auf Live-Daten zurückgefallen.
-  snapshot  Json?
-  createdAt DateTime @default(now())
+  snapshot          Json?
+  // Zeitpunkt/Empfänger des letzten Versands per E-Mail aus der App heraus.
+  emailSentAt       DateTime?
+  emailSentTo       String?
+  createdAt         DateTime    @default(now())
 
   @@index([projectId])
   @@index([date])
@@ -667,17 +673,17 @@ model Quote {
   // Random-Token für die Public-URL /angebot/<token>. Unique, damit der Token
   // direkt als Schlüssel zum Quote dient. Wird beim Anlegen erzeugt, kann
   // bei Alt-Bestand lazy beim ersten PDF-Aufruf nachgeneriert werden.
-  acceptToken           String?   @unique
-  acceptedAt            DateTime?
-  acceptedByName        String?
+  acceptToken          String?   @unique
+  acceptedAt           DateTime?
+  acceptedByName       String?
   // E-Mail-Adresse, die der Kunde beim Annehmen angibt. Empfänger der
   // automatischen Bestätigungs-Mail (siehe sendQuoteAcceptedEmails).
-  acceptedByEmail       String?
+  acceptedByEmail      String?
   // Base64-encoded PNG der Canvas-Unterschrift. Text-Spalte, typisch
   // 30-100 KB. Limit serverseitig per Validierung (200 KB max).
-  acceptedSignaturePng  String?
-  acceptedIp            String?
-  acceptedUserAgent     String?
+  acceptedSignaturePng String?
+  acceptedIp           String?
+  acceptedUserAgent    String?
 
   // ===== Supersession — wenn ein Angebot überschrieben wird =====
   // Beim "Überschreiben" im Finanzen-Dialog wird das alte Angebot nicht
@@ -686,10 +692,16 @@ model Quote {
   // Server-Redirect auf das aktuelle Angebot leiten — mit einem Banner,
   // dass es sich um eine neue Version handelt.
   supersededByQuoteId String?
-  supersededByQuote   Quote?   @relation("QuoteSupersession", fields: [supersededByQuoteId], references: [id], onDelete: SetNull)
-  supersededQuotes    Quote[]  @relation("QuoteSupersession")
+  supersededByQuote   Quote?  @relation("QuoteSupersession", fields: [supersededByQuoteId], references: [id], onDelete: SetNull)
+  supersededQuotes    Quote[] @relation("QuoteSupersession")
 
-  createdAt  DateTime @default(now())
+  // Zeitpunkt/Empfänger des letzten Versands per E-Mail aus der App heraus
+  // (nicht zu verwechseln mit acceptedByEmail — das ist die Adresse, die der
+  // Kunde selbst beim Annehmen eingetragen hat).
+  emailSentAt DateTime?
+  emailSentTo String?
+
+  createdAt DateTime @default(now())
 
   @@index([projectId])
   @@index([date])
@@ -732,23 +744,23 @@ model ServiceItem {
 
 // Buchung einer Service-Position auf ein Projekt
 model ProjectService {
-  id                String  @id @default(cuid())
-  projectId         String
-  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  serviceItemId     String
-  serviceItem       ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+  serviceItemId String
+  serviceItem   ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
 
-  groupId           String
-  group             ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+  group   ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   quantity          Decimal  @default(1) @db.Decimal(10, 2)
   unitPriceOverride Decimal? @db.Decimal(10, 2)
   notes             String?
   sortOrder         Int      @default(0)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Konkrete Personen an dieser Position (Einsatzplan)
   personAssignments PersonAssignment[]
@@ -921,24 +933,24 @@ model BillingPeriod {
 // Buchung eines Geräts für ein Projekt.
 // Die Aggregation zu Packeinheiten passiert nur für die Packliste (siehe lib/packlist.ts).
 model ProjectAssignment {
-  id         String   @id @default(cuid())
-  projectId  String
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  deviceId   String
-  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  groupId    String
-  group      ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+  group   ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  quantity   Int      @default(1)
-  notes      String?
+  quantity  Int     @default(1)
+  notes     String?
   // Reihenfolge innerhalb der Gruppe (für Drag & Drop in der UI und damit
   // auch im Angebots-/Rechnungs-PDF)
-  sortOrder  Int      @default(0)
+  sortOrder Int     @default(0)
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Kein Unique-Constraint auf (projectId, deviceId) — dasselbe Gerät kann
   // bewusst mehrfach gebucht werden (z.B. in unterschiedliche Gruppen).
@@ -951,24 +963,24 @@ model ProjectAssignment {
 // Pro gescannter Einheit eine Zeile. Auf der Packliste wird daraus der
 // Soll/Ist-Vergleich gebildet (X von Y Stück gescannt).
 model PackingScan {
-  id          String   @id @default(cuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Genau eines der drei ist gesetzt:
-  packUnitId  String?
-  packUnit    PackUnit? @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
-  deviceId    String?
-  device      Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  packUnitId     String?
+  packUnit       PackUnit?           @relation(fields: [packUnitId], references: [id], onDelete: Cascade)
+  deviceId       String?
+  device         Device?             @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   // Kabel tragen keinen QR-Code — diese Einträge entstehen durch manuelles
   // Abhaken auf der digitalen Packliste (scannedCode = "MANUELL").
-  cableId     String?
-  cable       Cable?    @relation(fields: [cableId], references: [id], onDelete: Cascade)
+  cableId        String?
+  cable          Cable?              @relation(fields: [cableId], references: [id], onDelete: Cascade)
   // Wenn der Scan über eine konkrete Seriennummer aufgelöst wurde
   deviceSerialId String?
   deviceSerial   DeviceSerialNumber? @relation(fields: [deviceSerialId], references: [id], onDelete: SetNull)
 
-  scannedCode String   // Der eingegebene rohe Code (für Nachvollziehbarkeit)
+  scannedCode String // Der eingegebene rohe Code (für Nachvollziehbarkeit)
   scannedAt   DateTime @default(now())
 
   @@index([projectId])
@@ -981,16 +993,16 @@ model PackingScan {
 // Die eigentlichen Bytes liegen in Vercel Blob unter `blobPathname`;
 // `blobUrl` ist der direkte Download-Link.
 model ProjectFile {
-  id           String   @id @default(cuid())
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  name         String   // Original-Dateiname inkl. Endung
-  mimeType     String
-  sizeBytes    Int
+  name      String // Original-Dateiname inkl. Endung
+  mimeType  String
+  sizeBytes Int
 
-  blobUrl      String   // Public-Lese-URL aus @vercel/blob
-  blobPathname String   // Pathname im Blob-Store, zum Löschen via del()
+  blobUrl      String // Public-Lese-URL aus @vercel/blob
+  blobPathname String // Pathname im Blob-Store, zum Löschen via del()
 
   uploadedById String?
   uploadedBy   User?    @relation("ProjectFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)

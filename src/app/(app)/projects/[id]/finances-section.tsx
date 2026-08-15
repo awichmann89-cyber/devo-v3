@@ -46,6 +46,7 @@ import {
   ChevronDown,
   ChevronRight,
   CheckCircle2,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -58,10 +59,13 @@ import {
   createQuote,
   createReplacementQuote,
   deleteQuote,
+  sendQuoteEmail,
+  sendInvoiceEmail,
 } from "./finances-actions";
 import { toastError } from "@/lib/toast";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
+import { fillTemplate } from "@/lib/email-template";
 
 export interface FinancesGroupVM {
   id: string;
@@ -107,6 +111,9 @@ export interface FinancesInvoiceVM {
   prepaymentPercent: number | null;
   /** Schlussrechnung (mit Abzug bestehender Vorkasse-Rechnungen). */
   isFinal: boolean;
+  /** Letzter Versand per E-Mail aus der App — ISO-String, sonst null. */
+  emailSentAt: string | null;
+  emailSentTo: string | null;
 }
 
 export interface FinancesQuoteVM {
@@ -121,6 +128,9 @@ export interface FinancesQuoteVM {
   acceptedByName: string | null;
   /** Wenn gesetzt, ist dieses Angebot durch ein neueres ersetzt. */
   supersededByQuoteId: string | null;
+  /** Letzter Versand per E-Mail aus der App — ISO-String, sonst null. */
+  emailSentAt: string | null;
+  emailSentTo: string | null;
 }
 
 interface Props {
@@ -140,6 +150,15 @@ interface Props {
   extraOther: number;
   /** Personalkosten aus dem Einsatzplan (Freelancer-Sätze + Minijobber-Stunden). */
   personnelCost: number;
+  /** Default-Empfänger für den "Per E-Mail senden"-Dialog. */
+  customerEmail: string | null;
+  customerName: string | null;
+  /** E-Mail des angemeldeten Nutzers — geht immer als Kopie mit. */
+  currentUserEmail: string;
+  quoteEmailSubjectTemplate: string;
+  quoteEmailBodyTemplate: string;
+  invoiceEmailSubjectTemplate: string;
+  invoiceEmailBodyTemplate: string;
 }
 
 export function FinancesSection({
@@ -157,6 +176,13 @@ export function FinancesSection({
   extraPersonal,
   extraOther,
   personnelCost,
+  customerEmail,
+  customerName,
+  currentUserEmail,
+  quoteEmailSubjectTemplate,
+  quoteEmailBodyTemplate,
+  invoiceEmailSubjectTemplate,
+  invoiceEmailBodyTemplate,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const saveStatus = useTransitionSaveStatus(pending);
@@ -164,6 +190,11 @@ export function FinancesSection({
   const [quoteDialog, setQuoteDialog] = useState(false);
   const [deleteInv, setDeleteInv] = useState<FinancesInvoiceVM | null>(null);
   const [deleteQ, setDeleteQ] = useState<FinancesQuoteVM | null>(null);
+  // Nach dem Erstellen eines Angebots/einer Rechnung: Wahl zwischen
+  // Herunterladen und Per-E-Mail-Senden (siehe SendOrDownloadDialog unten).
+  const [sendDoc, setSendDoc] = useState<
+    { kind: "quote" | "invoice"; id: string; number: string } | null
+  >(null);
   const [expanded, setExpanded] = useState<Set<"MATERIAL" | "SERVICE">>(
     new Set(["MATERIAL", "SERVICE"])
   );
@@ -658,6 +689,16 @@ export function FinancesSection({
                             Schlussrechnung
                           </Badge>
                         )}
+                        {inv.emailSentAt && (
+                          <Badge
+                            variant="secondary"
+                            size="sm"
+                            className="gap-1"
+                            title={`Per E-Mail versendet am ${formatDate(inv.emailSentAt)}${inv.emailSentTo ? ` an ${inv.emailSentTo}` : ""}`}
+                          >
+                            <Mail className="h-3 w-3" /> Versendet
+                          </Badge>
+                        )}
                       </span>
                     </TableCell>
                     <TableCell>{formatDate(inv.date)}</TableCell>
@@ -707,6 +748,7 @@ export function FinancesSection({
         defaultTotal={grandTotal}
         dueDays={invoiceDueDays}
         existingInvoices={invoices}
+        onCreated={(id, number) => setSendDoc({ kind: "invoice", id, number })}
       />
 
       <QuoteDialog
@@ -720,6 +762,33 @@ export function FinancesSection({
         // beim Überschreiben sollen nur diese als ersetzt markiert werden, nicht
         // alte schon-überschriebene erneut anfassen.
         existingQuotes={quotes.filter((q) => !q.supersededByQuoteId)}
+        onCreated={(id, number) => setSendDoc({ kind: "quote", id, number })}
+      />
+
+      <SendOrDownloadDialog
+        open={sendDoc !== null}
+        onOpenChange={(o) => !o && setSendDoc(null)}
+        kind={sendDoc?.kind ?? null}
+        documentId={sendDoc?.id ?? null}
+        documentNumber={sendDoc?.number ?? null}
+        projectId={projectId}
+        defaultTo={customerEmail ?? ""}
+        currentUserEmail={currentUserEmail}
+        subjectTemplate={
+          sendDoc?.kind === "invoice"
+            ? invoiceEmailSubjectTemplate
+            : quoteEmailSubjectTemplate
+        }
+        bodyTemplate={
+          sendDoc?.kind === "invoice"
+            ? invoiceEmailBodyTemplate
+            : quoteEmailBodyTemplate
+        }
+        templateVars={{
+          kunde: customerName ?? "",
+          nummer: sendDoc?.number ?? "",
+          projekt: projectName,
+        }}
       />
 
       <ConfirmDialog
@@ -770,6 +839,7 @@ function InvoiceDialog({
   defaultTotal,
   dueDays,
   existingInvoices,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -778,6 +848,7 @@ function InvoiceDialog({
   defaultTotal: number;
   dueDays: number;
   existingInvoices: FinancesInvoiceVM[];
+  onCreated: (id: string, number: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
   // Typ — Default ist immer "Rechnung". Mahnung nur wählbar wenn es eine
@@ -860,9 +931,7 @@ function InvoiceDialog({
             { relatedInvoiceId: reminderTarget }
           );
           toast.success(`Mahnung ${created.number} angelegt`);
-          triggerDownload(
-            `/api/projects/${projectId}/invoices/${created.id}/pdf?download=1`
-          );
+          onCreated(created.id, created.number);
         } else if (invoiceMode === "PREPAYMENT") {
           if (pct <= 0) {
             toast.error("Bitte einen Prozentsatz größer als 0 angeben");
@@ -872,17 +941,13 @@ function InvoiceDialog({
             prepaymentPercent: pct,
           });
           toast.success(`Vorkasse-Rechnung ${inv.number} (${pct}%) angelegt`);
-          triggerDownload(
-            `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`
-          );
+          onCreated(inv.id, inv.number);
         } else if (invoiceMode === "FINAL") {
           const inv = await createInvoice(projectId, computedDueDate, defaultTotal, {
             isFinal: true,
           });
           toast.success(`Schlussrechnung ${inv.number} angelegt`);
-          triggerDownload(
-            `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`
-          );
+          onCreated(inv.id, inv.number);
         } else {
           // Vollrechnung — vorhandene einfache Vollrechnungen überschreiben.
           if (willOverwrite) {
@@ -903,9 +968,7 @@ function InvoiceDialog({
               ? `Rechnung ${inv.number} angelegt (alte überschrieben)`
               : `Rechnung ${inv.number} angelegt`
           );
-          triggerDownload(
-            `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`
-          );
+          onCreated(inv.id, inv.number);
         }
         onOpenChange(false);
       } catch (e) {
@@ -1143,6 +1206,7 @@ function QuoteDialog({
   defaultTotal,
   validityDays,
   existingQuotes,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -1151,6 +1215,7 @@ function QuoteDialog({
   defaultTotal: number;
   validityDays: number;
   existingQuotes: FinancesQuoteVM[];
+  onCreated: (id: string, number: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [notes, setNotes] = useState("");
@@ -1188,7 +1253,7 @@ function QuoteDialog({
             ? `Angebot ${q.number} angelegt (alte ersetzt)`
             : `Angebot ${q.number} angelegt`
         );
-        triggerDownload(`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`);
+        onCreated(q.id, q.number);
         onOpenChange(false);
       } catch (e) {
         toastError(e, "Speichern");
@@ -1275,6 +1340,167 @@ function QuoteDialog({
 }
 
 /**
+ * Wird direkt nach dem Erstellen eines Angebots/einer Rechnung geöffnet:
+ * erste Wahl zwischen Herunterladen und Per-E-Mail-Senden. Bei Letzterem
+ * klappt ein Formular auf, vorbefüllt aus den globalen Textvorlagen
+ * (Platzhalter bereits ersetzt) — vor dem Versand noch editierbar. Kopie
+ * geht immer automatisch an den angemeldeten Nutzer (siehe sendQuoteEmail/
+ * sendInvoiceEmail).
+ */
+function SendOrDownloadDialog({
+  open,
+  onOpenChange,
+  kind,
+  documentId,
+  documentNumber,
+  projectId,
+  defaultTo,
+  currentUserEmail,
+  subjectTemplate,
+  bodyTemplate,
+  templateVars,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  kind: "quote" | "invoice" | null;
+  documentId: string | null;
+  documentNumber: string | null;
+  projectId: string;
+  defaultTo: string;
+  currentUserEmail: string;
+  subjectTemplate: string;
+  bodyTemplate: string;
+  templateVars: Record<string, string>;
+}) {
+  const [mode, setMode] = useState<"choose" | "email">("choose");
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  // Bei jedem neu erstellten Dokument zurücksetzen und aus den Vorlagen
+  // (mit ersetzten Platzhaltern) vorbefüllen.
+  useEffect(() => {
+    if (!open) return;
+    setMode("choose");
+    setTo(defaultTo);
+    setSubject(fillTemplate(subjectTemplate, templateVars));
+    setBody(fillTemplate(bodyTemplate, templateVars));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, documentId]);
+
+  if (!kind || !documentId || !documentNumber) return null;
+
+  const label = kind === "quote" ? "Angebot" : "Rechnung";
+  const pdfUrl = `/api/projects/${projectId}/${kind === "quote" ? "quotes" : "invoices"}/${documentId}/pdf?download=1`;
+
+  function handleDownload() {
+    triggerDownload(pdfUrl);
+    onOpenChange(false);
+  }
+
+  function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    startTransition(async () => {
+      try {
+        if (kind === "quote") {
+          await sendQuoteEmail(documentId!, to, subject, body);
+        } else {
+          await sendInvoiceEmail(documentId!, to, subject, body);
+        }
+        toast.success(`${label} ${documentNumber} per E-Mail versendet`);
+        onOpenChange(false);
+      } catch (err) {
+        toastError(err, "Versenden");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>
+            {label} {documentNumber}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "choose"
+              ? "Herunterladen oder direkt per E-Mail versenden."
+              : `Kopie geht automatisch an dich (${currentUserEmail}).`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {mode === "choose" ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={handleDownload}
+            >
+              <Download className="h-4 w-4" /> Herunterladen
+            </Button>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={() => setMode("email")}
+            >
+              <Mail className="h-4 w-4" /> Per E-Mail senden
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSend} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="send-to">An</Label>
+              <Input
+                id="send-to"
+                type="email"
+                required
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="kunde@beispiel.de"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="send-subject">Betreff</Label>
+              <Input
+                id="send-subject"
+                required
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="send-body">Text</Label>
+              <Textarea
+                id="send-body"
+                rows={8}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMode("choose")}
+                disabled={pending}
+              >
+                Zurück
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Senden
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
  * Eigene Card-Komponente für die Quotes-Liste — implementiert den
  * Supersession-Filter (ersetzte Angebote ausblenden) und das Acceptance-Badge.
  * Beim Klick auf "Ersetzte zeigen" werden auch die durch neuere Versionen
@@ -1332,7 +1558,21 @@ function QuotesCard({
                   key={q.id}
                   className={cn(isSuperseded && "opacity-60")}
                 >
-                  <TableCell className="font-mono">{q.number}</TableCell>
+                  <TableCell className="font-mono">
+                    <span className="flex items-center gap-2">
+                      {q.number}
+                      {q.emailSentAt && (
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="gap-1"
+                          title={`Per E-Mail versendet am ${formatDate(q.emailSentAt)}${q.emailSentTo ? ` an ${q.emailSentTo}` : ""}`}
+                        >
+                          <Mail className="h-3 w-3" /> Versendet
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell>{formatDate(q.date)}</TableCell>
                   <TableCell>{formatDate(q.expiresAt)}</TableCell>
                   <TableCell className="text-right num text-sm text-muted-foreground">
