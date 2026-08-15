@@ -66,21 +66,22 @@ export async function saveQuoteTexts(introText: string, outroText: string) {
 }
 
 /**
- * Vorgefertigte Betreffs/Texte für den "Per E-Mail senden"-Dialog beim
- * Erstellen eines Angebots/einer Rechnung. Platzhalter {{kunde}}, {{nummer}},
- * {{projekt}} bleiben in der Vorlage unersetzt gespeichert.
+ * Vorgefertigter Betreff/Text für den "Per E-Mail senden"-Dialog beim
+ * Erstellen eines Angebots. Platzhalter {{kunde}}, {{nummer}}, {{projekt}}
+ * bleiben in der Vorlage unersetzt gespeichert.
  */
-export async function saveEmailTexts(
-  quoteSubject: string,
-  quoteBody: string,
-  invoiceSubject: string,
-  invoiceBody: string
-) {
+export async function saveQuoteEmailTexts(subject: string, body: string) {
   await requireRole(CAN_ADMIN);
-  await setSetting("quoteEmailSubject" as SettingKey, (quoteSubject ?? "").trim().slice(0, 200));
-  await setSetting("quoteEmailBody" as SettingKey, (quoteBody ?? "").slice(0, 4000));
-  await setSetting("invoiceEmailSubject" as SettingKey, (invoiceSubject ?? "").trim().slice(0, 200));
-  await setSetting("invoiceEmailBody" as SettingKey, (invoiceBody ?? "").slice(0, 4000));
+  await setSetting("quoteEmailSubject" as SettingKey, (subject ?? "").trim().slice(0, 200));
+  await setSetting("quoteEmailBody" as SettingKey, (body ?? "").slice(0, 4000));
+  revalidatePath("/settings");
+}
+
+/** Analog zu saveQuoteEmailTexts, für den Rechnungs-Versand. */
+export async function saveInvoiceEmailTexts(subject: string, body: string) {
+  await requireRole(CAN_ADMIN);
+  await setSetting("invoiceEmailSubject" as SettingKey, (subject ?? "").trim().slice(0, 200));
+  await setSetting("invoiceEmailBody" as SettingKey, (body ?? "").slice(0, 4000));
   revalidatePath("/settings");
 }
 

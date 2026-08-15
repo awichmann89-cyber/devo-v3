@@ -9,7 +9,7 @@ import { InvoiceNumberForm } from "./invoice-number-form";
 import { ReminderNumberForm } from "./reminder-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
 import { QuoteTextsForm } from "./quote-texts-form";
-import { EmailTextsForm } from "./email-texts-form";
+import { QuoteEmailTextsForm, InvoiceEmailTextsForm } from "./email-texts-form";
 import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
@@ -323,20 +323,32 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="email">
+        <TabsContent value="email" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Vorgefertigte Texte für den E-Mail-Versand
-                <InfoHint text={'Betreff und Text, mit denen der "Per E-Mail senden"-Dialog beim Erstellen eines Angebots/einer Rechnung vorbefüllt wird. Vor dem Versand im Dialog editierbar.'} />
+                E-Mail-Text: Angebot
+                <InfoHint text={'Betreff und Text, mit denen der "Per E-Mail senden"-Dialog beim Erstellen eines Angebots vorbefüllt wird. Vor dem Versand im Dialog noch editierbar.'} />
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <EmailTextsForm
-                initialQuoteSubject={settings.quoteEmailSubject}
-                initialQuoteBody={settings.quoteEmailBody}
-                initialInvoiceSubject={settings.invoiceEmailSubject}
-                initialInvoiceBody={settings.invoiceEmailBody}
+              <QuoteEmailTextsForm
+                initialSubject={settings.quoteEmailSubject}
+                initialBody={settings.quoteEmailBody}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                E-Mail-Text: Rechnung
+                <InfoHint text={'Betreff und Text, mit denen der "Per E-Mail senden"-Dialog beim Erstellen einer Rechnung vorbefüllt wird. Vor dem Versand im Dialog noch editierbar.'} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InvoiceEmailTextsForm
+                initialSubject={settings.invoiceEmailSubject}
+                initialBody={settings.invoiceEmailBody}
               />
             </CardContent>
           </Card>

@@ -5,39 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import { saveEmailTexts } from "./settings-actions";
+import { saveQuoteEmailTexts, saveInvoiceEmailTexts } from "./settings-actions";
 import { toastError } from "@/lib/toast";
-
-interface Props {
-  initialQuoteSubject: string;
-  initialQuoteBody: string;
-  initialInvoiceSubject: string;
-  initialInvoiceBody: string;
-}
 
 const PLACEHOLDER_HINT =
   'Platzhalter: {{kunde}}, {{nummer}}, {{projekt}} — werden beim Öffnen des "Per E-Mail senden"-Dialogs ersetzt.';
 
-export function EmailTextsForm({
-  initialQuoteSubject,
-  initialQuoteBody,
-  initialInvoiceSubject,
-  initialInvoiceBody,
-}: Props) {
-  const [quoteSubject, setQuoteSubject] = useState(initialQuoteSubject);
-  const [quoteBody, setQuoteBody] = useState(initialQuoteBody);
-  const [invoiceSubject, setInvoiceSubject] = useState(initialInvoiceSubject);
-  const [invoiceBody, setInvoiceBody] = useState(initialInvoiceBody);
+interface Props {
+  initialSubject: string;
+  initialBody: string;
+}
+
+export function QuoteEmailTextsForm({ initialSubject, initialBody }: Props) {
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialBody);
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
       try {
-        await saveEmailTexts(quoteSubject, quoteBody, invoiceSubject, invoiceBody);
-        toast.success("E-Mail-Texte gespeichert");
+        await saveQuoteEmailTexts(subject, body);
+        toast.success("E-Mail-Text gespeichert");
       } catch (err) {
         toastError(err, "Speichern");
       }
@@ -45,55 +37,92 @@ export function EmailTextsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="flex items-center gap-1.5">
-        <p className="text-sm text-muted-foreground">{PLACEHOLDER_HINT}</p>
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="text-sm font-medium">Angebot</h3>
-        <div className="space-y-2">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
           <Label htmlFor="quoteEmailSubject">Betreff</Label>
-          <Input
-            id="quoteEmailSubject"
-            value={quoteSubject}
-            onChange={(e) => setQuoteSubject(e.target.value)}
-            placeholder="Ihr Angebot {{nummer}} — {{projekt}}"
-          />
+          <InfoHint text={PLACEHOLDER_HINT} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="quoteEmailBody">Text</Label>
-          <Textarea
-            id="quoteEmailBody"
-            value={quoteBody}
-            onChange={(e) => setQuoteBody(e.target.value)}
-            rows={6}
-            placeholder="Guten Tag {{kunde}}, …"
-          />
-        </div>
+        <Input
+          id="quoteEmailSubject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Ihr Angebot {{nummer}} — {{projekt}}"
+        />
       </div>
 
-      <div className="space-y-4">
-        <h3 className="text-sm font-medium">Rechnung</h3>
-        <div className="space-y-2">
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="quoteEmailBody">Text</Label>
+          <InfoHint text={PLACEHOLDER_HINT} />
+        </div>
+        <Textarea
+          id="quoteEmailBody"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={6}
+          placeholder="Guten Tag {{kunde}}, …"
+        />
+      </div>
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={pending}>
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          Speichern
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function InvoiceEmailTextsForm({ initialSubject, initialBody }: Props) {
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialBody);
+  const [pending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    startTransition(async () => {
+      try {
+        await saveInvoiceEmailTexts(subject, body);
+        toast.success("E-Mail-Text gespeichert");
+      } catch (err) {
+        toastError(err, "Speichern");
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
           <Label htmlFor="invoiceEmailSubject">Betreff</Label>
-          <Input
-            id="invoiceEmailSubject"
-            value={invoiceSubject}
-            onChange={(e) => setInvoiceSubject(e.target.value)}
-            placeholder="Ihre Rechnung {{nummer}} — {{projekt}}"
-          />
+          <InfoHint text={PLACEHOLDER_HINT} />
         </div>
-        <div className="space-y-2">
+        <Input
+          id="invoiceEmailSubject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Ihre Rechnung {{nummer}} — {{projekt}}"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
           <Label htmlFor="invoiceEmailBody">Text</Label>
-          <Textarea
-            id="invoiceEmailBody"
-            value={invoiceBody}
-            onChange={(e) => setInvoiceBody(e.target.value)}
-            rows={6}
-            placeholder="Guten Tag {{kunde}}, …"
-          />
+          <InfoHint text={PLACEHOLDER_HINT} />
         </div>
+        <Textarea
+          id="invoiceEmailBody"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={6}
+          placeholder="Guten Tag {{kunde}}, …"
+        />
       </div>
 
       <div className="flex justify-end">

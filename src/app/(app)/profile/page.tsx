@@ -14,8 +14,6 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-[21px] font-extrabold tracking-tight">Mein Profil</h1>
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

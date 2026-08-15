@@ -17,7 +17,9 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-const SIGNATURE_COLORS = ["#18181b", "#F45B28", "#1e3a8a", "#15803d", "#b91c1c"];
+// Aus den Design-Tokens in globals.css (--foreground/--primary/--info/
+// --success/--destructive), damit die Signatur farblich zum Rest der App passt.
+const SIGNATURE_COLORS = ["#161D22", "#F45B28", "#007E99", "#1F8A5B", "#D70F37"];
 
 // Schriftgröße als eigenständiges Attribut auf der textStyle-Mark — Tiptap
 // hat dafür kein stabiles Kern-Paket, das Muster (globalAttribute + Inline-
