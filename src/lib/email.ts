@@ -374,8 +374,13 @@ export interface SendDocumentEmailParams {
   kind: "quote" | "invoice";
   documentNumber: string;
   to: string;
-  /** Immer gesetzt — Kopie an den sendenden, angemeldeten Nutzer. */
-  ccEmail: string;
+  /**
+   * Immer gesetzt — E-Mail-Adresse des sendenden, angemeldeten Nutzers. Geht
+   * als BCC mit (unsichtbare Kopie, taucht nicht im Header beim Kunden auf)
+   * und wird als Reply-To gesetzt, damit Antworten direkt beim zuständigen
+   * Nutzer landen statt bei der Service-Absenderadresse (EMAIL_FROM).
+   */
+  senderEmail: string;
   subject: string;
   /** Freitext aus dem Sende-Dialog, bereits Platzhalter-ersetzt. */
   bodyText: string;
@@ -387,10 +392,12 @@ export interface SendDocumentEmailParams {
 
 /**
  * Verschickt ein Angebots-/Rechnungs-PDF als E-Mail-Anhang an den Kunden,
- * mit Kopie an den sendenden Nutzer. Anders als die reinen Benachrichtigungs-
- * Mails oben wird der Erfolg an den Aufrufer (Server Action) zurückgemeldet
- * und dort dem Nutzer als Fehler angezeigt — ein "Versand" der sichtbar
- * fehlschlägt, wäre sonst ein stiller Datenverlust für den Nutzer.
+ * mit BCC-Kopie an den sendenden Nutzer und dessen Adresse als Reply-To
+ * (Antworten landen so beim zuständigen Nutzer, nicht bei der Service-
+ * Absenderadresse). Anders als die reinen Benachrichtigungs-Mails oben wird
+ * der Erfolg an den Aufrufer (Server Action) zurückgemeldet und dort dem
+ * Nutzer als Fehler angezeigt — ein "Versand" der sichtbar fehlschlägt, wäre
+ * sonst ein stiller Datenverlust für den Nutzer.
  */
 export async function sendDocumentEmail(
   params: SendDocumentEmailParams,
@@ -418,7 +425,8 @@ export async function sendDocumentEmail(
     const result = await resend.emails.send({
       from,
       to: params.to,
-      cc: params.ccEmail,
+      bcc: params.senderEmail,
+      replyTo: params.senderEmail,
       subject: params.subject,
       html,
       text,

@@ -1426,7 +1426,7 @@ function SendOrDownloadDialog({
           <DialogDescription>
             {mode === "choose"
               ? "Herunterladen oder direkt per E-Mail versenden."
-              : `Kopie geht automatisch an dich (${currentUserEmail}).`}
+              : `Verdeckte Kopie geht automatisch an dich (${currentUserEmail}) — Antworten des Kunden landen ebenfalls direkt bei dir.`}
           </DialogDescription>
         </DialogHeader>
 
