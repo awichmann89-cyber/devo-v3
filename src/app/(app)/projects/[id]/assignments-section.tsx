@@ -217,6 +217,43 @@ type ConflictPrompt = {
   conflicts: { projectName: string; planningStart: Date; planningEnd: Date }[];
 };
 
+/**
+ * Download-Button für ein Projekt-Dokument (Packliste, Lieferschein).
+ *
+ * `Button asChild` rendert einen `<a>` — `disabled` greift an einem Anchor
+ * nicht, deshalb zusätzlich `aria-disabled` und ein abgefangener Klick.
+ */
+function DocumentDownloadButton({
+  href,
+  label,
+  title,
+  enabled,
+  variant = "default",
+}: {
+  href: string;
+  label: string;
+  title: string;
+  enabled: boolean;
+  variant?: "default" | "outline";
+}) {
+  return (
+    <Button asChild size="sm" variant={variant} disabled={!enabled}>
+      <a
+        href={href}
+        download
+        rel="noopener"
+        title={enabled ? title : "Erst Geräte oder Kabel buchen"}
+        aria-disabled={!enabled}
+        onClick={(e) => {
+          if (!enabled) e.preventDefault();
+        }}
+      >
+        <Download className="h-4 w-4" /> {label}
+      </a>
+    </Button>
+  );
+}
+
 export function AssignmentsSection({
   project,
   allDevices,
@@ -1320,29 +1357,21 @@ export function AssignmentsSection({
           packedCount={scanProgress.packed}
           totalCount={scanProgress.total}
         />
-        <Button
-          asChild
-          size="sm"
-          variant="default"
-          disabled={!hasPackableItems}
-        >
-          <a
-            href={`/api/projects/${project.id}/packlist.pdf?download=1`}
-            download
-            rel="noopener"
-            title={
-              !hasPackableItems
-                ? "Erst Geräte oder Kabel buchen"
-                : "Packliste herunterladen"
-            }
-            aria-disabled={!hasPackableItems}
-            onClick={(e) => {
-              if (!hasPackableItems) e.preventDefault();
-            }}
-          >
-            <Download className="h-4 w-4" /> Packliste herunterladen
-          </a>
-        </Button>
+        {/* Lieferschein: gleiche Positionen wie die Packliste, aber als
+            Kundendokument im CI (Briefpapier, Empfängeranschrift, Unterschrift). */}
+        <DocumentDownloadButton
+          href={`/api/projects/${project.id}/lieferschein/pdf?download=1`}
+          label="Lieferschein"
+          title="Lieferschein herunterladen"
+          enabled={hasPackableItems}
+          variant="outline"
+        />
+        <DocumentDownloadButton
+          href={`/api/projects/${project.id}/packlist.pdf?download=1`}
+          label="Packliste"
+          title="Packliste herunterladen"
+          enabled={hasPackableItems}
+        />
       </div>
       {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
           52px-Headers + Abstände) und clippt intern. So kann die Seite nicht

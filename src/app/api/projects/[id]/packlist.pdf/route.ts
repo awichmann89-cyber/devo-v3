@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { buildPackList } from "@/lib/packlist";
+import { loadProjectPackList } from "@/lib/packlist-data";
 import { buildProjectPdfFilename } from "@/lib/utils";
 
 /**
@@ -40,92 +39,12 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // ?download=1 forciert den Download statt der Inline-Anzeige.
   const download = new URL(req.url).searchParams.get("download") === "1";
   const { id } = await props.params;
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: {
-      customer: true,
-      assignments: {
-        include: {
-          device: { include: { category: true } },
-        },
-      },
-      cableAssignments: {
-        include: {
-          cable: { include: { category: true } },
-        },
-      },
-    },
-  });
-  if (!project) return new NextResponse("Not found", { status: 404 });
 
-  // Alle PackUnits laden, die mindestens eines der gebuchten Geräte enthalten
-  const bookedDeviceIds = project.assignments.map((a) => a.deviceId);
-  const candidatePackUnits = await prisma.packUnit.findMany({
-    where: {
-      items: { some: { deviceId: { in: bookedDeviceIds } } },
-    },
-    include: {
-      location: true,
-      category: true,
-      items: { include: { device: true } },
-      cableItems: { include: { cable: true } },
-    },
-    orderBy: [{ packMode: "asc" }, { code: "asc" }],
-  });
-
-  // Alle Kategorien für Pfad-Auflösung (Hierarchie)
-  const allCategories = await prisma.category.findMany();
-  const categoryById = new Map(allCategories.map((c) => [c.id, c]));
-
-  function categoryPath(categoryId: string | null): {
-    key: string;
-    label: string;
-    sortKey: string;
-  } {
-    if (!categoryId) {
-      return { key: "_none", label: "Ohne Kategorie", sortKey: "￿" };
-    }
-    const segments: string[] = [];
-    let cur = categoryById.get(categoryId);
-    let safety = 20;
-    while (cur && safety-- > 0) {
-      segments.unshift(cur.name);
-      cur = cur.parentId ? categoryById.get(cur.parentId) : undefined;
-    }
-    const label = segments.join(" / ");
-    return { key: categoryId, label, sortKey: label.toLowerCase() };
-  }
-
-  const packList = buildPackList(
-    project.assignments.map((a) => ({
-      deviceId: a.deviceId,
-      quantity: a.quantity,
-      device: { name: a.device.name, weight: a.device.weight },
-    })),
-    candidatePackUnits.map((p) => ({
-      id: p.id,
-      code: p.code,
-      name: p.name,
-      packMode: p.packMode,
-      weight: p.weight,
-      location: p.location ? { name: p.location.name } : null,
-      items: p.items.map((it) => ({
-        deviceId: it.deviceId,
-        quantity: it.quantity,
-        device: { name: it.device.name },
-      })),
-      cableItems: p.cableItems.map((ci) => ({
-        cableId: ci.cableId,
-        quantity: ci.quantity,
-        cable: ci.cable,
-      })),
-    })),
-    project.cableAssignments.map((ca) => ({
-      cableId: ca.cableId,
-      quantity: ca.quantity,
-      cable: ca.cable,
-    }))
-  );
+  // Laden + Gruppieren teilt sich die Packliste mit dem Lieferschein,
+  // siehe src/lib/packlist-data.ts.
+  const data = await loadProjectPackList(id);
+  if (!data) return new NextResponse("Not found", { status: 404 });
+  const { project, groups, totals } = data;
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.setFontSize(20);
@@ -139,53 +58,6 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     ),
     14,
     38
-  );
-
-  const packs = packList.filter((p): p is Extract<typeof p, { kind: "PACK" }> => p.kind === "PACK");
-  const loose = packList.filter((p): p is Extract<typeof p, { kind: "LOOSE" }> => p.kind === "LOOSE");
-  const cables = packList.filter((p): p is Extract<typeof p, { kind: "CABLE" }> => p.kind === "CABLE");
-
-  // Gruppierung nach Kategorie
-  type CategoryGroup = {
-    key: string;
-    label: string;
-    sortKey: string;
-    packs: typeof packs;
-    loose: typeof loose;
-    cables: typeof cables;
-  };
-  const groups = new Map<string, CategoryGroup>();
-  function ensureGroup(categoryId: string | null): CategoryGroup {
-    const info = categoryPath(categoryId);
-    const existing = groups.get(info.key);
-    if (existing) return existing;
-    const g: CategoryGroup = {
-      key: info.key,
-      label: info.label,
-      sortKey: info.sortKey,
-      packs: [],
-      loose: [],
-      cables: [],
-    };
-    groups.set(info.key, g);
-    return g;
-  }
-
-  for (const p of packs) {
-    const pu = candidatePackUnits.find((c) => c.id === p.packUnitId);
-    ensureGroup(pu?.categoryId ?? null).packs.push(p);
-  }
-  for (const l of loose) {
-    const a = project.assignments.find((x) => x.deviceId === l.deviceId);
-    ensureGroup(a?.device.categoryId ?? null).loose.push(l);
-  }
-  for (const c of cables) {
-    const ca = project.cableAssignments.find((x) => x.cableId === c.cableId);
-    ensureGroup(ca?.cable.categoryId ?? null).cables.push(c);
-  }
-
-  const sortedGroups = Array.from(groups.values()).sort((a, b) =>
-    a.sortKey.localeCompare(b.sortKey, "de")
   );
 
   type CellDef = PdfCell;
@@ -235,7 +107,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     },
   ];
 
-  for (const g of sortedGroups) {
+  for (const g of groups) {
     body.push(sectionRow(g.label));
 
     if (g.packs.length > 0) body.push(subSectionRow("Packeinheiten"));
@@ -351,29 +223,11 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // @ts-expect-error: lastAutoTable
   const finalY: number = doc.lastAutoTable.finalY;
 
-  // Summen
-  const totalPacks = packs.reduce((s, p) => s + p.quantity, 0);
-  const totalDevices = packList.reduce((s, p) => {
-    if (p.kind === "PACK") return s + p.contents.reduce((cs, c) => cs + c.total, 0);
-    if (p.kind === "CABLE") return s;
-    return s + p.quantity;
-  }, 0);
-  // Kabel: gebuchte Kabel + die in den Packeinheiten mitreisenden.
-  const totalCables = packList.reduce((s, p) => {
-    if (p.kind === "PACK") return s + p.cables.reduce((cs, c) => cs + c.total, 0);
-    if (p.kind === "CABLE") return s + p.quantity;
-    return s;
-  }, 0);
-  const totalWeight = packList.reduce(
-    (s, p) => s + p.weightPerUnit * p.quantity,
-    0
-  );
-
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
     pdfText(
-      `Summe: ${totalPacks} Packeinheiten | ${totalDevices} Geräte | ${totalCables} Kabel | ${totalWeight.toFixed(1)} kg`
+      `Summe: ${totals.packs} Packeinheiten | ${totals.devices} Geräte | ${totals.cables} Kabel | ${totals.weightKg.toFixed(1)} kg`
     ),
     14,
     finalY + 8
