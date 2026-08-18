@@ -5,8 +5,17 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { QuantityInput } from "@/components/ui/quantity-input";
+import { InfoHint } from "@/components/ui/info-hint";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronUp, Heading, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Heading,
+  Pencil,
+  Plus,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
  * Bausteine für die Zuordnungs-Tabellen im Projekt (Material, Kabel,
@@ -56,18 +65,29 @@ export interface GroupHeaderRowProps {
   /** Formatierte Gruppensumme (optional, z.B. Kabel haben keine Preise). */
   sumLabel?: string;
   active?: boolean;
-  isFirst: boolean;
-  isLast: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
   pending?: boolean;
+  /**
+   * Abgeleitete Gruppe (z.B. „Personal (Einsatzplan)", die aus dem Einsatzplan
+   * entsteht): identische Optik, aber kein Umbenennen und keine Aktiv-Auswahl.
+   */
+  readOnly?: boolean;
+  /** Icon im Checkbox-Slot — für abgeleitete Gruppen, damit die Spalten passen. */
+  icon?: LucideIcon;
+  /** Hilfetext hinter dem Gruppennamen. */
+  info?: string;
   /** Klick auf die Zeile — setzt die Gruppe als aktiv (Ziel neuer Buchungen). */
   onActivate?: () => void;
-  onRename: (name: string) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onAddNote: () => void;
+  /** Tooltip der Aktiv-Checkbox — je Tab unterschiedlich formuliert. */
+  activeHint?: string;
+  onRename?: (name: string) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onAddNote?: () => void;
   /** Öffnet den Gruppen-Dialog (z.B. für das Abrechenbar-Flag). */
   onEdit?: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }
 
 /** Gruppen-Kopfzeile im Redesign: Akzentbalken, Inline-Titel, Summe, Aktionen. */
@@ -79,7 +99,11 @@ export function GroupHeaderRow({
   isFirst,
   isLast,
   pending,
+  readOnly,
+  icon: Icon,
+  info,
   onActivate,
+  activeHint = "Aktive Gruppe — neue Positionen aus dem Katalog landen hier",
   onRename,
   onMoveUp,
   onMoveDown,
@@ -108,7 +132,10 @@ export function GroupHeaderRow({
             )}
             aria-hidden
           />
-          {onActivate && (
+          {Icon && (
+            <Icon className="mr-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          {!Icon && onActivate && (
             /* Aktive Gruppe = Ziel für neue Buchungen aus dem Katalog. */
             <Checkbox
               checked={!!active}
@@ -117,31 +144,39 @@ export function GroupHeaderRow({
                 if (!active) onActivate();
               }}
               className="mr-0.5 shrink-0"
-              title="Aktive Gruppe — neue Positionen aus dem Katalog landen hier"
+              title={activeHint}
               aria-label="Als aktive Gruppe setzen"
             />
           )}
-          {/* Inline editierbarer Gruppentitel (Enter oder Blur speichert). */}
-          <input
-            key={group.id + group.name}
-            defaultValue={group.name}
-            disabled={pending}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") {
-                (e.target as HTMLInputElement).value = group.name;
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v && v !== group.name) onRename(v);
-              else e.target.value = group.name;
-            }}
-            className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-xs font-bold uppercase tracking-[.04em] text-foreground outline-none focus:bg-card focus:shadow-[inset_0_0_0_1px_hsl(var(--input))]"
-            aria-label="Gruppenname"
-          />
+          {/* Gruppentitel: inline editierbar (Enter oder Blur speichert) —
+              abgeleitete Gruppen zeigen ihn nur an. */}
+          {readOnly || !onRename ? (
+            <span className="min-w-0 flex-1 truncate px-1 py-0.5 text-xs font-bold uppercase tracking-[.04em] text-foreground">
+              {group.name}
+            </span>
+          ) : (
+            <input
+              key={group.id + group.name}
+              defaultValue={group.name}
+              disabled={pending}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") {
+                  (e.target as HTMLInputElement).value = group.name;
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== group.name) onRename(v);
+                else e.target.value = group.name;
+              }}
+              className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-xs font-bold uppercase tracking-[.04em] text-foreground outline-none focus:bg-card focus:shadow-[inset_0_0_0_1px_hsl(var(--input))]"
+              aria-label="Gruppenname"
+            />
+          )}
+          {info && <InfoHint text={info} />}
           {!group.billable && (
             <Badge variant="warning" className="shrink-0">
               nicht abrechenbar
@@ -152,23 +187,31 @@ export function GroupHeaderRow({
               {sumLabel}
             </span>
           )}
-          <HeaderIconButton onClick={onMoveUp} title="Gruppe nach oben" disabled={pending || isFirst}>
-            <ChevronUp className="h-3.5 w-3.5" />
-          </HeaderIconButton>
-          <HeaderIconButton onClick={onMoveDown} title="Gruppe nach unten" disabled={pending || isLast}>
-            <ChevronDown className="h-3.5 w-3.5" />
-          </HeaderIconButton>
-          <HeaderIconButton onClick={onAddNote} title="Zwischenüberschrift hinzufügen" disabled={pending}>
-            <Heading className="h-3.5 w-3.5" />
-          </HeaderIconButton>
+          {onMoveUp && (
+            <HeaderIconButton onClick={onMoveUp} title="Gruppe nach oben" disabled={pending || isFirst}>
+              <ChevronUp className="h-3.5 w-3.5" />
+            </HeaderIconButton>
+          )}
+          {onMoveDown && (
+            <HeaderIconButton onClick={onMoveDown} title="Gruppe nach unten" disabled={pending || isLast}>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </HeaderIconButton>
+          )}
+          {onAddNote && (
+            <HeaderIconButton onClick={onAddNote} title="Zwischenüberschrift hinzufügen" disabled={pending}>
+              <Heading className="h-3.5 w-3.5" />
+            </HeaderIconButton>
+          )}
           {onEdit && (
             <HeaderIconButton onClick={onEdit} title="Gruppe bearbeiten" disabled={pending}>
               <Pencil className="h-3 w-3" />
             </HeaderIconButton>
           )}
-          <HeaderIconButton onClick={onDelete} title="Gruppe löschen" disabled={pending} destructive>
-            <Trash2 className="h-3 w-3" />
-          </HeaderIconButton>
+          {onDelete && (
+            <HeaderIconButton onClick={onDelete} title="Gruppe löschen" disabled={pending} destructive>
+              <Trash2 className="h-3 w-3" />
+            </HeaderIconButton>
+          )}
         </div>
       </TableCell>
     </TableRow>
@@ -301,14 +344,11 @@ export function GroupTableFooter({
   onAddGroup,
   addLabel = "Gruppe hinzufügen",
   pending,
-  secondary,
   children,
 }: {
   onAddGroup: () => void;
   addLabel?: string;
   pending?: boolean;
-  /** Optionaler zweiter Button links (z.B. „Kosten-Gruppe hinzufügen"). */
-  secondary?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -322,31 +362,8 @@ export function GroupTableFooter({
         >
           <Plus className="h-3.5 w-3.5" /> {addLabel}
         </button>
-        {secondary}
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">{children}</div>
     </div>
-  );
-}
-
-/** Sekundärer gestrichelter Footer-Button im selben Stil. */
-export function FooterDashedButton({
-  onClick,
-  pending,
-  children,
-}: {
-  onClick: () => void;
-  pending?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={pending}
-      className="inline-flex h-[30px] items-center gap-1.5 rounded-md border border-dashed border-input bg-transparent px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
-    >
-      <Plus className="h-3.5 w-3.5" /> {children}
-    </button>
   );
 }

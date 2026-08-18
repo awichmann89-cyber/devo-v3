@@ -7,7 +7,7 @@ import { ProjectGroupKind } from "@prisma/client";
 
 /**
  * Stellt sicher, dass ein Projekt mindestens eine Gruppe vom angegebenen Typ hat.
- * Wird beim ersten Hinzufügen von Material/Service aufgerufen.
+ * Wird beim ersten Hinzufügen von Material/Service/Kosten aufgerufen.
  * Gibt die ID der (default-)Gruppe zurück.
  */
 export async function ensureDefaultGroup(
@@ -31,6 +31,63 @@ export async function ensureDefaultGroup(
     select: { id: true },
   });
   return created.id;
+}
+
+/**
+ * Sucht die Kosten-Gruppe mit diesem Namen (Groß-/Kleinschreibung egal) oder
+ * legt sie am Ende an. Gibt die Gruppen-ID zurück.
+ */
+export async function ensureCostGroupNamed(
+  projectId: string,
+  name: string
+): Promise<string> {
+  await requireRole(CAN_WRITE);
+  const trimmed = name.trim();
+  if (!trimmed) return ensureDefaultGroup(projectId, "COST");
+
+  const existing = await prisma.projectGroup.findFirst({
+    where: {
+      projectId,
+      kind: "COST",
+      name: { equals: trimmed, mode: "insensitive" },
+    },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const last = await prisma.projectGroup.findFirst({
+    where: { projectId, kind: "COST" },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const created = await prisma.projectGroup.create({
+    data: {
+      projectId,
+      kind: "COST",
+      name: trimmed,
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
+
+/**
+ * Kosten-Gruppe für eine Zumietung ableiten: pro Vermieter eine Gruppe, damit
+ * beim Zumieten aus dem Material-Tab automatisch „mobilestage.de", „Event-Lenze"
+ * usw. entstehen. Ohne Vermieter landet die Position in der Default-Gruppe.
+ * Die Zuordnung ist danach jederzeit über das Gruppen-Select änderbar.
+ */
+export async function ensureCostGroupForSupplier(
+  projectId: string,
+  supplier: string | null | undefined
+): Promise<string> {
+  await requireRole(CAN_WRITE);
+  const s = (supplier ?? "").trim();
+  return s
+    ? ensureCostGroupNamed(projectId, s)
+    : ensureDefaultGroup(projectId, "COST");
 }
 
 /**
@@ -196,15 +253,13 @@ export async function deleteProjectGroup(
               data: { groupId: moveToGroupId },
             }),
           ];
-        case "SUBHIRE":
+        case "COST":
+          // Kosten-Gruppen enthalten Zumietungen UND Extrakosten gemeinsam.
           return [
             prisma.projectSubhire.updateMany({
               where: { costGroupId: id },
               data: { costGroupId: moveToGroupId },
             }),
-          ];
-        case "EXTRA":
-          return [
             prisma.projectExtraCost.updateMany({
               where: { groupId: id },
               data: { groupId: moveToGroupId },

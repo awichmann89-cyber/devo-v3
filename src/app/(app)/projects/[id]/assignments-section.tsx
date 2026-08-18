@@ -195,6 +195,11 @@ interface Props {
    * blaue Zeile in ihrer Gruppe. Beeinflussen Planung/Preise NICHT.
    */
   subhires: SubhireVM[];
+  /**
+   * Gruppen der Kosten-Seite — der Zumiet-Dialog lässt sie hier direkt wählen.
+   * Ohne Auswahl leitet der Server die Gruppe aus dem Vermieter ab.
+   */
+  costGroups: { id: string; name: string }[];
 }
 
 export interface SubhireVM {
@@ -202,7 +207,7 @@ export interface SubhireVM {
   deviceId: string | null;
   adHocItemId: string | null;
   groupId: string | null;
-  /** Gruppe auf der Kosten-Seite (kind SUBHIRE) — beim Bearbeiten durchreichen. */
+  /** Gruppe auf der Kosten-Seite (kind COST) — beim Bearbeiten durchreichen. */
   costGroupId: string | null;
   name: string;
   supplier: string | null;
@@ -278,6 +283,7 @@ export function AssignmentsSection({
   scanProgress,
   isSale,
   subhires,
+  costGroups,
 }: Props) {
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
@@ -2071,6 +2077,7 @@ export function AssignmentsSection({
         devices={deviceOptions}
         adHocItems={adHocItemOptions}
         groups={materialGroupOptions}
+        costGroups={costGroups}
       />
       <ConfirmDialog
         open={subhireDelete !== null}

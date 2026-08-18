@@ -95,13 +95,13 @@ export async function addGroupComment(
 
   // Am Ende der Gruppe einsortieren — über ALLE Item-Typen, damit der
   // Kommentar nicht zwischen Geräten oder Services landet. Kosten-Gruppen
-  // (SUBHIRE/EXTRA) haben einen eigenen sortOrder-Raum.
+  // (COST) haben einen eigenen sortOrder-Raum.
   const group = await prisma.projectGroup.findUnique({
     where: { id: groupId },
     select: { kind: true },
   });
   const sortOrder =
-    group?.kind === "SUBHIRE" || group?.kind === "EXTRA"
+    group?.kind === "COST"
       ? await nextCostSortOrderForGroup(projectId, groupId)
       : await nextSortOrderForGroup(projectId, groupId);
 

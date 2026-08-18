@@ -34,8 +34,8 @@ export interface SubhireFormValue {
   adHocItemId: string | null;
   groupId: string | null;
   /**
-   * Gruppe auf der Kosten-Seite (kind SUBHIRE). undefined = nicht ändern
-   * (z.B. Bearbeitung aus dem Material-Tab); null = Default-Gruppe.
+   * Gruppe auf der Kosten-Seite (kind COST). null = automatisch aus dem
+   * Vermieter ableiten (eine Gruppe je Vermieter).
    */
   costGroupId?: string | null;
   name: string;
@@ -73,15 +73,27 @@ interface Props {
   adHocItems: { id: string; name: string }[];
   /** Material-Gruppen für die optionale Platzierung freier Zumietungen. */
   groups: { id: string; name: string }[];
+  /** Gruppen der Kosten-Seite — bestimmen die Platzierung auf „Zumietung & Kosten". */
+  costGroups: { id: string; name: string }[];
 }
 
 const NO_GROUP = "__none__";
+/** Kosten-Gruppe aus dem Vermieter ableiten (Default). */
+const AUTO_GROUP = "__auto__";
 
 /**
  * Gemeinsamer Dialog zum Anlegen/Bearbeiten einer Zumietung. Wird vom Material-
  * Tab (vorbelegt mit Gerät + Fehlmenge) und vom Kosten-Tab genutzt.
  */
-export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, groups }: Props) {
+export function SubhireDialog({
+  projectId,
+  value,
+  onClose,
+  devices,
+  adHocItems,
+  groups,
+  costGroups,
+}: Props) {
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState<SubhireFormValue>(emptySubhire());
 
@@ -147,7 +159,8 @@ export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, 
           deviceId: form.deviceId,
           adHocItemId: form.adHocItemId,
           groupId: form.groupId,
-          costGroupId: form.costGroupId,
+          // null → Server leitet die Kosten-Gruppe aus dem Vermieter ab.
+          costGroupId: form.costGroupId ?? null,
           supplier: form.supplier.trim() || null,
           quantity: form.quantity,
           unitCost: form.unitCost,
@@ -240,6 +253,35 @@ export function SubhireDialog({ projectId, value, onClose, devices, adHocItems, 
               onChange={(e) => set("supplier", e.target.value)}
               placeholder="Von wem zugemietet?"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Kosten-Gruppe</Label>
+            <Select
+              value={form.costGroupId ?? AUTO_GROUP}
+              onValueChange={(v) =>
+                set("costGroupId", v === AUTO_GROUP ? null : v)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AUTO_GROUP}>
+                  Automatisch — Gruppe je Vermieter
+                </SelectItem>
+                {costGroups.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Bestimmt, in welcher Gruppe die Position unter „Zumietung &amp; Kosten"
+              steht. „Automatisch" legt bei Bedarf eine Gruppe mit dem Namen des
+              Vermieters an — die Zuordnung lässt sich dort jederzeit ändern.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -68,7 +68,7 @@ export async function nextSortOrderForGroup(
 
 /**
  * Wie `nextSortOrderForGroup`, aber für Gruppen auf der Kosten-Seite
- * (kind SUBHIRE/EXTRA). Dort teilen sich Zumietungen (costSortOrder),
+ * (kind COST). Dort teilen sich Zumietungen (costSortOrder),
  * Extrakosten (sortOrder) und Zwischenüberschriften (sortOrder) den
  * sortOrder-Raum der Gruppe.
  */

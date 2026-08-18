@@ -10,7 +10,10 @@ import {
   nextCostSortOrderForGroup,
 } from "@/lib/project-sort-order";
 import { subhireSchema, extraCostSchema } from "@/lib/validators";
-import { ensureDefaultGroup } from "./groups-actions";
+import {
+  ensureDefaultGroup,
+  ensureCostGroupForSupplier,
+} from "./groups-actions";
 
 type SubhireInput = z.input<typeof subhireSchema>;
 type ExtraCostInput = z.input<typeof extraCostSchema>;
@@ -39,11 +42,12 @@ export async function addSubhire(projectId: string, input: SubhireInput) {
     ? await nextSortOrderForGroup(projectId, groupId)
     : 0;
 
-  // Auf der Kosten-Seite steht jede Zumietung in einer Gruppe (kind SUBHIRE).
-  // Ohne Angabe (z.B. aus dem Material-Tab) → Default-Gruppe sicherstellen.
+  // Auf der Kosten-Seite steht jede Zumietung in einer Gruppe (kind COST).
+  // Ohne explizite Angabe (z.B. beim Zumieten aus dem Material-Tab) wird die
+  // Gruppe aus dem Vermieter abgeleitet: pro Vermieter genau eine Gruppe.
   const costGroupId =
     nullable(data.costGroupId) ??
-    (await ensureDefaultGroup(projectId, "SUBHIRE"));
+    (await ensureCostGroupForSupplier(projectId, data.supplier));
   const costSortOrder = await nextCostSortOrderForGroup(projectId, costGroupId);
 
   await prisma.projectSubhire.create({
@@ -71,8 +75,9 @@ export async function updateSubhire(subhireId: string, input: SubhireInput) {
   const data = subhireSchema.parse(input);
 
   // Kosten-Gruppe nur ändern, wenn explizit übergeben (undefined = unverändert,
-  // z.B. bei Bearbeitung aus dem Material-Tab). Bei Gruppenwechsel ans Ende
-  // der Zielgruppe einsortieren.
+  // z.B. bei Bearbeitung aus dem Material-Tab). `null` = wieder automatisch aus
+  // dem Vermieter ableiten. Bei Gruppenwechsel ans Ende der Zielgruppe
+  // einsortieren.
   let costGroupUpdate: { costGroupId: string; costSortOrder: number } | undefined;
   if (data.costGroupId !== undefined) {
     const existing = await prisma.projectSubhire.findUniqueOrThrow({
@@ -81,7 +86,7 @@ export async function updateSubhire(subhireId: string, input: SubhireInput) {
     });
     const target =
       nullable(data.costGroupId) ??
-      (await ensureDefaultGroup(existing.projectId, "SUBHIRE"));
+      (await ensureCostGroupForSupplier(existing.projectId, data.supplier));
     if (target !== existing.costGroupId) {
       costGroupUpdate = {
         costGroupId: target,
@@ -120,7 +125,7 @@ export async function updateSubhireQuantity(subhireId: string, quantity: number)
   revalidatePath(`/projects/${updated.projectId}`);
 }
 
-/** Zumietung in andere Kosten-Gruppe (kind SUBHIRE) verschieben. */
+/** Zumietung in andere Kosten-Gruppe (kind COST) verschieben. */
 export async function moveSubhireToCostGroup(subhireId: string, groupId: string) {
   await requireRole(CAN_WRITE);
   const s = await prisma.projectSubhire.findUniqueOrThrow({
@@ -153,9 +158,10 @@ export async function addExtraCost(projectId: string, input: ExtraCostInput) {
   await requireRole(CAN_WRITE);
   const data = extraCostSchema.parse(input);
 
-  // Jede Extrakosten-Position steht in einer Gruppe (kind EXTRA).
+  // Jede Extrakosten-Position steht in einer Kosten-Gruppe (kind COST) —
+  // derselben Gruppenart wie Zumietungen.
   const groupId =
-    nullable(data.groupId) ?? (await ensureDefaultGroup(projectId, "EXTRA"));
+    nullable(data.groupId) ?? (await ensureDefaultGroup(projectId, "COST"));
   const sortOrder = await nextCostSortOrderForGroup(projectId, groupId);
 
   await prisma.projectExtraCost.create({
@@ -186,7 +192,7 @@ export async function updateExtraCost(costId: string, input: ExtraCostInput) {
     });
     const target =
       nullable(data.groupId) ??
-      (await ensureDefaultGroup(existing.projectId, "EXTRA"));
+      (await ensureDefaultGroup(existing.projectId, "COST"));
     if (target !== existing.groupId) {
       groupUpdate = {
         groupId: target,
@@ -209,7 +215,7 @@ export async function updateExtraCost(costId: string, input: ExtraCostInput) {
   revalidatePath(`/projects/${updated.projectId}`);
 }
 
-/** Extrakosten-Position in andere Gruppe (kind EXTRA) verschieben. */
+/** Extrakosten-Position in andere Kosten-Gruppe (kind COST) verschieben. */
 export async function moveExtraCostToGroup(costId: string, groupId: string) {
   await requireRole(CAN_WRITE);
   const c = await prisma.projectExtraCost.findUniqueOrThrow({

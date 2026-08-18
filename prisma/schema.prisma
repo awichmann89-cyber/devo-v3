@@ -397,17 +397,20 @@ model Project {
   @@index([planningStart, planningEnd])
 }
 
-// Gruppen-Typ: gehört zum Material- oder zum Personal/Transport-Tab.
-// (Zwei separate Listen pro Projekt, damit z.B. "Ton" und "Aufbau" nicht vermischt werden.)
+// Gruppen-Typ: gehört zum Material-, zum Personal/Transport- oder zum
+// Kosten-Tab. (Separate Listen pro Projekt, damit z.B. "Ton" und "Aufbau"
+// nicht vermischt werden.)
 // MATERIAL nimmt Geräte, Kabel und Ad-hoc-Positionen gemeinsam auf — es gibt
 // bewusst KEINEN eigenen Kabel-Gruppentyp mehr (Migration 22).
+// COST nimmt Zumietungen UND Extrakosten gemeinsam auf — es gibt bewusst
+// KEINE getrennten Zumietungs-/Extrakosten-Gruppen mehr (Migration 28); die
+// Positionen unterscheiden sich in der UI nur noch über ihr Icon.
 enum ProjectGroupKind {
   MATERIAL
   SERVICE
-  // Gruppen auf der Kosten-Seite (rein interne Kostenschicht):
-  // SUBHIRE → Zugemietetes Material, EXTRA → Personal & Sonstiges.
-  SUBHIRE
-  EXTRA
+  // Gruppe auf der Kosten-Seite (rein interne Kostenschicht): nimmt
+  // zugemietetes Material und sonstige Extrakosten gemeinsam auf.
+  COST
 }
 
 // Gruppen-Überschrift innerhalb eines Projekts.
@@ -441,9 +444,9 @@ model ProjectGroup {
   // Freie (nicht mit einem Gerät verknüpfte) Zumietungen, die als eigene
   // blaue Zeile in dieser Gruppe erscheinen.
   subhires         ProjectSubhire[]         @relation("SubhireMaterialGroup")
-  // Zumietungen, die auf der Kosten-Seite in dieser Gruppe (kind SUBHIRE) stehen.
+  // Zumietungen, die auf der Kosten-Seite in dieser Gruppe (kind COST) stehen.
   costSubhires     ProjectSubhire[]         @relation("SubhireCostGroup")
-  // Extrakosten, die auf der Kosten-Seite in dieser Gruppe (kind EXTRA) stehen.
+  // Extrakosten, die auf der Kosten-Seite in dieser Gruppe (kind COST) stehen.
   extraCosts       ProjectExtraCost[]
 
   @@index([projectId, kind, sortOrder])
@@ -521,8 +524,9 @@ model ProjectSubhire {
   // blaue Zeile erscheint. Bei verknüpften Zumietungen i.d.R. leer.
   groupId       String?
   group         ProjectGroup?     @relation("SubhireMaterialGroup", fields: [groupId], references: [id], onDelete: SetNull)
-  // Gruppe auf der Kosten-Seite (kind SUBHIRE). Getrennt von `groupId`, weil
-  // dieses die Platzierung im Material-Tab steuert.
+  // Gruppe auf der Kosten-Seite (kind COST). Getrennt von `groupId`, weil
+  // dieses die Platzierung im Material-Tab steuert. Wird beim Zumieten aus dem
+  // Material-Tab automatisch aus `supplier` abgeleitet (Gruppe je Vermieter).
   costGroupId   String?
   costGroup     ProjectGroup?     @relation("SubhireCostGroup", fields: [costGroupId], references: [id], onDelete: SetNull)
   name          String // Bezeichnung (bei Verknüpfung Default = Gerätename)
@@ -550,7 +554,7 @@ model ProjectExtraCost {
   id        String        @id @default(cuid())
   projectId String
   project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  // Gruppe auf der Kosten-Seite (kind EXTRA).
+  // Gruppe auf der Kosten-Seite (kind COST).
   groupId   String?
   group     ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   label     String

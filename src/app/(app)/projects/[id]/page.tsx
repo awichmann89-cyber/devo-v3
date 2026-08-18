@@ -436,6 +436,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const extraOther = project.extraCosts
     .filter((c) => c.kind === "SONSTIGES")
     .reduce((s, c) => s + Number(c.amount), 0);
+  // Gruppen der Kosten-Seite — EIN Typ für Zumietungen und Extrakosten.
+  // Auch der Material-Tab braucht sie: der Zumiet-Dialog lässt die Kosten-Gruppe
+  // dort direkt wählen.
+  const costGroups = project.groups
+    .filter((g) => g.kind === "COST")
+    .map((g) => ({ id: g.id, name: g.name, billable: g.billable }));
   // ----- Überbuchungs-Prüfung: Einsätze derselben Personen in ANDEREN Projekten -----
   const projectPersonIds = [
     ...new Set(project.services.flatMap((s) => s.personAssignments.map((a) => a.personId))),
@@ -874,6 +880,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               unitCost: Number(s.unitCost),
               notes: s.notes,
             }))}
+            costGroups={costGroups}
           />
         </TabsContent>
 
@@ -988,12 +995,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             materialGroups={project.groups
               .filter((g) => g.kind === "MATERIAL")
               .map((g) => ({ id: g.id, name: g.name }))}
-            subhireGroups={project.groups
-              .filter((g) => g.kind === "SUBHIRE")
-              .map((g) => ({ id: g.id, name: g.name, billable: g.billable }))}
-            extraGroups={project.groups
-              .filter((g) => g.kind === "EXTRA")
-              .map((g) => ({ id: g.id, name: g.name, billable: g.billable }))}
+            costGroups={costGroups}
             groupComments={project.groupComments.map((c) => ({
               id: c.id,
               groupId: c.groupId,
