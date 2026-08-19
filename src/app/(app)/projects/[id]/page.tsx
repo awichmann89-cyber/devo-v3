@@ -546,6 +546,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       });
       return {
         id: a.id,
+        personId: a.personId,
         personName: a.person.name,
         employmentType: a.person.employmentType,
         serviceName: s.serviceItem.name,

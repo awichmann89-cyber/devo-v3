@@ -124,6 +124,7 @@ const TYPE_PERSONNEL = {
 const PERSONNEL_INFO =
   "Automatisch aus dem Einsatzplan (Tab Personal & Transport): " +
   "Freelancer-Pauschalen direkt, Stunden-Vergütungen über die erfassten Zeiten. " +
+  "Eine Zeile je Person — alle Einsätze des Projekts zusammengefasst. " +
   "Hier nicht doppelt als Extrakosten erfassen.";
 
 /** Bezeichnungs-Zelle: Typ-Icon links, Titel und Zusatzzeilen rechts. */
@@ -208,6 +209,7 @@ interface Props {
 
 export interface PersonnelEntryVM {
   id: string;
+  personId: string;
   personName: string;
   employmentType: EmploymentType;
   serviceName: string;
@@ -226,6 +228,75 @@ export interface PersonnelEntryVM {
   effMinutes: number;
   effCost: number;
   effPlanned: boolean;
+}
+
+/** Vergütungs-Label eines Einsatzes: Pauschale > Stundensatz > Stundenlohn. */
+function personnelRateLabel(p: PersonnelEntryVM): string {
+  if (p.agreedRate !== null) return `${formatCurrency(p.agreedRate)} pausch.`;
+  if (p.hourlyRate !== null) return `${formatCurrency(p.hourlyRate)}/h`;
+  if (p.personHourlyWage !== null && p.employmentType === "MINIJOBBER") {
+    return `${formatCurrency(p.personHourlyWage)}/h`;
+  }
+  if (p.timeCost > 0) return "Lohn";
+  return "—";
+}
+
+/** Eine Person mit allen ihren Einsätzen im Projekt zusammengefasst. */
+interface PersonnelSummary {
+  personId: string;
+  personName: string;
+  employmentType: EmploymentType;
+  /** Anzahl der Einsätze, die in diese Zeile eingehen. */
+  assignmentCount: number;
+  /** Positionen, in denen die Person eingesetzt ist (ohne Dubletten). */
+  serviceNames: string[];
+  minutes: number;
+  cost: number;
+  /** true, sobald ein Einsatz noch auf geplanten statt erfassten Zeiten beruht. */
+  planned: boolean;
+  /** Satz, wenn über alle Einsätze identisch — sonst null („gemischt"). */
+  rateLabel: string | null;
+}
+
+/**
+ * Fasst den Einsatzplan für die Kosten-Seite auf eine Zeile je Person zusammen:
+ * Stunden und Kosten summiert, teuerste Person oben. Die einzelnen Einsätze
+ * stehen im Tab Personal & Transport.
+ */
+function summarizePersonnel(entries: PersonnelEntryVM[]): PersonnelSummary[] {
+  const byPerson = new Map<string, PersonnelSummary>();
+  const ratesByPerson = new Map<string, Set<string>>();
+  for (const p of entries) {
+    let row = byPerson.get(p.personId);
+    if (!row) {
+      row = {
+        personId: p.personId,
+        personName: p.personName,
+        employmentType: p.employmentType,
+        assignmentCount: 0,
+        serviceNames: [],
+        minutes: 0,
+        cost: 0,
+        planned: false,
+        rateLabel: null,
+      };
+      byPerson.set(p.personId, row);
+      ratesByPerson.set(p.personId, new Set());
+    }
+    row.assignmentCount += 1;
+    if (!row.serviceNames.includes(p.serviceName)) row.serviceNames.push(p.serviceName);
+    row.minutes += p.effMinutes;
+    row.cost += p.effCost;
+    row.planned = row.planned || p.effPlanned;
+    ratesByPerson.get(p.personId)!.add(personnelRateLabel(p));
+  }
+  for (const row of byPerson.values()) {
+    const rates = ratesByPerson.get(row.personId)!;
+    row.rateLabel = rates.size === 1 ? [...rates][0] : null;
+  }
+  return [...byPerson.values()].sort(
+    (a, b) => b.cost - a.cost || a.personName.localeCompare(b.personName, "de")
+  );
 }
 
 type ExtraDialogState = {
@@ -313,7 +384,10 @@ export function CostsSection({
   // gepflegt werden sie im Tab Personal & Transport, hier nur Anzeige.
   const grandTotal = subhireTotal + extraTotal + personnelCost;
 
-  const hasPersonnel = personnelEntries.length > 0 || orphanTime.minutes > 0;
+  // Einsatzplan auf eine Zeile je Person verdichten — sonst steht hier pro
+  // Einsatz eine Zeile und die Liste wird unübersichtlich.
+  const personnelRows = summarizePersonnel(personnelEntries);
+  const hasPersonnel = personnelRows.length > 0 || orphanTime.minutes > 0;
   const isEmpty =
     costGroups.length === 0 &&
     subhires.length === 0 &&
@@ -940,51 +1014,57 @@ export function CostsSection({
                       icon={Users}
                       info={PERSONNEL_INFO}
                     />
-                    {personnelEntries.map((p) => (
-                      <TableRow key={`personnel:${p.id}`}>
-                        <TableCell />
-                        <TableCell>
-                          <ItemLabel type={TYPE_PERSONNEL}>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{p.personName}</span>
-                              <Badge variant={employmentTypeVariant(p.employmentType)}>
-                                {employmentTypeLabel(p.employmentType)}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {p.serviceName}
-                              </span>
-                              {p.effPlanned && (
-                                <Badge
-                                  variant="outline"
-                                  title="Noch keine Ist-Zeiten erfasst — Stunden und Betrag aus dem geplanten Zeitfenster"
-                                >
-                                  geplant
+                    {personnelRows.map((r) => {
+                      const positions = r.serviceNames.join(" · ");
+                      return (
+                        <TableRow key={`personnel:${r.personId}`}>
+                          <TableCell />
+                          <TableCell>
+                            <ItemLabel type={TYPE_PERSONNEL}>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium">{r.personName}</span>
+                                <Badge variant={employmentTypeVariant(r.employmentType)}>
+                                  {employmentTypeLabel(r.employmentType)}
                                 </Badge>
-                              )}
-                            </div>
-                          </ItemLabel>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                          {p.effMinutes > 0 ? `${formatMinutes(p.effMinutes)} h` : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                          {p.agreedRate !== null
-                            ? `${formatCurrency(p.agreedRate)} pausch.`
-                            : p.hourlyRate !== null
-                              ? `${formatCurrency(p.hourlyRate)}/h`
-                              : p.personHourlyWage !== null &&
-                                  p.employmentType === "MINIJOBBER"
-                                ? `${formatCurrency(p.personHourlyWage)}/h`
-                                : p.timeCost > 0
-                                  ? "Lohn"
-                                  : "—"}
-                        </TableCell>
-                        <TableCell className="text-right num text-sm font-medium">
-                          {p.effCost > 0 ? formatCurrency(p.effCost) : "—"}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                    ))}
+                                <span
+                                  className="truncate text-xs text-muted-foreground"
+                                  title={positions}
+                                >
+                                  {r.assignmentCount}{" "}
+                                  {r.assignmentCount === 1 ? "Einsatz" : "Einsätze"} ·{" "}
+                                  {positions}
+                                </span>
+                                {r.planned && (
+                                  <Badge
+                                    variant="outline"
+                                    title="Für mindestens einen Einsatz sind noch keine Ist-Zeiten erfasst — Stunden und Betrag stammen dort aus dem geplanten Zeitfenster"
+                                  >
+                                    geplant
+                                  </Badge>
+                                )}
+                              </div>
+                            </ItemLabel>
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                            {r.minutes > 0 ? `${formatMinutes(r.minutes)} h` : "—"}
+                          </TableCell>
+                          <TableCell
+                            className="text-right font-mono text-xs text-muted-foreground"
+                            title={
+                              r.rateLabel
+                                ? undefined
+                                : "Unterschiedliche Vergütungen in den Einsätzen dieser Person"
+                            }
+                          >
+                            {r.rateLabel ?? "gemischt"}
+                          </TableCell>
+                          <TableCell className="text-right num text-sm font-medium">
+                            {r.cost > 0 ? formatCurrency(r.cost) : "—"}
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      );
+                    })}
                     {orphanTime.minutes > 0 && (
                       <TableRow>
                         <TableCell />
