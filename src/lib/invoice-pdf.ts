@@ -173,6 +173,33 @@ export async function buildInvoicePdf(
   const materialBereichNet = materialBereichSub - materialBereichDisc;
   const servicesBereichNet = servicesBereichSub - servicesBereichDisc;
 
+  // Brutto-Summen der Bereiche (vor allen Rabatten). Die Bereichs-Zwischensumme
+  // in der Tabelle zeigt diesen Wert — alle Rabatte stehen gesammelt in der
+  // eigenen Sektion „Rabatte" am Ende der Tabelle.
+  const materialBereichGross = materialGroups.reduce(
+    (s, g) => s + (groupNetMap.get(g.id)?.sub ?? 0),
+    0,
+  );
+  const servicesBereichGross = serviceGroups.reduce(
+    (s, g) => s + (groupNetMap.get(g.id)?.sub ?? 0),
+    0,
+  );
+  const materialGroupDisc = materialGroups.reduce(
+    (s, g) => s + (groupNetMap.get(g.id)?.disc ?? 0),
+    0,
+  );
+  const servicesGroupDisc = serviceGroups.reduce(
+    (s, g) => s + (groupNetMap.get(g.id)?.disc ?? 0),
+    0,
+  );
+  // Summe aller Rabatte — Brutto der Bereiche minus diese Summe ergibt genau
+  // `subAfterAll`, die Tabelle bleibt also nachrechenbar.
+  const totalDiscounts =
+    materialGroupDisc +
+    servicesGroupDisc +
+    materialBereichDisc +
+    servicesBereichDisc;
+
   const subAfterAll = materialBereichNet + servicesBereichNet;
   const projectDiscount = (subAfterAll * snapProjectDiscountPercent) / 100;
   const totalNet = subAfterAll - projectDiscount;
@@ -329,6 +356,7 @@ export async function buildInvoicePdf(
       bold?: boolean;
       bg?: [number, number, number];
       lighter?: boolean;
+      white?: boolean;
       fontSize?: number;
     } = {}
   ): RowInput {
@@ -336,6 +364,7 @@ export async function buildInvoicePdf(
     if (opts.bold) styles.fontStyle = "bold";
     if (opts.bg) styles.fillColor = opts.bg;
     if (opts.lighter) styles.textColor = 110;
+    if (opts.white) styles.textColor = 255;
     if (opts.fontSize) styles.fontSize = opts.fontSize;
     return [
       { content: label, styles },
@@ -348,9 +377,13 @@ export async function buildInvoicePdf(
 
   const SECTION_FONT_SIZE = 12;
 
-  const SECTION_BG: [number, number, number] = [220, 220, 220];
-  const TOTAL_BG: [number, number, number] = [232, 232, 232];
-  // Akzentfarbe für Gruppen-Header + Trennstrich über Zwischensumme. Wird
+  // Gruppen-Header und Gruppen-Zwischensummen liegen leicht grau, die Bereiche
+  // („Material", „Personal & Transport", „Rabatte") in der Akzentfarbe —
+  // jeweils inklusive ihrer Zwischensumme.
+  const GROUP_BG: [number, number, number] = [220, 220, 220];
+  const GROUP_TOTAL_BG: [number, number, number] = [235, 235, 235];
+  const GROUP_LINE: [number, number, number] = [190, 190, 190];
+  // Akzentfarbe für die Bereichs-Zeilen (Header + Zwischensumme). Wird
   // pro Dokument im Snapshot konserviert, sodass alte PDFs ihre Farbe behalten.
   const ACCENT_RGB = parseHexColor(snapshot.settings.pdfAccentColor);
 
@@ -367,8 +400,7 @@ export async function buildInvoicePdf(
         styles: {
           fontStyle: "bold" as const,
           fontSize: 11,
-          fillColor: ACCENT_RGB,
-          textColor: 255,
+          fillColor: GROUP_BG,
           cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
         },
       },
@@ -379,6 +411,23 @@ export async function buildInvoicePdf(
    * Leerzeile, die als visueller Abstand am Ende einer Gruppe eingefügt wird.
    * colSpan über alle Spalten, minimale Höhe via cellPadding.
    */
+  /**
+   * Bereichs-Zeile in der Akzentfarbe — sowohl für den Bereichs-Header
+   * („Material") als auch für dessen Zwischensumme.
+   */
+  function sectionRow(
+    label: string,
+    sum: string,
+    fontSize: number = SECTION_FONT_SIZE
+  ): RowInput {
+    return row(label, "", "", "", sum, {
+      bold: true,
+      bg: ACCENT_RGB,
+      white: true,
+      fontSize,
+    });
+  }
+
   function spacerRow(): RowInput {
     return [
       {
@@ -399,8 +448,9 @@ export async function buildInvoicePdf(
   function subtotalRow(label: string, sum: string): RowInput {
     const labelStyles = {
       fontStyle: "bold" as const,
-      lineWidth: { top: 0.6 },
-      lineColor: ACCENT_RGB,
+      fillColor: GROUP_TOTAL_BG,
+      lineWidth: { top: 0.3 },
+      lineColor: GROUP_LINE,
       cellPadding: { top: 2.5, bottom: 1.5, left: 2, right: 2 },
     };
     const rightStyles = { ...labelStyles, halign: "right" as const };
@@ -423,13 +473,7 @@ export async function buildInvoicePdf(
 
   // -------- Material --------
   if (hasMaterial) {
-    body.push(
-      row("Material", "", "", "", "", {
-        bold: true,
-        bg: SECTION_BG,
-        fontSize: SECTION_FONT_SIZE,
-      })
-    );
+    body.push(sectionRow("Material", ""));
 
     for (const group of materialGroups) {
       const rows = materialByGroup.get(group.id) ?? [];
@@ -527,51 +571,18 @@ export async function buildInvoicePdf(
         }
       }
       body.push(subtotalRow(INDENT_2 + "Zwischensumme " + group.name, fmt(info.sub)));
-      if (info.disc > 0) {
-        body.push(
-          row(
-            INDENT_2 + `Rabatt ${Number(group.discountPercent)}%`,
-            "",
-            "",
-            "",
-            "-" + fmt(info.disc),
-            { lighter: true }
-          )
-        );
-      }
       // Visueller Abstand zur nächsten Gruppe — macht die Trennung deutlicher.
       body.push(spacerRow());
     }
 
-    if (snapMaterialDiscountPercent > 0) {
-      body.push(
-        row(
-          INDENT_1 + `Material-Rabatt ${snapMaterialDiscountPercent}%`,
-          "",
-          "",
-          "",
-          "-" + fmt(materialBereichDisc),
-          { lighter: true }
-        )
-      );
-    }
     body.push(
-      row(INDENT_1 + "Zwischensumme Material", "", "", "", fmt(materialBereichNet), {
-        bold: true,
-        bg: TOTAL_BG,
-      })
+      sectionRow(INDENT_1 + "Zwischensumme Material", fmt(materialBereichGross), 11)
     );
   }
 
   // -------- Personal & Transport --------
   if (hasServices) {
-    body.push(
-      row("Personal & Transport", "", "", "", "", {
-        bold: true,
-        bg: SECTION_BG,
-        fontSize: SECTION_FONT_SIZE,
-      })
-    );
+    body.push(sectionRow("Personal & Transport", ""));
 
     for (const group of serviceGroups) {
       const items = servicesByGroup.get(group.id) ?? [];
@@ -622,42 +633,75 @@ export async function buildInvoicePdf(
       body.push(
         subtotalRow(INDENT_2 + "Zwischensumme " + group.name, fmt(info.sub))
       );
-      if (info.disc > 0) {
-        body.push(
-          row(
-            INDENT_2 + `Rabatt ${Number(group.discountPercent)}%`,
-            "",
-            "",
-            "",
-            "-" + fmt(info.disc),
-            { lighter: true }
-          )
-        );
-      }
       body.push(spacerRow());
     }
 
-    if (snapServicesDiscountPercent > 0) {
-      body.push(
-        row(
-          INDENT_1 + `Personal-&-Transport-Rabatt ${snapServicesDiscountPercent}%`,
-          "",
-          "",
-          "",
-          "-" + fmt(servicesBereichDisc),
-          { lighter: true }
-        )
-      );
-    }
     body.push(
-      row(
+      sectionRow(
         INDENT_1 + "Zwischensumme Personal & Transport",
-        "",
-        "",
-        "",
-        fmt(servicesBereichNet),
-        { bold: true, bg: TOTAL_BG }
+        fmt(servicesBereichGross),
+        11
       )
+    );
+  }
+
+  // -------- Rabatte --------
+  // Alle Rabatte stehen gesammelt am Ende der Tabelle, gruppiert nach Bereich.
+  // Die Positionslisten oben bleiben dadurch frei von Rabatt-Zeilen.
+  type DiscountEntry = { label: string; amount: number };
+  const collectDiscounts = (
+    groups: typeof materialGroups,
+    bereichDisc: number,
+    bereichLabel: string
+  ): DiscountEntry[] => {
+    const entries: DiscountEntry[] = [];
+    for (const group of groups) {
+      const info = groupNetMap.get(group.id);
+      if (!info || info.disc <= 0) continue;
+      entries.push({
+        label: `${group.name} ${Number(group.discountPercent)}%`,
+        amount: info.disc,
+      });
+    }
+    if (bereichDisc > 0) entries.push({ label: bereichLabel, amount: bereichDisc });
+    return entries;
+  };
+  const materialDiscounts = hasMaterial
+    ? collectDiscounts(
+        materialGroups,
+        materialBereichDisc,
+        `Material-Rabatt ${snapMaterialDiscountPercent}%`
+      )
+    : [];
+  const servicesDiscounts = hasServices
+    ? collectDiscounts(
+        serviceGroups,
+        servicesBereichDisc,
+        `Personal-&-Transport-Rabatt ${snapServicesDiscountPercent}%`
+      )
+    : [];
+
+  if (materialDiscounts.length > 0 || servicesDiscounts.length > 0) {
+    body.push(spacerRow());
+    body.push(sectionRow("Rabatte", ""));
+    let firstDiscountGroup = true;
+    const pushDiscountGroup = (name: string, entries: DiscountEntry[]) => {
+      if (entries.length === 0) return;
+      if (!firstDiscountGroup) body.push(spacerRow());
+      firstDiscountGroup = false;
+      body.push(groupHeaderRow(name));
+      for (const entry of entries) {
+        body.push(
+          row(INDENT_2 + entry.label, "", "", "", "-" + fmt(entry.amount), {
+            lighter: true,
+          })
+        );
+      }
+    };
+    pushDiscountGroup("Material", materialDiscounts);
+    pushDiscountGroup("Personal & Transport", servicesDiscounts);
+    body.push(
+      sectionRow(INDENT_1 + "Summe Rabatte", "-" + fmt(totalDiscounts), 11)
     );
   }
 
