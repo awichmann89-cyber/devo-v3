@@ -189,8 +189,8 @@ export async function buildQuotePdf(
   const servicesBereichNet = servicesBereichSub - servicesBereichDisc;
 
   // Brutto-Summen der Bereiche (vor allen Rabatten). Die Bereichs-Zwischensumme
-  // in der Tabelle zeigt diesen Wert — alle Rabatte stehen gesammelt in der
-  // eigenen Sektion „Rabatte" am Ende der Tabelle.
+  // in der Tabelle zeigt diesen Wert — alle Rabatte werden erst im Totals-Block
+  // unter der Tabelle einzeln abgezogen.
   const materialBereichGross = materialGroups.reduce(
     (s, g) => s + (groupNetMap.get(g.id)?.sub ?? 0),
     0,
@@ -199,21 +199,6 @@ export async function buildQuotePdf(
     (s, g) => s + (groupNetMap.get(g.id)?.sub ?? 0),
     0,
   );
-  const materialGroupDisc = materialGroups.reduce(
-    (s, g) => s + (groupNetMap.get(g.id)?.disc ?? 0),
-    0,
-  );
-  const servicesGroupDisc = serviceGroups.reduce(
-    (s, g) => s + (groupNetMap.get(g.id)?.disc ?? 0),
-    0,
-  );
-  // Summe aller Rabatte — Brutto der Bereiche minus diese Summe ergibt genau
-  // `subAfterAll`, die Tabelle bleibt also nachrechenbar.
-  const totalDiscounts =
-    materialGroupDisc +
-    servicesGroupDisc +
-    materialBereichDisc +
-    servicesBereichDisc;
 
   const subAfterAll = materialBereichNet + servicesBereichNet;
   const projectDiscount = (subAfterAll * snapProjectDiscountPercent) / 100;
@@ -366,9 +351,9 @@ export async function buildQuotePdf(
 
   const SECTION_FONT_SIZE = 12;
 
-  // Gruppen-Header und Gruppen-Zwischensummen liegen leicht grau, die Bereiche
-  // („Material", „Personal & Transport", „Rabatte") in der Akzentfarbe —
-  // jeweils inklusive ihrer Zwischensumme.
+  // Gruppen-Header und Gruppen-Zwischensummen liegen leicht grau, die
+  // Bereichs-Header („Material", „Personal & Transport") in der Akzentfarbe.
+  // Die Bereichs-Zwischensumme bleibt transparent — siehe bereichTotalRow().
   const GROUP_BG: [number, number, number] = [220, 220, 220];
   const GROUP_TOTAL_BG: [number, number, number] = [235, 235, 235];
   const GROUP_LINE: [number, number, number] = [190, 190, 190];
@@ -392,19 +377,14 @@ export async function buildQuotePdf(
   }
 
   /**
-   * Bereichs-Zeile in der Akzentfarbe — sowohl für den Bereichs-Header
-   * („Material") als auch für dessen Zwischensumme.
+   * Bereichs-Header in der Akzentfarbe („Material", „Personal & Transport").
    */
-  function sectionRow(
-    label: string,
-    sum: string,
-    fontSize: number = SECTION_FONT_SIZE
-  ): RowInput {
+  function sectionRow(label: string, sum: string): RowInput {
     return row(label, "", "", "", sum, {
       bold: true,
       bg: ACCENT_RGB,
       white: true,
-      fontSize,
+      fontSize: SECTION_FONT_SIZE,
     });
   }
 
@@ -432,6 +412,28 @@ export async function buildQuotePdf(
     const rightStyles = { ...labelStyles, halign: "right" as const };
     return [
       { content: label, styles: labelStyles },
+      { content: "", styles: rightStyles },
+      { content: "", styles: rightStyles },
+      { content: "", styles: rightStyles },
+      { content: sum, styles: rightStyles },
+    ];
+  }
+
+  /**
+   * Bereichs-Zwischensumme — transparenter Hintergrund und schwarze Schrift,
+   * abgesetzt nur durch einen Strich in der Akzentfarbe darüber.
+   */
+  function bereichTotalRow(label: string, sum: string): RowInput {
+    const styles = {
+      fontStyle: "bold" as const,
+      fontSize: 11,
+      lineWidth: { top: 0.6 },
+      lineColor: ACCENT_RGB,
+      cellPadding: { top: 3, bottom: 2, left: 2, right: 2 },
+    };
+    const rightStyles = { ...styles, halign: "right" as const };
+    return [
+      { content: label, styles },
       { content: "", styles: rightStyles },
       { content: "", styles: rightStyles },
       { content: "", styles: rightStyles },
@@ -547,7 +549,7 @@ export async function buildQuotePdf(
     }
 
     body.push(
-      sectionRow(INDENT_1 + "Zwischensumme Material", fmt(materialBereichGross), 11)
+      bereichTotalRow(INDENT_1 + "Zwischensumme Material", fmt(materialBereichGross))
     );
   }
 
@@ -606,71 +608,10 @@ export async function buildQuotePdf(
     }
 
     body.push(
-      sectionRow(
+      bereichTotalRow(
         INDENT_1 + "Zwischensumme Personal & Transport",
-        fmt(servicesBereichGross),
-        11
+        fmt(servicesBereichGross)
       )
-    );
-  }
-
-  // -------- Rabatte --------
-  // Alle Rabatte stehen gesammelt am Ende der Tabelle, gruppiert nach Bereich.
-  // Die Positionslisten oben bleiben dadurch frei von Rabatt-Zeilen.
-  type DiscountEntry = { label: string; amount: number };
-  const collectDiscounts = (
-    groups: typeof materialGroups,
-    bereichDisc: number,
-    bereichLabel: string
-  ): DiscountEntry[] => {
-    const entries: DiscountEntry[] = [];
-    for (const group of groups) {
-      const info = groupNetMap.get(group.id);
-      if (!info || info.disc <= 0) continue;
-      entries.push({
-        label: `${group.name} ${Number(group.discountPercent)}%`,
-        amount: info.disc,
-      });
-    }
-    if (bereichDisc > 0) entries.push({ label: bereichLabel, amount: bereichDisc });
-    return entries;
-  };
-  const materialDiscounts = hasMaterial
-    ? collectDiscounts(
-        materialGroups,
-        materialBereichDisc,
-        `Material-Rabatt ${snapMaterialDiscountPercent}%`
-      )
-    : [];
-  const servicesDiscounts = hasServices
-    ? collectDiscounts(
-        serviceGroups,
-        servicesBereichDisc,
-        `Personal-&-Transport-Rabatt ${snapServicesDiscountPercent}%`
-      )
-    : [];
-
-  if (materialDiscounts.length > 0 || servicesDiscounts.length > 0) {
-    body.push(spacerRow());
-    body.push(sectionRow("Rabatte", ""));
-    let firstDiscountGroup = true;
-    const pushDiscountGroup = (name: string, entries: DiscountEntry[]) => {
-      if (entries.length === 0) return;
-      if (!firstDiscountGroup) body.push(spacerRow());
-      firstDiscountGroup = false;
-      body.push(groupHeaderRow(name));
-      for (const entry of entries) {
-        body.push(
-          row(INDENT_2 + entry.label, "", "", "", "-" + fmt(entry.amount), {
-            lighter: true,
-          })
-        );
-      }
-    };
-    pushDiscountGroup("Material", materialDiscounts);
-    pushDiscountGroup("Personal & Transport", servicesDiscounts);
-    body.push(
-      sectionRow(INDENT_1 + "Summe Rabatte", "-" + fmt(totalDiscounts), 11)
     );
   }
 
@@ -703,16 +644,88 @@ export async function buildQuotePdf(
   // @ts-expect-error: lastAutoTable
   let totalsY = doc.lastAutoTable.finalY + 6;
 
-  // ===== Totals (Projekt-Rabatt, Netto, MwSt, Brutto) =====
-  const totalsBody: RowInput[] = [];
+  // ===== Totals (Netto, Rabatte, MwSt, Brutto) =====
+  // Aufbau: Gesamt netto vor Rabatt → jeder Rabatt als eigene, dezent
+  // ausgegraute Zeile → Gesamt netto → MwSt. → Gesamt brutto. Die
+  // Positionstabelle darüber bleibt dadurch frei von Rabatt-Zeilen.
+  type DiscountEntry = { label: string; amount: number };
+  const collectDiscounts = (
+    groups: typeof materialGroups,
+    bereichName: string,
+    bereichDisc: number,
+    bereichPercent: number
+  ): DiscountEntry[] => {
+    const entries: DiscountEntry[] = [];
+    for (const group of groups) {
+      const info = groupNetMap.get(group.id);
+      if (!info || info.disc <= 0) continue;
+      entries.push({
+        label: `Rabatt ${bereichName} / ${group.name} ${Number(group.discountPercent)}%`,
+        amount: info.disc,
+      });
+    }
+    if (bereichDisc > 0) {
+      entries.push({
+        label: `Rabatt ${bereichName} ${bereichPercent}%`,
+        amount: bereichDisc,
+      });
+    }
+    return entries;
+  };
+  const discountLines: DiscountEntry[] = [
+    ...(hasMaterial
+      ? collectDiscounts(
+          materialGroups,
+          "Material",
+          materialBereichDisc,
+          snapMaterialDiscountPercent
+        )
+      : []),
+    ...(hasServices
+      ? collectDiscounts(
+          serviceGroups,
+          "Personal & Transport",
+          servicesBereichDisc,
+          snapServicesDiscountPercent
+        )
+      : []),
+  ];
   if (projectDiscount > 0) {
+    discountLines.push({
+      label: `Projekt-Rabatt ${snapProjectDiscountPercent}%`,
+      amount: projectDiscount,
+    });
+  }
+
+  const totalsBody: RowInput[] = [];
+  if (discountLines.length > 0) {
     totalsBody.push([
+      { content: "Gesamt netto", styles: { halign: "right" } },
       {
-        content: `Projekt-Rabatt ${snapProjectDiscountPercent}%`,
+        content: fmt(materialBereichGross + servicesBereichGross),
         styles: { halign: "right" },
       },
-      { content: "-" + fmt(projectDiscount), styles: { halign: "right" } },
     ]);
+    discountLines.forEach((entry, i) => {
+      // Feine Linie unter der letzten Rabatt-Zeile — setzt das Ergebnis
+      // darunter ab, ohne einen weiteren Block aufzumachen.
+      const isLast = i === discountLines.length - 1;
+      const styles = {
+        halign: "right" as const,
+        fontSize: 9,
+        textColor: 110,
+        ...(isLast
+          ? {
+              lineWidth: { bottom: 0.2 },
+              lineColor: [190, 190, 190] as [number, number, number],
+            }
+          : {}),
+      };
+      totalsBody.push([
+        { content: entry.label, styles },
+        { content: "-" + fmt(entry.amount), styles },
+      ]);
+    });
   }
   totalsBody.push([
     {
