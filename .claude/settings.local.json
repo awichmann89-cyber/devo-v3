@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"/c/Users/WICHMA~1.ALE/AppData/Local/Temp/claude/c--Users-wichmann-alex-Documents-private-git-repos-devo-v3-devo/07a74589-079f-4e17-b907-7aadbabcb1c2/scratchpad/conflict-selftest.ts\" ./conflict-selftest.tmp.ts)",
+      "Bash(npx tsx *)",
+      "Bash(echo \"exit=$?\")"
+    ]
+  }
+}

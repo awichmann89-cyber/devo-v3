@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -63,6 +64,13 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
       setActive(item?.active ?? true);
     }
   }, [open, item]);
+
+  // Transport (Fahrzeuge/Anhänger) wird immer pauschal berechnet — die
+  // Einheit folgt automatisch und ist nicht wählbar.
+  const unitLocked = kind === "TRANSPORT";
+  useEffect(() => {
+    if (unitLocked && unit !== "FLAT") setUnit("FLAT");
+  }, [unitLocked, unit]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -138,8 +146,17 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Einheit</Label>
-              <Select value={unit} onValueChange={(v) => setUnit(v as BillingUnit)}>
+              <div className="flex items-center gap-1.5">
+                <Label>Einheit</Label>
+                {unitLocked && (
+                  <InfoHint text="Transport wird immer pauschal gerechnet — Fahrzeuge und Anhänger werden im Projekt eingeplant und für den Planungszeitraum geblockt." />
+                )}
+              </div>
+              <Select
+                value={unit}
+                onValueChange={(v) => setUnit(v as BillingUnit)}
+                disabled={unitLocked}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.values(BillingUnit).map((u) => (
@@ -153,7 +170,9 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="si-price">Preis pro Einheit (€)</Label>
+            <Label htmlFor="si-price">
+              {unitLocked ? "Pauschalpreis (€)" : "Preis pro Einheit (€)"}
+            </Label>
             <Input
               id="si-price"
               type="number"

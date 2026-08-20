@@ -3,6 +3,7 @@ import {
   Role,
   ServiceItemKind,
   BillingUnit,
+  VehicleKind,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -43,6 +44,7 @@ async function main() {
   await seedDemoUsers();
   await seedDemoBaseData();
   await seedDemoServiceItems();
+  await seedDemoVehicles();
 
   console.log("✓ Seed abgeschlossen (inkl. Demo-Daten)");
   console.log("  Disponent: disponent@cratel.local / disponent123");
@@ -200,6 +202,55 @@ async function seedDemoServiceItems() {
       where: { name: s.name },
       update: {},
       create: s,
+    });
+  }
+}
+
+async function seedDemoVehicles() {
+  // Fuhrpark-Beispiele passend zu den Transport-Positionen oben. Fahrzeuge
+  // werden im Projekt an Transport-Positionen eingeplant und dort für den
+  // Planungszeitraum geblockt.
+  const vehicles: Array<{
+    name: string;
+    kind: VehicleKind;
+    licensePlate?: string;
+    loadCapacityKg?: number;
+    grossWeightKg?: number;
+    requiredLicense?: string;
+    notes?: string;
+  }> = [
+    {
+      name: "LKW 7,5t",
+      kind: VehicleKind.FAHRZEUG,
+      licensePlate: "HH-CR 750",
+      loadCapacityKg: 3200,
+      grossWeightKg: 7490,
+      requiredLicense: "C1",
+      notes: "Ladebordwand, Ladefläche 6,10 m",
+    },
+    {
+      name: "Sprinter groß",
+      kind: VehicleKind.FAHRZEUG,
+      licensePlate: "HH-CR 350",
+      loadCapacityKg: 1200,
+      grossWeightKg: 3500,
+      requiredLicense: "B",
+    },
+    {
+      name: "Anhänger 2t",
+      kind: VehicleKind.ANHAENGER,
+      licensePlate: "HH-CR 200",
+      loadCapacityKg: 1600,
+      grossWeightKg: 2000,
+      requiredLicense: "BE",
+    },
+  ];
+
+  for (const v of vehicles) {
+    await prisma.vehicle.upsert({
+      where: { name: v.name },
+      update: {},
+      create: v,
     });
   }
 }

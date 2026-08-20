@@ -10,10 +10,18 @@ import {
 import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { DetailHeader } from "@/components/layout/detail-header";
-import { CalendarClock, Receipt } from "lucide-react";
+import { AlertTriangle, CalendarClock, Receipt } from "lucide-react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { employmentTypeLabel, employmentTypeVariant } from "@/lib/labels";
+import {
+  conflictSeverityHint,
+  conflictSeverityLabel,
+  conflictSeverityVariant,
+  employmentTypeLabel,
+  employmentTypeVariant,
+} from "@/lib/labels";
 import { hasClockTime } from "@/lib/personnel-schedule";
+import { maxSeverity } from "@/lib/booking-conflicts";
+import { conflictsByBooking, loadPersonBookings } from "@/lib/booking-load";
 import { PersonLinksCard } from "./person-links-card";
 import { PersonEditButton } from "./person-edit-button";
 import { TimeEntriesSection } from "./time-entries-section";
@@ -90,6 +98,10 @@ export default async function PersonDetailPage(props: {
     userId: person.userId,
   };
 
+  // Überbuchungen dieser Person — dieselbe Bewertung wie im Projekt.
+  const bookings = await loadPersonBookings([id]);
+  const bookingConflicts = conflictsByBooking(bookings);
+
   const now = new Date();
   const sortedAssignments = assignments
     .map((a) => ({
@@ -108,6 +120,7 @@ export default async function PersonDetailPage(props: {
       agreedRate: a.agreedRate != null ? Number(a.agreedRate) : null,
       invoiceReceived: a.invoiceReceived,
       notes: a.notes,
+      conflicts: bookingConflicts[a.id] ?? [],
     }))
     .sort((a, b) => +b.start - +a.start);
 
@@ -206,6 +219,23 @@ export default async function PersonDetailPage(props: {
                       : `ganztägig, ${formatDate(a.start)} – ${formatDate(a.end)}`}
                   </span>
                   {a.end >= now && <Badge variant="secondary">geplant</Badge>}
+                  {(() => {
+                    const severity = maxSeverity(a.conflicts);
+                    if (!severity) return null;
+                    return (
+                      <Badge
+                        variant={conflictSeverityVariant(severity)}
+                        className="gap-1"
+                        title={`${conflictSeverityHint(
+                          severity,
+                          "Die Person"
+                        )}: ${a.conflicts.map((c) => c.projectName).join(", ")}`}
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        {conflictSeverityLabel(severity)}
+                      </Badge>
+                    );
+                  })()}
                   {a.agreedRate != null && (
                     <span className="ml-auto flex items-center gap-2">
                       <span className="font-mono">{formatCurrency(a.agreedRate)}</span>

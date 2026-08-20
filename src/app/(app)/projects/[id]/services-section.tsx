@@ -52,6 +52,7 @@ import {
   UserPlus,
   UserRound,
   Truck,
+  Caravan,
   Package,
 } from "lucide-react";
 import {
@@ -103,6 +104,12 @@ import {
   setAssignmentInvoiceReceived,
   updateAssignmentRate,
 } from "./person-assignments-actions";
+import { removeVehicleAssignment } from "./vehicle-assignments-actions";
+import {
+  VehicleAssignmentDialog,
+  type VehicleAssignmentVM,
+  type VehicleOptionVM,
+} from "./vehicle-assignment-dialog";
 import {
   PersonAssignmentDialog,
   periodLabel,
@@ -112,7 +119,16 @@ import {
   type PersonOptionVM,
 } from "./person-assignment-dialog";
 import { formatMinutes } from "@/lib/personnel-costs";
-import { employmentTypeLabel, employmentTypeVariant } from "@/lib/labels";
+import { maxSeverity, type ConflictHit } from "@/lib/booking-conflicts";
+import {
+  conflictSeverityHint,
+  conflictSeverityLabel,
+  conflictSeverityVariant,
+  employmentTypeLabel,
+  employmentTypeVariant,
+  vehicleKindLabel,
+  vehicleKindVariant,
+} from "@/lib/labels";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
   createProjectGroup,
@@ -157,6 +173,57 @@ export interface ProjectServiceVM {
   };
   // Einsatzplan: konkrete Personen an dieser Position
   personAssignments: PersonAssignmentVM[];
+  // Disposition: konkrete Fahrzeuge/Anhänger (nur Transport-Positionen)
+  vehicleAssignments: VehicleAssignmentVM[];
+}
+
+/** Konflikt-Badge für Einsätze — Stufe aus der schwersten Überschneidung. */
+function ConflictBadge({
+  conflicts,
+  resource,
+}: {
+  conflicts: ConflictHit[];
+  resource: string;
+}) {
+  const severity = maxSeverity(conflicts);
+  if (!severity) return null;
+  return (
+    <Badge
+      variant={conflictSeverityVariant(severity)}
+      className="gap-1"
+      title={`${conflictSeverityHint(severity, resource)}: ${conflicts
+        .map((c) => c.projectName)
+        .join(", ")}`}
+    >
+      <AlertTriangle className="h-3 w-3" />
+      {conflictSeverityLabel(severity)}
+    </Badge>
+  );
+}
+
+/**
+ * Kompakte Anzeige des Blockzeitfensters einer Fuhrpark-Einheit — gleiche
+ * Fallback-Kette wie beim Personal, aber mit Fuhrpark-Wortwahl.
+ */
+function vehicleTimeLabel(a: VehicleAssignmentVM): string {
+  if (!a.plannedStart || !a.plannedEnd) {
+    if (a.periodStart && a.periodEnd) {
+      return periodLabel({
+        start: a.periodStart,
+        end: a.periodEnd,
+        notes: a.periodNotes,
+      });
+    }
+    return "geblockt (gesamter Planungszeitraum)";
+  }
+  const s = new Date(a.plannedStart);
+  const e = new Date(a.plannedEnd);
+  const time = (d: Date) =>
+    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (s.toDateString() === e.toDateString()) {
+    return `${formatDate(s)}, ${time(s)}–${time(e)} Uhr`;
+  }
+  return `${formatDateTime(s)} – ${formatDateTime(e)}`;
 }
 
 /**
@@ -191,9 +258,11 @@ export function ServicesSection({
   groups,
   groupComments,
   persons,
+  vehicles,
   billingPeriods,
   groupPeriodIds,
   personBusy,
+  vehicleBusy,
   planningStartIso,
   planningEndIso,
 }: {
@@ -203,11 +272,15 @@ export function ServicesSection({
   groups: ProjectGroup[];
   groupComments: ProjectGroupComment[];
   persons: PersonOptionVM[];
+  /** Aktive Fuhrpark-Einheiten für die Transport-Disposition. */
+  vehicles: VehicleOptionVM[];
   billingPeriods: PeriodOptionVM[];
   /** Zeitraum-Auswahl je Gruppe (leer = alle Zeiträume). */
   groupPeriodIds: Record<string, string[]>;
   /** Fremd-Einsätze pro Person (andere Projekte) für die Überbuchungs-Warnung. */
   personBusy: Record<string, BusyIntervalVM[]>;
+  /** Fremd-Einsätze pro Fuhrpark-Einheit (andere Projekte). */
+  vehicleBusy: Record<string, BusyIntervalVM[]>;
   planningStartIso: string;
   planningEndIso: string;
 }) {
@@ -225,7 +298,14 @@ export function ServicesSection({
     groupId: string;
     assignment: PersonAssignmentVM | null;
   } | null>(null);
-  // Personalplan ein-/ausklappen
+  // Fahrzeug-Dialog: anlegen (assignment null) oder bearbeiten
+  const [vehicleDialog, setVehicleDialog] = useState<{
+    projectServiceId: string;
+    serviceName: string;
+    groupId: string;
+    assignment: VehicleAssignmentVM | null;
+  } | null>(null);
+  // Einsatzplan ein-/ausklappen
   const [planOpen, setPlanOpen] = useState(true);
 
   // Zeiträume für den Einsatz-Dialog: Auswahl der Gruppe, sonst alle.
@@ -235,6 +315,14 @@ export function ServicesSection({
     if (ids.length === 0) return billingPeriods;
     return billingPeriods.filter((p) => ids.includes(p.id));
   }, [assignDialog, billingPeriods, groupPeriodIds]);
+
+  // Zeiträume für den Fahrzeug-Dialog: Auswahl der Gruppe, sonst alle.
+  const vehicleDialogPeriods = useMemo(() => {
+    if (!vehicleDialog) return billingPeriods;
+    const ids = groupPeriodIds[vehicleDialog.groupId] ?? [];
+    if (ids.length === 0) return billingPeriods;
+    return billingPeriods.filter((p) => ids.includes(p.id));
+  }, [vehicleDialog, billingPeriods, groupPeriodIds]);
 
   // Aktive Gruppe
   const [activeGroupId, setActiveGroupId] = useState<string | null>(
@@ -518,6 +606,17 @@ export function ServicesSection({
     });
   }
 
+  function handleRemoveVehicleAssignment(a: VehicleAssignmentVM) {
+    startTransition(async () => {
+      try {
+        await removeVehicleAssignment(a.id);
+        toast.success("Einsatz entfernt");
+      } catch (e) {
+        toastError(e, "Löschen");
+      }
+    });
+  }
+
   function handleSaveGroup() {
     if (!groupDialog) return;
     const name = groupDialog.name.trim();
@@ -577,28 +676,59 @@ export function ServicesSection({
     servicesByGroup.set(ps.groupId, arr);
   }
 
-  // Personalplan: alle Einsätze chronologisch (nach effektivem Beginn).
-  const planEntries = useMemo(() => {
+  // Einsatzplan: alle Personal- UND Fuhrpark-Einsätze chronologisch (nach
+  // effektivem Beginn). Eine Liste, damit die Disposition Personal und
+  // Fahrzeuge eines Tages zusammen sieht.
+  type PlanEntry = {
+    key: string;
+    person: PersonAssignmentVM | null;
+    vehicle: VehicleAssignmentVM | null;
+    serviceName: string;
+    groupName: string;
+    sortKey: number;
+  };
+  const planEntries = useMemo<PlanEntry[]>(() => {
     const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
-    const out: {
-      a: PersonAssignmentVM;
-      serviceName: string;
-      groupName: string;
-      sortKey: number;
-    }[] = [];
+    const out: PlanEntry[] = [];
     for (const ps of projectServices) {
+      const groupName = groupNameById.get(ps.groupId) ?? "";
       for (const a of ps.personAssignments) {
         const start = a.plannedStart ?? a.periodStart ?? planningStartIso;
         out.push({
-          a,
+          key: `person:${a.id}`,
+          person: a,
+          vehicle: null,
           serviceName: ps.serviceItem.name,
-          groupName: groupNameById.get(ps.groupId) ?? "",
+          groupName,
+          sortKey: +new Date(start),
+        });
+      }
+      for (const a of ps.vehicleAssignments) {
+        const start = a.plannedStart ?? a.periodStart ?? planningStartIso;
+        out.push({
+          key: `vehicle:${a.id}`,
+          person: null,
+          vehicle: a,
+          serviceName: ps.serviceItem.name,
+          groupName,
           sortKey: +new Date(start),
         });
       }
     }
     return out.sort((x, y) => x.sortKey - y.sortKey);
   }, [projectServices, groups, planningStartIso]);
+
+  /** Konflikt-Zähler je Stufe — speist die Badges im Kopf des Einsatzplans. */
+  const planConflicts = useMemo(() => {
+    let overlap = 0;
+    let sameDay = 0;
+    for (const e of planEntries) {
+      const severity = maxSeverity(e.person?.conflicts ?? e.vehicle?.conflicts ?? []);
+      if (severity === "OVERLAP") overlap++;
+      else if (severity === "SAME_DAY") sameDay++;
+    }
+    return { overlap, sameDay };
+  }, [planEntries]);
 
   const subtotal = projectServices.reduce(
     (sum, p) =>
@@ -638,16 +768,7 @@ export function ServicesSection({
                 {formatMinutes(a.loggedMinutes)} h erfasst
               </Badge>
             )}
-            {a.conflicts.length > 0 && (
-              <Badge
-                variant="destructive"
-                className="gap-1"
-                title={`Zeitgleich eingeplant in: ${a.conflicts.join(", ")}`}
-              >
-                <AlertTriangle className="h-3 w-3" />
-                Überbucht
-              </Badge>
-            )}
+            <ConflictBadge conflicts={a.conflicts} resource="Die Person" />
           </div>
         </TableCell>
         <TableCell className="text-right">
@@ -759,9 +880,98 @@ export function ServicesSection({
     );
   }
 
+  /** Rendert eine Fuhrpark-Subzeile unter ihrer Transport-Zeile. */
+  function renderVehicleAssignmentRow(
+    ps: ProjectServiceVM,
+    a: VehicleAssignmentVM
+  ) {
+    return (
+      <TableRow key={`vehicle:${a.id}`} className="bg-muted/20 hover:bg-muted/30">
+        <TableCell />
+        <TableCell>
+          <div className="flex items-center gap-2 pl-6 text-sm">
+            <Caravan className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{a.vehicleName}</span>
+            <Badge variant={vehicleKindVariant(a.vehicleKind)}>
+              {vehicleKindLabel(a.vehicleKind)}
+            </Badge>
+            {a.licensePlate && (
+              <span className="num text-xs text-muted-foreground">
+                {a.licensePlate}
+              </span>
+            )}
+          </div>
+          {a.notes && (
+            <div className="pl-11 text-xs text-muted-foreground line-clamp-1">
+              {a.notes}
+            </div>
+          )}
+        </TableCell>
+        <TableCell colSpan={2}>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{vehicleTimeLabel(a)}</span>
+            {a.driverName && (
+              <Badge variant="outline" className="gap-1">
+                <UserRound className="h-3 w-3" />
+                {a.driverName}
+              </Badge>
+            )}
+            <ConflictBadge conflicts={a.conflicts} resource="Die Einheit" />
+          </div>
+        </TableCell>
+        <TableCell className="text-right">
+          <span
+            className="text-xs text-muted-foreground"
+            title="Fahrzeuge werden pauschal über die Position berechnet — der Einsatz selbst erzeugt keine Kosten."
+          >
+            pauschal
+          </span>
+        </TableCell>
+        <TableCell />
+        <TableCell>
+          <div className="flex gap-0.5">
+            <Button
+              variant="ghost"
+              size="iconXs"
+              onClick={() =>
+                setVehicleDialog({
+                  projectServiceId: ps.id,
+                  serviceName: ps.serviceItem.name,
+                  groupId: ps.groupId,
+                  assignment: a,
+                })
+              }
+              disabled={pending}
+              title="Einsatz bearbeiten"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="iconXs"
+              className="text-destructive hover:text-destructive"
+              onClick={() => handleRemoveVehicleAssignment(a)}
+              disabled={pending}
+              title="Einsatz entfernen"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
   /** Personal-Position ohne zugewiesene Person → farblich hervorheben. */
   function isUnstaffed(ps: ProjectServiceVM): boolean {
     return ps.serviceItem.kind === "PERSONAL" && ps.personAssignments.length === 0;
+  }
+
+  /** Transport-Position ohne eingeplante Fuhrpark-Einheit. */
+  function isUnassignedTransport(ps: ProjectServiceVM): boolean {
+    return (
+      ps.serviceItem.kind === "TRANSPORT" && ps.vehicleAssignments.length === 0
+    );
   }
 
   /** Rendert eine sortierbare Service-Zeile (Personal/Transport). */
@@ -772,6 +982,7 @@ export function ServicesSection({
     const hasOverride = ps.unitPriceOverride !== null;
     const KindIcon = kindIcon(ps.serviceItem.kind);
     const unstaffed = isUnstaffed(ps);
+    const withoutVehicle = isUnassignedTransport(ps);
     // Fragment: Service-Zeile + Einsatz-Subzeilen. Die Subzeilen sind NICHT im
     // SortableContext registriert — sie folgen ihrer Parent-Zeile in
     // DOM-Reihenfolge, bewegen sich beim Drag aber erst nach dem Drop mit.
@@ -780,7 +991,8 @@ export function ServicesSection({
       <SortableRow
         id={sortId}
         className={cn(
-          unstaffed && "bg-warning-subtle hover:bg-warning-subtle"
+          (unstaffed || withoutVehicle) &&
+            "bg-warning-subtle hover:bg-warning-subtle"
         )}
       >
         <DragHandleCell />
@@ -798,6 +1010,15 @@ export function ServicesSection({
                 title="Noch keine Person eingeplant — über den Personen-Button zuweisen"
               >
                 Unbesetzt
+              </Badge>
+            )}
+            {withoutVehicle && (
+              <Badge
+                variant="warning"
+                className="shrink-0"
+                title="Noch kein Fahrzeug/Anhänger eingeplant — über den Fuhrpark-Button zuweisen"
+              >
+                Ohne Fahrzeug
               </Badge>
             )}
           </div>
@@ -866,6 +1087,24 @@ export function ServicesSection({
             >
               <UserPlus className="h-3.5 w-3.5" />
             </Button>
+            {ps.serviceItem.kind === "TRANSPORT" && (
+              <Button
+                variant="ghost"
+                size="iconXs"
+                onClick={() =>
+                  setVehicleDialog({
+                    projectServiceId: ps.id,
+                    serviceName: ps.serviceItem.name,
+                    groupId: ps.groupId,
+                    assignment: null,
+                  })
+                }
+                disabled={pending}
+                title="Fahrzeug/Anhänger einplanen"
+              >
+                <Caravan className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {otherGroups.length > 0 && (
               <Select
                 value=""
@@ -900,13 +1139,15 @@ export function ServicesSection({
         </TableCell>
       </SortableRow>
       {ps.personAssignments.map((a) => renderAssignmentRow(ps, a))}
+      {ps.vehicleAssignments.map((a) => renderVehicleAssignmentRow(ps, a))}
       </Fragment>
     );
   }
 
   return (
     <>
-      {/* Personalplan: chronologische Übersicht aller Einsätze des Projekts. */}
+      {/* Einsatzplan: chronologische Übersicht aller Personal- und
+          Fuhrpark-Einsätze des Projekts. */}
       {planEntries.length > 0 && (
         <Card className="mb-4">
           <CardHeader
@@ -919,13 +1160,23 @@ export function ServicesSection({
               ) : (
                 <ChevronRight className="h-4 w-4" />
               )}
-              <Users className="h-4 w-4" /> Personalplan
+              <Users className="h-4 w-4" /> Einsatzplan
               <span className="font-normal text-muted-foreground">
                 ({planEntries.length} Einsätze)
               </span>
-              {planEntries.some((e) => e.a.conflicts.length > 0) && (
+              {planConflicts.overlap > 0 && (
                 <Badge variant="destructive" className="gap-1">
-                  <AlertTriangle className="h-3 w-3" /> Überbuchungen
+                  <AlertTriangle className="h-3 w-3" /> {planConflicts.overlap}{" "}
+                  {planConflicts.overlap === 1 ? "Überbuchung" : "Überbuchungen"}
+                </Badge>
+              )}
+              {planConflicts.sameDay > 0 && (
+                <Badge
+                  variant="warning"
+                  className="gap-1"
+                  title="Am selben Tag in einem anderen Projekt eingeplant — ohne Zeitüberschneidung"
+                >
+                  <AlertTriangle className="h-3 w-3" /> {planConflicts.sameDay}× selber Tag
                 </Badge>
               )}
               {projectServices.filter(isUnstaffed).length > 0 && (
@@ -936,6 +1187,11 @@ export function ServicesSection({
                     : "Positionen"}
                 </Badge>
               )}
+              {projectServices.filter(isUnassignedTransport).length > 0 && (
+                <Badge variant="warning" className="gap-1">
+                  {projectServices.filter(isUnassignedTransport).length}× ohne Fahrzeug
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           {planOpen && (
@@ -944,46 +1200,71 @@ export function ServicesSection({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Zeit</TableHead>
-                    <TableHead>Person</TableHead>
+                    <TableHead>Person / Einheit</TableHead>
                     <TableHead>Position</TableHead>
                     <TableHead>Gruppe</TableHead>
                     <TableHead>Hinweise</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {planEntries.map(({ a, serviceName, groupName }) => (
-                    <TableRow key={`plan:${a.id}`}>
-                      <TableCell className="whitespace-nowrap text-sm">
-                        {assignmentTimeLabel(a)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="font-medium">{a.personName}</span>
-                          <Badge variant={employmentTypeVariant(a.employmentType)}>
-                            {employmentTypeLabel(a.employmentType)}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{serviceName}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {groupName}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          {a.conflicts.length > 0 && (
-                            <Badge
-                              variant="destructive"
-                              className="gap-1"
-                              title={`Zeitgleich eingeplant in: ${a.conflicts.join(", ")}`}
-                            >
-                              <AlertTriangle className="h-3 w-3" /> Überbucht
-                            </Badge>
-                          )}
-                          {a.notes && <span>📝 {a.notes}</span>}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {planEntries.map((entry) => {
+                    const { person, vehicle, serviceName, groupName } = entry;
+                    return (
+                      <TableRow key={entry.key}>
+                        <TableCell className="whitespace-nowrap text-sm">
+                          {person
+                            ? assignmentTimeLabel(person)
+                            : vehicleTimeLabel(vehicle!)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-sm">
+                            {person ? (
+                              <>
+                                <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="font-medium">{person.personName}</span>
+                                <Badge
+                                  variant={employmentTypeVariant(person.employmentType)}
+                                >
+                                  {employmentTypeLabel(person.employmentType)}
+                                </Badge>
+                              </>
+                            ) : (
+                              <>
+                                <Caravan className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="font-medium">
+                                  {vehicle!.vehicleName}
+                                </span>
+                                <Badge variant={vehicleKindVariant(vehicle!.vehicleKind)}>
+                                  {vehicleKindLabel(vehicle!.vehicleKind)}
+                                </Badge>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">{serviceName}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {groupName}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <ConflictBadge
+                              conflicts={person?.conflicts ?? vehicle!.conflicts}
+                              resource={person ? "Die Person" : "Die Einheit"}
+                            />
+                            {vehicle?.driverName && (
+                              <Badge variant="outline" className="gap-1">
+                                <UserRound className="h-3 w-3" />
+                                {vehicle.driverName}
+                              </Badge>
+                            )}
+                            {(person?.notes ?? vehicle?.notes) && (
+                              <span>📝 {person?.notes ?? vehicle?.notes}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1363,6 +1644,20 @@ export function ServicesSection({
         persons={persons}
         periods={dialogPeriods}
         personBusy={personBusy}
+        planningStartIso={planningStartIso}
+        planningEndIso={planningEndIso}
+      />
+
+      <VehicleAssignmentDialog
+        open={vehicleDialog !== null}
+        onOpenChange={(o) => !o && setVehicleDialog(null)}
+        projectServiceId={vehicleDialog?.projectServiceId ?? null}
+        serviceName={vehicleDialog?.serviceName ?? ""}
+        assignment={vehicleDialog?.assignment ?? null}
+        vehicles={vehicles}
+        drivers={persons.map((p) => ({ id: p.id, name: p.name }))}
+        periods={vehicleDialogPeriods}
+        vehicleBusy={vehicleBusy}
         planningStartIso={planningStartIso}
         planningEndIso={planningEndIso}
       />

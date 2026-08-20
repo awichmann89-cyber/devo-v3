@@ -18,7 +18,7 @@ import { ListCard } from "@/components/layout/list-card";
 import { FilterResetButton, FilterSearch } from "@/components/filters/filter-controls";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PersonDialog, PersonVM, UserOptionVM } from "./person-dialog";
 import { deletePerson } from "./actions";
@@ -30,8 +30,22 @@ import { EmploymentType } from "@prisma/client";
 
 type Row = PersonVM & {
   userLabel: string | null;
-  _count: { assignments: number; timeEntries: number };
+  /** Einsätze mit Konflikt (Überschneidung oder selber Tag, anderes Projekt). */
+  conflictCount: number;
+  _count: {
+    assignments: number;
+    timeEntries: number;
+    /** Einsätze, in denen die Person als Fahrer geführt ist. */
+    drivenAssignments: number;
+  };
 };
+
+/** Datensätze, die ein hartes Löschen verhindern (→ nur deaktivieren). */
+function blockingCount(p: Row): number {
+  return (
+    p._count.assignments + p._count.timeEntries + p._count.drivenAssignments
+  );
+}
 
 // Reihenfolge der Beschäftigungsarten in der Anzeige
 const TYPE_ORDER: EmploymentType[] = [
@@ -188,6 +202,17 @@ export function PersonsTable({
                                 {p.userLabel}
                               </Badge>
                             )}
+                            {p.conflictCount > 0 && (
+                              <Badge
+                                variant="destructive"
+                                className="gap-1"
+                                title="Einsätze, die sich mit einem anderen Projekt überschneiden oder am selben Tag liegen"
+                              >
+                                <AlertTriangle className="h-3 w-3" />
+                                {p.conflictCount} Konflikt
+                                {p.conflictCount === 1 ? "" : "e"}
+                              </Badge>
+                            )}
                           </div>
                           {p.notes && (
                             <div className="line-clamp-1 text-xs text-muted-foreground">
@@ -245,11 +270,12 @@ export function PersonsTable({
         description={
           deleting && (
             <>
-              {deleting._count.assignments + deleting._count.timeEntries > 0 ? (
+              {blockingCount(deleting) > 0 ? (
                 <>
-                  <strong>{deleting.name}</strong> hat Einsätze oder erfasste
-                  Arbeitszeiten und kann nicht gelöscht werden (Lohn-Historie).
-                  Die Person wird stattdessen <strong>auf inaktiv gesetzt</strong>.
+                  <strong>{deleting.name}</strong> hat Einsätze, erfasste
+                  Arbeitszeiten oder Fahrer-Einträge und kann nicht gelöscht
+                  werden (Lohn- und Dispositions-Historie). Die Person wird
+                  stattdessen <strong>auf inaktiv gesetzt</strong>.
                 </>
               ) : (
                 <>
@@ -260,9 +286,7 @@ export function PersonsTable({
           )
         }
         confirmLabel={
-          deleting && deleting._count.assignments + deleting._count.timeEntries > 0
-            ? "Deaktivieren"
-            : "Löschen"
+          deleting && blockingCount(deleting) > 0 ? "Deaktivieren" : "Löschen"
         }
         pending={pending}
         onConfirm={onConfirmDelete}

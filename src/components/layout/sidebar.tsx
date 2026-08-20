@@ -19,6 +19,7 @@ import {
   FileText,
   ListTodo,
   UserRound,
+  Caravan,
   X,
 } from "lucide-react";
 import { useMobileNav } from "@/components/layout/mobile-nav-context";
@@ -62,6 +63,7 @@ const SECTIONS: NavSection[] = [
       { href: "/material", label: "Material", icon: Boxes },
       { href: "/services", label: "Personal & Transport", icon: Truck },
       { href: "/persons", label: "Personalstamm", icon: UserRound },
+      { href: "/vehicles", label: "Fuhrpark", icon: Caravan },
     ],
   },
   {

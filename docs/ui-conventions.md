@@ -202,7 +202,14 @@ projectStatusLabel / projectStatusVariant / projectStatusRowClass
 invoiceStatus / invoiceStatusLabel / invoiceStatusVariant / invoiceKindLabel
 quoteStatus / quoteStatusLabel / quoteStatusVariant
 employmentTypeLabel / employmentTypeVariant
+vehicleKindLabel / vehicleKindVariant
+conflictSeverityLabel / conflictSeverityVariant / conflictSeverityHint
 ```
+
+Überbuchungen sind **zweistufig** und dürfen nicht zusammengeworfen werden:
+`OVERLAP` (echte Zeitüberschneidung) ist `destructive`, `SAME_DAY` (gleicher
+Kalendertag ohne Überschneidung) ist `warning`. Bewertet wird ausschließlich über
+[booking-conflicts.ts](../src/lib/booking-conflicts.ts) — für Personal **und** Fuhrpark.
 
 Nie einen Enum-Wert direkt rendern und nie Statusfarben pro Tabelle neu erfinden.
 

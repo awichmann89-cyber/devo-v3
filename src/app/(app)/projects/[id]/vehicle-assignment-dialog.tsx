@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { EmploymentType } from "@prisma/client";
-import { employmentTypeLabel } from "@/lib/labels";
+import { VehicleKind } from "@prisma/client";
+import { vehicleKindLabel } from "@/lib/labels";
 import type { ConflictHit } from "@/lib/booking-conflicts";
 import { formatDate } from "@/lib/utils";
 import {
@@ -42,53 +42,57 @@ import {
   type PeriodOptionVM,
 } from "@/components/project/assignment-scheduling";
 import {
-  addPersonAssignment,
-  updatePersonAssignment,
-} from "./person-assignments-actions";
+  addVehicleAssignment,
+  updateVehicleAssignment,
+} from "./vehicle-assignments-actions";
 import { toastError } from "@/lib/toast";
 
-// Zeit-Helfer und Zeitraum-Labels liegen in
-// components/project/assignment-scheduling.tsx — Personal- und
-// Fuhrpark-Dialog teilen sie. Re-Export, weil die Services-Section die
-// Typen und periodLabel von hier bezieht.
-export {
-  hasClockTimeIso,
-  periodLabel,
-  type BusyIntervalVM,
-  type PeriodOptionVM,
-};
-
-/** Aktive Person für die Auswahl im Dialog. */
-export interface PersonOptionVM {
+/** Aktive Fuhrpark-Einheit für die Auswahl im Dialog. */
+export interface VehicleOptionVM {
   id: string;
   name: string;
-  employmentType: EmploymentType;
-  hourlyWage: number | null;
-  defaultDayRate: number | null;
+  kind: VehicleKind;
+  licensePlate: string | null;
+  requiredLicense: string | null;
 }
 
-/** Einsatz einer Person an einer Service-Position (Client-VM). */
-export interface PersonAssignmentVM {
+/** Fahrer-Auswahl (Personalstamm, optional). */
+export interface DriverOptionVM {
   id: string;
-  personId: string;
-  personName: string;
-  employmentType: EmploymentType;
+  name: string;
+}
+
+/** Einsatz einer Fuhrpark-Einheit an einer Transport-Position (Client-VM). */
+export interface VehicleAssignmentVM {
+  id: string;
+  vehicleId: string;
+  vehicleName: string;
+  vehicleKind: VehicleKind;
+  licensePlate: string | null;
+  requiredLicense: string | null;
   billingPeriodId: string | null;
   periodStart: string | null; // ISO des gewählten Zeitraums
   periodEnd: string | null;
   periodNotes: string | null;
   plannedStart: string | null; // ISO
   plannedEnd: string | null; // ISO
-  agreedRate: number | null;
-  hourlyRate: number | null;
-  invoiceReceived: boolean;
+  driverId: string | null;
+  driverName: string | null;
   notes: string | null;
-  // Summe der erfassten Ist-Minuten (read-only Anzeige)
-  loggedMinutes: number;
-  // Geplante Minuten aus dem effektiven Zeitfenster (0 = ganztägig/unbekannt)
-  plannedMinutes: number;
-  // Überbuchungs-Konflikte (Projektname + Stufe: Überschneidung / selber Tag)
+  /** Überbuchungs-Konflikte (Projektname + Stufe). */
   conflicts: ConflictHit[];
+}
+
+/** Kurz-Hinweis zu einer Einheit für die Auswahl-Liste. */
+function vehicleHint(v: {
+  kind: VehicleKind;
+  licensePlate: string | null;
+  requiredLicense: string | null;
+}): string {
+  const parts = [vehicleKindLabel(v.kind)];
+  if (v.licensePlate) parts.push(v.licensePlate);
+  if (v.requiredLicense) parts.push(`Klasse ${v.requiredLicense}`);
+  return parts.join(" · ");
 }
 
 interface Props {
@@ -98,60 +102,57 @@ interface Props {
   projectServiceId: string | null;
   serviceName: string;
   /** Bestehender Einsatz → Edit-Modus. */
-  assignment?: PersonAssignmentVM | null;
-  persons: PersonOptionVM[];
+  assignment?: VehicleAssignmentVM | null;
+  vehicles: VehicleOptionVM[];
+  drivers: DriverOptionVM[];
   /** Zeiträume zur Auswahl — bereits auf die Gruppe der Position gefiltert. */
   periods: PeriodOptionVM[];
-  /** Fremd-Einsätze pro Person (andere Projekte) für die Überbuchungs-Warnung. */
-  personBusy: Record<string, BusyIntervalVM[]>;
+  /** Fremd-Einsätze pro Einheit (andere Projekte) für die Überbuchungs-Warnung. */
+  vehicleBusy: Record<string, BusyIntervalVM[]>;
   planningStartIso: string;
   planningEndIso: string;
 }
 
-export function PersonAssignmentDialog({
+export function VehicleAssignmentDialog({
   open,
   onOpenChange,
   projectServiceId,
   serviceName,
   assignment,
-  persons,
+  vehicles,
+  drivers,
   periods,
-  personBusy,
+  vehicleBusy,
   planningStartIso,
   planningEndIso,
 }: Props) {
-  const [personId, setPersonId] = useState("");
-  // "" = kein Zeitraum → Fallback Projekt-Planungszeitraum
+  const [vehicleId, setVehicleId] = useState("");
+  // "" = kein Zeitraum → gesamter Planungszeitraum ist geblockt (Regelfall)
   const [billingPeriodId, setBillingPeriodId] = useState("");
   const [withTimes, setWithTimes] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  // Vergütungsart (Freelancer): Pauschale/Tagessatz gesamt ODER nach Stunden
-  const [payKind, setPayKind] = useState<"agreed" | "hourly">("agreed");
-  const [agreedRate, setAgreedRate] = useState("");
-  const [hourlyRate, setHourlyRate] = useState("");
+  const [driverId, setDriverId] = useState("");
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const selectedPerson = useMemo(
-    () => persons.find((p) => p.id === personId) ?? null,
-    [persons, personId]
-  );
-  const employmentType = assignment?.employmentType ?? selectedPerson?.employmentType;
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === billingPeriodId) ?? null,
     [periods, billingPeriodId]
   );
+  const selectedVehicle = useMemo(
+    () => vehicles.find((v) => v.id === vehicleId) ?? null,
+    [vehicles, vehicleId]
+  );
 
   useEffect(() => {
     if (!open) return;
-    setPersonId(assignment?.personId ?? "");
-    // Default beim Anlegen: erster Zeitraum der Gruppe/des Projekts.
-    setBillingPeriodId(assignment ? (assignment.billingPeriodId ?? "") : (periods[0]?.id ?? ""));
+    setVehicleId(assignment?.vehicleId ?? "");
+    // Default: gesamter Planungszeitraum — Fahrzeuge werden pauschal
+    // gerechnet und für die komplette Planung geblockt.
+    setBillingPeriodId(assignment?.billingPeriodId ?? "");
     setWithTimes(assignment?.plannedStart != null);
-    setPayKind(assignment?.hourlyRate != null ? "hourly" : "agreed");
-    setAgreedRate(assignment?.agreedRate != null ? String(assignment.agreedRate) : "");
-    setHourlyRate(assignment?.hourlyRate != null ? String(assignment.hourlyRate) : "");
+    setDriverId(assignment?.driverId ?? "");
     setNotes(assignment?.notes ?? "");
     if (assignment?.plannedStart && assignment.plannedEnd) {
       setStart(isoToLocalInput(assignment.plannedStart));
@@ -160,10 +161,9 @@ export function PersonAssignmentDialog({
       setStart("");
       setEnd("");
     }
-  }, [open, assignment, periods]);
+  }, [open, assignment]);
 
-  // Uhrzeiten-Vorbelegung folgt dem gewählten Zeitraum: trägt er eigene
-  // Uhrzeiten, werden GENAU DIESE übernommen; sonst 08:00–18:00 als Default.
+  // Uhrzeiten-Vorbelegung folgt dem gewählten Zeitraum (Muster Personal-Dialog).
   useEffect(() => {
     if (!open || assignment?.plannedStart) return;
     const baseStart = selectedPeriod?.start ?? planningStartIso;
@@ -173,30 +173,10 @@ export function PersonAssignmentDialog({
     setEnd(hasTimes ? isoToLocalInput(baseEnd) : dateWithTime(baseEnd, "18:00"));
   }, [open, assignment, selectedPeriod, planningStartIso, planningEndIso]);
 
-  // Beim Wechsel der Person: Freelancer-Sätze aus dem Stamm vorbelegen.
-  function handlePersonChange(id: string) {
-    setPersonId(id);
-    const person = persons.find((p) => p.id === id);
-    if (person?.employmentType === "FREELANCER") {
-      setAgreedRate(person.defaultDayRate != null ? String(person.defaultDayRate) : "");
-      setHourlyRate(person.hourlyWage != null ? String(person.hourlyWage) : "");
-    } else {
-      setAgreedRate("");
-      setHourlyRate("");
-    }
-  }
-
-  const personOptions = persons.map((p) => ({
-    value: p.id,
-    label: p.name,
-    hint: employmentTypeLabel(p.employmentType),
-  }));
-
   // ----- Überbuchungs-Warnung: Kandidaten-Zeitfenster vs. Fremd-Einsätze -----
-  // Zweistufig: echte Zeitüberschneidung (rot) vs. gleicher Kalendertag (gelb).
   const conflicts = useMemo(() => {
-    const pid = assignment?.personId ?? personId;
-    if (!pid) return [];
+    const vid = assignment?.vehicleId ?? vehicleId;
+    if (!vid) return [];
     const range = candidateRange({
       withTimes,
       start,
@@ -205,15 +185,15 @@ export function PersonAssignmentDialog({
       planningStartIso,
       planningEndIso,
     });
-    return evaluateBusy(range, personBusy[pid] ?? []);
+    return evaluateBusy(range, vehicleBusy[vid] ?? []);
   }, [
     assignment,
-    personId,
+    vehicleId,
     withTimes,
     start,
     end,
     selectedPeriod,
-    personBusy,
+    vehicleBusy,
     planningStartIso,
     planningEndIso,
   ]);
@@ -222,8 +202,8 @@ export function PersonAssignmentDialog({
     e.preventDefault();
     e.stopPropagation();
 
-    if (!assignment && !personId) {
-      toast.error("Bitte eine Person auswählen");
+    if (!assignment && !vehicleId) {
+      toast.error("Bitte eine Fuhrpark-Einheit auswählen");
       return;
     }
     if (withTimes && (!start || !end)) {
@@ -236,29 +216,22 @@ export function PersonAssignmentDialog({
     }
 
     const payload = {
-      personId: assignment?.personId ?? personId,
+      vehicleId: assignment?.vehicleId ?? vehicleId,
       billingPeriodId: billingPeriodId || null,
       plannedStart: withTimes ? localInputToIso(start) : null,
       plannedEnd: withTimes ? localInputToIso(end) : null,
-      agreedRate:
-        employmentType === "FREELANCER" && payKind === "agreed" && agreedRate !== ""
-          ? Number(agreedRate)
-          : null,
-      hourlyRate:
-        employmentType === "FREELANCER" && payKind === "hourly" && hourlyRate !== ""
-          ? Number(hourlyRate)
-          : null,
+      driverId: driverId || null,
       notes: notes || null,
     };
 
     startTransition(async () => {
       try {
         if (assignment) {
-          await updatePersonAssignment(assignment.id, payload);
+          await updateVehicleAssignment(assignment.id, payload);
           toast.success("Einsatz aktualisiert");
         } else if (projectServiceId) {
-          await addPersonAssignment(projectServiceId, payload);
-          toast.success("Person eingeplant");
+          await addVehicleAssignment(projectServiceId, payload);
+          toast.success("Einheit eingeplant");
         }
         onOpenChange(false);
       } catch (err) {
@@ -267,47 +240,60 @@ export function PersonAssignmentDialog({
     });
   }
 
+  const requiredLicense =
+    assignment?.requiredLicense ?? selectedVehicle?.requiredLicense ?? null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>
-            {assignment ? "Einsatz bearbeiten" : "Person einplanen"}
+            {assignment ? "Einsatz bearbeiten" : "Fahrzeug/Anhänger einplanen"}
           </DialogTitle>
           <DialogDescription className="flex items-center gap-1.5">
             <span>
-              Position: <strong>{serviceName}</strong>. Eingeplante Personen sehen
-              den Einsatz in ihrem persönlichen Kalender-Abo.
+              Position: <strong>{serviceName}</strong>. Die Einheit wird für den
+              gewählten Zeitraum geblockt und auf Überbuchungen geprüft.
             </span>
-            <InfoHint text="Tipp: Personal ohne berechnete Position? Lege eine nicht-abrechenbare Gruppe an und buche die Position dort — sie taucht dann nicht auf Angeboten/Rechnungen auf." />
+            <InfoHint text="Transport wird immer pauschal gerechnet — der Preis steht an der Position, der Einsatz dient der Disposition. Zugfahrzeug und Anhänger werden als zwei Einsätze an derselben Position geplant." />
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {assignment ? (
             <div className="space-y-1">
-              <Label>Person</Label>
+              <Label>Einheit</Label>
               <p className="text-sm font-medium">
-                {assignment.personName}{" "}
+                {assignment.vehicleName}{" "}
                 <span className="font-normal text-muted-foreground">
-                  ({employmentTypeLabel(assignment.employmentType)})
+                  (
+                  {vehicleHint({
+                    kind: assignment.vehicleKind,
+                    licensePlate: assignment.licensePlate,
+                    requiredLicense: assignment.requiredLicense,
+                  })}
+                  )
                 </span>
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>Person</Label>
+              <Label>Einheit</Label>
               <Combobox
-                value={personId}
-                onValueChange={handlePersonChange}
-                options={personOptions}
-                emptyLabel="— Person wählen —"
-                placeholder="Name suchen…"
+                value={vehicleId}
+                onValueChange={setVehicleId}
+                options={vehicles.map((v) => ({
+                  value: v.id,
+                  label: v.name,
+                  hint: vehicleHint(v),
+                }))}
+                emptyLabel="— Fahrzeug/Anhänger wählen —"
+                placeholder="Bezeichnung oder Kennzeichen suchen…"
               />
-              {persons.length === 0 && (
+              {vehicles.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Noch keine aktiven Personen — lege sie unter Stammdaten →
-                  Personalstamm an.
+                  Noch keine aktiven Einheiten — lege sie unter Stammdaten →
+                  Fuhrpark an.
                 </p>
               )}
             </div>
@@ -315,8 +301,8 @@ export function PersonAssignmentDialog({
 
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Label>Berechnungszeitraum</Label>
-              <InfoHint text="Ohne eigene Uhrzeiten übernimmt der Einsatz die Zeiten des gewählten Zeitraums — ganztägig nur, wenn der Zeitraum keine Uhrzeiten trägt (00:00)." />
+              <Label>Blockzeitraum</Label>
+              <InfoHint text="Standard ist der gesamte Planungszeitraum des Projekts. Nur wenn die Einheit tatsächlich früher frei ist, auf einen Berechnungszeitraum eingrenzen." />
             </div>
             <Select
               value={billingPeriodId || "__none__"}
@@ -326,15 +312,15 @@ export function PersonAssignmentDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">
+                  Gesamter Planungszeitraum ({formatDate(planningStartIso)} –{" "}
+                  {formatDate(planningEndIso)})
+                </SelectItem>
                 {periods.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {periodLabel(p)}
                   </SelectItem>
                 ))}
-                <SelectItem value="__none__">
-                  Gesamter Planungszeitraum ({formatDate(planningStartIso)} –{" "}
-                  {formatDate(planningEndIso)})
-                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -342,29 +328,29 @@ export function PersonAssignmentDialog({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Checkbox
-                id="pa-times"
+                id="va-times"
                 checked={withTimes}
                 onCheckedChange={(v) => setWithTimes(v === true)}
               />
-              <Label htmlFor="pa-times" className="cursor-pointer font-normal">
-                Uhrzeiten angeben (Call-Time)
+              <Label htmlFor="va-times" className="cursor-pointer font-normal">
+                Uhrzeiten angeben (Abfahrt/Rückkehr)
               </Label>
             </div>
             {withTimes && (
               <div className="grid grid-cols-2 gap-4 pt-1">
                 <div className="space-y-2">
-                  <Label htmlFor="pa-start">Beginn</Label>
+                  <Label htmlFor="va-start">Beginn</Label>
                   <Input
-                    id="pa-start"
+                    id="va-start"
                     type="datetime-local"
                     value={start}
                     onChange={(e) => setStart(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pa-end">Ende</Label>
+                  <Label htmlFor="va-end">Ende</Label>
                   <Input
-                    id="pa-end"
+                    id="va-end"
                     type="datetime-local"
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
@@ -374,61 +360,41 @@ export function PersonAssignmentDialog({
             )}
           </div>
 
-          <ConflictWarning conflicts={conflicts} resource="Die Person" />
-
-          {employmentType === "FREELANCER" && (
-            <div className="space-y-2">
-              <Label>Vergütung</Label>
-              <div className="grid grid-cols-[180px_1fr] gap-2">
-                <Select
-                  value={payKind}
-                  onValueChange={(v) => setPayKind(v as "agreed" | "hourly")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="agreed">Tagessatz / Pauschale</SelectItem>
-                    <SelectItem value="hourly">Nach Stunden</SelectItem>
-                  </SelectContent>
-                </Select>
-                {payKind === "agreed" ? (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={agreedRate}
-                    onChange={(e) => setAgreedRate(e.target.value)}
-                    placeholder="€ gesamt, z.B. 450,00"
-                  />
-                ) : (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={hourlyRate}
-                    onChange={(e) => setHourlyRate(e.target.value)}
-                    placeholder="€ pro Stunde, z.B. 45,00"
-                  />
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {payKind === "agreed"
-                  ? "Pauschale zählt direkt als Projektkosten in der Gewinnrechnung."
-                  : "Kosten = erfasste Stunden × Satz — die Person trägt ihre Zeiten über den persönlichen Link nach."}
-              </p>
-            </div>
-          )}
+          <ConflictWarning conflicts={conflicts} resource="Die Einheit" />
 
           <div className="space-y-2">
-            <Label htmlFor="pa-notes">Notiz (optional)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Fahrer (optional)</Label>
+              {requiredLicense && (
+                <InfoHint
+                  text={`Diese Einheit erfordert Führerscheinklasse ${requiredLicense}.`}
+                />
+              )}
+            </div>
+            <Combobox
+              value={driverId}
+              onValueChange={setDriverId}
+              options={drivers.map((d) => ({ value: d.id, label: d.name }))}
+              emptyLabel="— kein Fahrer eingetragen —"
+              placeholder="Name suchen…"
+              clearable
+            />
+            {requiredLicense && (
+              <p className="text-xs text-muted-foreground">
+                Erforderliche Führerscheinklasse: {requiredLicense}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="va-notes">Notiz (optional)</Label>
             <Textarea
-              id="pa-notes"
+              id="va-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               maxLength={500}
-              placeholder="z.B. Treffpunkt Lager 07:30"
+              placeholder="z.B. Beladung Freitag 07:00, Rückfahrt über Lager"
             />
           </div>
 

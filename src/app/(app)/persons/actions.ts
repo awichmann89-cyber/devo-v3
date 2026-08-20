@@ -74,13 +74,16 @@ export async function updatePerson(id: string, input: unknown) {
 
 export async function deletePerson(id: string) {
   await requireRole(CAN_WRITE);
-  // Personen mit Einsätzen oder erfassten Zeiten nur deaktivieren —
-  // Historie (Lohn-Belege!) bleibt erhalten. Restrict-FKs sind der DB-Backstop.
-  const [assignmentCount, timeEntryCount] = await Promise.all([
+  // Personen mit Einsätzen, erfassten Zeiten oder Fahrer-Einträgen nur
+  // deaktivieren — Historie (Lohn-Belege!) bleibt erhalten. Restrict-FKs sind
+  // der DB-Backstop; der Fahrer-Verweis hängt per SetNull und wäre sonst
+  // still weg.
+  const [assignmentCount, timeEntryCount, drivenCount] = await Promise.all([
     prisma.personAssignment.count({ where: { personId: id } }),
     prisma.timeEntry.count({ where: { personId: id } }),
+    prisma.vehicleAssignment.count({ where: { driverId: id } }),
   ]);
-  if (assignmentCount + timeEntryCount > 0) {
+  if (assignmentCount + timeEntryCount + drivenCount > 0) {
     await prisma.person.update({
       where: { id },
       data: { active: false },

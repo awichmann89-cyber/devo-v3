@@ -9,6 +9,7 @@ import {
   ProjectStatus,
   Role,
   ServiceItemKind,
+  VehicleKind,
 } from "@prisma/client";
 
 export const locationSchema = z.object({
@@ -174,14 +175,20 @@ export const projectPeriodsSchema = z
     message: "Planungs-Ende muss nach Start liegen",
   });
 
-export const serviceItemSchema = z.object({
-  name: z.string().min(1, "Name erforderlich").max(150),
-  description: z.string().max(500).optional().nullable(),
-  kind: z.nativeEnum(ServiceItemKind).default(ServiceItemKind.PERSONAL),
-  unit: z.nativeEnum(BillingUnit).default(BillingUnit.HOUR),
-  unitPrice: z.coerce.number().min(0).default(0),
-  active: z.coerce.boolean().default(true),
-});
+export const serviceItemSchema = z
+  .object({
+    name: z.string().min(1, "Name erforderlich").max(150),
+    description: z.string().max(500).optional().nullable(),
+    kind: z.nativeEnum(ServiceItemKind).default(ServiceItemKind.PERSONAL),
+    unit: z.nativeEnum(BillingUnit).default(BillingUnit.HOUR),
+    unitPrice: z.coerce.number().min(0).default(0),
+    active: z.coerce.boolean().default(true),
+  })
+  // Transport (Fahrzeuge/Anhänger) wird immer pauschal gerechnet — die
+  // Einheit wird still auf FLAT gezogen statt den Nutzer zu blockieren.
+  .transform((d) =>
+    d.kind === ServiceItemKind.TRANSPORT ? { ...d, unit: BillingUnit.FLAT } : d
+  );
 
 export const projectServiceSchema = z.object({
   serviceItemId: z.string().min(1),
@@ -332,6 +339,41 @@ export const timeEntrySchema = z
   .refine((d) => computeWorkedMinutes(d) <= 16 * 60, {
     path: ["end"],
     message: "Mehr als 16 Stunden — bitte prüfen",
+  });
+
+// ---------- Fuhrpark ----------
+
+export const vehicleSchema = z.object({
+  name: z.string().min(1, "Name erforderlich").max(150),
+  kind: z.nativeEnum(VehicleKind).default(VehicleKind.FAHRZEUG),
+  licensePlate: z.string().max(20).optional().nullable(),
+  loadCapacityKg: z.coerce.number().int().min(0).max(100000).optional().nullable(),
+  grossWeightKg: z.coerce.number().int().min(0).max(100000).optional().nullable(),
+  requiredLicense: z.string().max(20).optional().nullable(),
+  nextInspection: z.coerce.date().optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  active: z.coerce.boolean().default(true),
+});
+
+// Einsatz einer Fuhrpark-Einheit an einer Transport-Position.
+// Ohne Zeitraum und ohne Uhrzeiten blockt der Einsatz den gesamten
+// Projekt-Planungszeitraum (Regelfall) — siehe schema.prisma.
+export const vehicleAssignmentSchema = z
+  .object({
+    vehicleId: z.string().min(1),
+    billingPeriodId: z.string().optional().nullable(),
+    plannedStart: z.coerce.date().optional().nullable(),
+    plannedEnd: z.coerce.date().optional().nullable(),
+    driverId: z.string().optional().nullable(),
+    notes: z.string().max(500).optional().nullable(),
+  })
+  .refine((d) => (d.plannedStart == null) === (d.plannedEnd == null), {
+    path: ["plannedEnd"],
+    message: "Start und Ende gemeinsam angeben oder beide leer lassen",
+  })
+  .refine((d) => !d.plannedStart || !d.plannedEnd || d.plannedEnd >= d.plannedStart, {
+    path: ["plannedEnd"],
+    message: "Ende muss nach Start liegen",
   });
 
 export const userSchema = z.object({

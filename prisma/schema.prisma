@@ -361,36 +361,38 @@ model Project {
   maintainerId String?
   maintainer   User?   @relation("ProjectMaintainer", fields: [maintainerId], references: [id], onDelete: SetNull)
 
-  assignments       ProjectAssignment[]
-  cableAssignments  ProjectCableAssignment[]
-  adHocItems        ProjectAdHocItem[]
-  groupComments     ProjectGroupComment[]
+  assignments        ProjectAssignment[]
+  cableAssignments   ProjectCableAssignment[]
+  adHocItems         ProjectAdHocItem[]
+  groupComments      ProjectGroupComment[]
   // Berechnungszeiträume: Tage für die Mietkalkulation (mehrere möglich)
-  billingPeriods    BillingPeriod[]
+  billingPeriods     BillingPeriod[]
   // Freie Markdown-Notizen mit Titel
-  projectNotes      ProjectNote[]
+  projectNotes       ProjectNote[]
   // Personal- und Transport-Positionen
-  services          ProjectService[]
+  services           ProjectService[]
   // Gruppen für Material und Personal & Transport (separat pro Tab via kind)
-  groups            ProjectGroup[]
+  groups             ProjectGroup[]
   // Erzeugte Rechnungen
-  invoices          Invoice[]
+  invoices           Invoice[]
   // Erzeugte Angebote
-  quotes            Quote[]
+  quotes             Quote[]
   // Token für die Public-Scan-Seite (/scan/[token]) zum Abhaken beim Packen.
   // Lazy generiert, beim Klick auf "Token neu generieren" zurückgesetzt.
-  packToken         String?                  @unique
-  packingScans      PackingScan[]
+  packToken          String?                  @unique
+  packingScans       PackingScan[]
   // Frei hochgeladene Dateien (PDFs, Bilder, Office-Dokumente) zur Doku.
-  files             ProjectFile[]
+  files              ProjectFile[]
   // Zugemietetes Material (rein interne Kostenpositionen, nie auf Dokumenten)
-  subhires          ProjectSubhire[]
+  subhires           ProjectSubhire[]
   // Sonstige / personaltechnische Extrakosten (rein intern)
-  extraCosts        ProjectExtraCost[]
+  extraCosts         ProjectExtraCost[]
   // Personaleinsätze (denormalisiert; primär an ProjectService)
-  personAssignments PersonAssignment[]
+  personAssignments  PersonAssignment[]
+  // Fahrzeug-/Anhänger-Einsätze (denormalisiert; primär an ProjectService)
+  vehicleAssignments VehicleAssignment[]
   // Erfasste Ist-Arbeitszeiten (Lohn-Belege, Restrict — siehe TimeEntry)
-  timeEntries       TimeEntry[]
+  timeEntries        TimeEntry[]
 
   @@index([status])
   @@index([customerId])
@@ -767,7 +769,9 @@ model ProjectService {
   updatedAt DateTime @updatedAt
 
   // Konkrete Personen an dieser Position (Einsatzplan)
-  personAssignments PersonAssignment[]
+  personAssignments  PersonAssignment[]
+  // Konkrete Fahrzeuge/Anhänger an dieser Position (nur Transport-Positionen)
+  vehicleAssignments VehicleAssignment[]
 
   @@index([projectId])
   @@index([serviceItemId])
@@ -816,8 +820,10 @@ model Person {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  assignments PersonAssignment[]
-  timeEntries TimeEntry[]
+  assignments       PersonAssignment[]
+  timeEntries       TimeEntry[]
+  // Einsätze, bei denen die Person als Fahrer einer Fuhrpark-Einheit geführt ist
+  drivenAssignments VehicleAssignment[]
 
   @@index([active])
   @@index([employmentType])
@@ -900,6 +906,81 @@ model TimeEntry {
   @@index([assignmentId])
 }
 
+// ---------- Fuhrpark ----------
+
+// Art einer Fuhrpark-Einheit. Anhänger stehen bewusst gleichberechtigt neben
+// Fahrzeugen: beide werden einzeln disponiert (Zugfahrzeug + Anhänger sind
+// zwei Einsätze an derselben Transport-Position).
+enum VehicleKind {
+  FAHRZEUG
+  ANHAENGER
+}
+
+// Fahrzeug oder Anhänger im Eigenbestand. Einzelstück (kein Lagerbestand) —
+// jede Einheit kann pro Zeitfenster nur einmal unterwegs sein, daher die
+// Überbuchungsprüfung in lib/booking-conflicts.ts.
+model Vehicle {
+  id              String      @id @default(cuid())
+  name            String      @unique
+  kind            VehicleKind @default(FAHRZEUG)
+  // Kennzeichen, Zuladung/Gesamtgewicht und Führerscheinklasse — die Angaben,
+  // die bei der Disposition tatsächlich entscheiden, wer damit fahren darf.
+  licensePlate    String?
+  loadCapacityKg  Int?
+  grossWeightKg   Int?
+  requiredLicense String?
+  // HU/TÜV fällig — tagesgenau, nur informativ (kein Buchungs-Blocker).
+  nextInspection  DateTime?
+  notes           String?
+  active          Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  assignments VehicleAssignment[]
+
+  @@index([active])
+  @@index([kind])
+}
+
+// Einsatz eines Fahrzeugs/Anhängers an einer Transport-Position.
+// Hängt per Cascade an der Preiszeile (Muster PersonAssignment) — Zeile
+// löschen entfernt die Einsätze. Fahrzeuge werden immer pauschal berechnet
+// (die Position trägt den Preis), der Einsatz selbst ist reine Disposition
+// und erzeugt keine Projektkosten.
+model VehicleAssignment {
+  id               String         @id @default(cuid())
+  projectServiceId String
+  projectService   ProjectService @relation(fields: [projectServiceId], references: [id], onDelete: Cascade)
+  // Denormalisiert für direkte Projekt-Queries (Muster PersonAssignment).
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vehicleId        String
+  vehicle          Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  // Blockzeitraum. Regelfall: alles null ⇒ der gesamte Projekt-Planungszeitraum
+  // ist geblockt. Optional auf einen Berechnungszeitraum eingrenzbar (z.B. nur
+  // Auf-/Abbautag) oder mit Uhrzeiten versehen — gleiche Fallback-Kette wie
+  // beim Personal (lib/personnel-schedule.ts).
+  billingPeriodId  String?
+  billingPeriod    BillingPeriod? @relation(fields: [billingPeriodId], references: [id], onDelete: SetNull)
+  plannedStart     DateTime?
+  plannedEnd       DateTime?
+  // Fahrer (optional): Person aus dem Personalstamm, die die Einheit führt.
+  driverId         String?
+  driver           Person?        @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  notes            String?
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Kein Unique auf (projectServiceId, vehicleId) — dieselbe Einheit kann
+  // bewusst mehrfach an einer Zeile stehen (z.B. zwei Fahrten).
+  @@index([projectServiceId])
+  @@index([projectId])
+  @@index([vehicleId])
+  @@index([billingPeriodId])
+  @@index([driverId])
+}
+
 // Freie, mit Markdown formatierbare Notizen am Projekt (z.B. Anfahrt, Briefing).
 model ProjectNote {
   id        String   @id @default(cuid())
@@ -927,9 +1008,10 @@ model BillingPeriod {
 
   // Gruppen, die diesen Zeitraum für Berechnung (MATERIAL) bzw.
   // Personalplanung (SERVICE) ausgewählt haben.
-  groups            ProjectGroup[]     @relation("GroupBillingPeriods")
+  groups             ProjectGroup[]      @relation("GroupBillingPeriods")
   // Einsätze, die ohne explizite Uhrzeiten über diesen Zeitraum laufen.
-  personAssignments PersonAssignment[]
+  personAssignments  PersonAssignment[]
+  vehicleAssignments VehicleAssignment[]
 
   @@index([projectId])
 }

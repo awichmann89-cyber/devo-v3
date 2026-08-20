@@ -29,11 +29,13 @@ import { CopyProjectButton } from "./copy-button";
 import { getOverlappingAssignments } from "@/lib/availability";
 import { buildPackList } from "@/lib/packlist";
 import { assignmentCost, timeEntryCost, workedMinutes } from "@/lib/personnel-costs";
+import { effectivePlannedMinutes } from "@/lib/personnel-schedule";
 import {
-  assignmentEffectiveRange,
-  effectivePlannedMinutes,
-  rangesOverlap,
-} from "@/lib/personnel-schedule";
+  busyIntervalsByResource,
+  conflictsByBooking,
+  loadPersonBookings,
+  loadVehicleBookings,
+} from "@/lib/booking-load";
 import { auth } from "@/auth";
 import { hasRole, CAN_WRITE } from "@/lib/auth-helpers";
 
@@ -74,6 +76,24 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                     breakMinutes: true,
                     hourlyWageSnapshot: true,
                   },
+                },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+            // Disposition: Fahrzeuge/Anhänger an dieser Position
+            vehicleAssignments: {
+              include: {
+                vehicle: {
+                  select: {
+                    name: true,
+                    kind: true,
+                    licensePlate: true,
+                    requiredLicense: true,
+                  },
+                },
+                driver: { select: { name: true } },
+                billingPeriod: {
+                  select: { id: true, start: true, end: true, notes: true },
                 },
               },
               orderBy: { createdAt: "asc" },
@@ -133,7 +153,15 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   if (!project) notFound();
   const canWrite = hasRole(session?.user.role, CAN_WRITE);
 
-  const [allDevices, allCables, allCategories, customers, users, activePersons] = await Promise.all([
+  const [
+    allDevices,
+    allCables,
+    allCategories,
+    customers,
+    users,
+    activePersons,
+    activeVehicles,
+  ] = await Promise.all([
     prisma.device.findMany({
       include: { category: true },
       orderBy: { name: "asc" },
@@ -158,6 +186,17 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         defaultDayRate: true,
       },
       orderBy: { name: "asc" },
+    }),
+    prisma.vehicle.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        licensePlate: true,
+        requiredLicense: true,
+      },
+      orderBy: [{ kind: "asc" }, { name: "asc" }],
     }),
   ]);
 
@@ -442,69 +481,29 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   const costGroups = project.groups
     .filter((g) => g.kind === "COST")
     .map((g) => ({ id: g.id, name: g.name, billable: g.billable }));
-  // ----- Überbuchungs-Prüfung: Einsätze derselben Personen in ANDEREN Projekten -----
+  // ----- Überbuchungs-Prüfung (Personal + Fuhrpark) -----
+  // Zweistufig: echte Zeitüberschneidung vs. gleicher Kalendertag. Beide
+  // Ressourcen laufen durch dieselbe Engine (lib/booking-conflicts.ts); geladen
+  // werden alle Einsätze der beteiligten Personen/Einheiten — auch die aus
+  // anderen Projekten, denn nur die können kollidieren.
   const projectPersonIds = [
     ...new Set(project.services.flatMap((s) => s.personAssignments.map((a) => a.personId))),
   ];
-  const foreignAssignments =
-    projectPersonIds.length > 0
-      ? await prisma.personAssignment.findMany({
-          where: {
-            personId: { in: projectPersonIds },
-            projectId: { not: id },
-            // Stornierte Projekte blockieren niemanden.
-            project: { is: { status: { not: "CANCELLED" } } },
-          },
-          select: {
-            personId: true,
-            plannedStart: true,
-            plannedEnd: true,
-            billingPeriod: { select: { start: true, end: true } },
-            project: {
-              select: { name: true, planningStart: true, planningEnd: true },
-            },
-          },
-        })
-      : [];
-  // Fremd-Einsätze pro Person als effektive Zeitfenster (für Badge + Dialog).
-  const personBusy: Record<
-    string,
-    { projectName: string; start: string; end: string; timed: boolean }[]
-  > = {};
-  for (const f of foreignAssignments) {
-    const r = assignmentEffectiveRange({
-      plannedStart: f.plannedStart,
-      plannedEnd: f.plannedEnd,
-      billingPeriod: f.billingPeriod,
-      projectPlanningStart: f.project.planningStart,
-      projectPlanningEnd: f.project.planningEnd,
-    });
-    (personBusy[f.personId] ??= []).push({
-      projectName: f.project.name,
-      start: r.start.toISOString(),
-      end: r.end.toISOString(),
-      timed: r.timed,
-    });
-  }
-  // Konflikte je Einsatz dieses Projekts (Projektnamen der Überlappungen).
-  const assignmentConflicts: Record<string, string[]> = {};
-  for (const s of project.services) {
-    for (const a of s.personAssignments) {
-      const r = assignmentEffectiveRange({
-        plannedStart: a.plannedStart,
-        plannedEnd: a.plannedEnd,
-        billingPeriod: a.billingPeriod,
-        projectPlanningStart: project.planningStart,
-        projectPlanningEnd: project.planningEnd,
-      });
-      const names = (personBusy[a.personId] ?? [])
-        .filter((b) =>
-          rangesOverlap(r.start, r.end, new Date(b.start), new Date(b.end))
-        )
-        .map((b) => b.projectName);
-      if (names.length > 0) assignmentConflicts[a.id] = [...new Set(names)];
-    }
-  }
+  const projectVehicleIds = [
+    ...new Set(
+      project.services.flatMap((s) => s.vehicleAssignments.map((a) => a.vehicleId))
+    ),
+  ];
+  const [personBookings, vehicleBookings] = await Promise.all([
+    loadPersonBookings(projectPersonIds),
+    loadVehicleBookings(projectVehicleIds),
+  ]);
+  // Fremd-Belegungen je Ressource (für die Live-Warnung in den Dialogen).
+  const personBusy = busyIntervalsByResource(personBookings, id);
+  const vehicleBusy = busyIntervalsByResource(vehicleBookings, id);
+  // Konflikte je Einsatz (Projektname + Stufe) für Badges und Einsatzplan.
+  const assignmentConflicts = conflictsByBooking(personBookings);
+  const vehicleConflicts = conflictsByBooking(vehicleBookings);
 
   // Einsatzplan-Zeilen für den Kosten-Tab: pro Einsatz Person, Position,
   // Vergütung und Stunden/Kosten — Ist-Zeiten, sonst geplante Stunden × Satz.
@@ -933,6 +932,24 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 }),
                 conflicts: assignmentConflicts[a.id] ?? [],
               })),
+              vehicleAssignments: s.vehicleAssignments.map((a) => ({
+                id: a.id,
+                vehicleId: a.vehicleId,
+                vehicleName: a.vehicle.name,
+                vehicleKind: a.vehicle.kind,
+                licensePlate: a.vehicle.licensePlate,
+                requiredLicense: a.vehicle.requiredLicense,
+                billingPeriodId: a.billingPeriodId,
+                periodStart: a.billingPeriod?.start.toISOString() ?? null,
+                periodEnd: a.billingPeriod?.end.toISOString() ?? null,
+                periodNotes: a.billingPeriod?.notes ?? null,
+                plannedStart: a.plannedStart?.toISOString() ?? null,
+                plannedEnd: a.plannedEnd?.toISOString() ?? null,
+                driverId: a.driverId,
+                driverName: a.driver?.name ?? null,
+                notes: a.notes,
+                conflicts: vehicleConflicts[a.id] ?? [],
+              })),
             }))}
             catalog={serialize(serviceCatalog) as never}
             groups={serialize(project.groups.filter((g) => g.kind === "SERVICE"))}
@@ -945,6 +962,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               defaultDayRate:
                 p.defaultDayRate !== null ? Number(p.defaultDayRate) : null,
             }))}
+            vehicles={activeVehicles}
             billingPeriods={project.billingPeriods.map((p) => ({
               id: p.id,
               start: p.start.toISOString(),
@@ -953,6 +971,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             }))}
             groupPeriodIds={groupPeriodIds}
             personBusy={personBusy}
+            vehicleBusy={vehicleBusy}
             planningStartIso={project.planningStart.toISOString()}
             planningEndIso={project.planningEnd.toISOString()}
           />

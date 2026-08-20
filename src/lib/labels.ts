@@ -1,4 +1,5 @@
-import { BillingUnit, EmploymentType, ExtraCostKind, ProjectKind, ProjectStatus, Role, ServiceItemKind } from "@prisma/client";
+import { BillingUnit, EmploymentType, ExtraCostKind, ProjectKind, ProjectStatus, Role, ServiceItemKind, VehicleKind } from "@prisma/client";
+import type { ConflictSeverity } from "@/lib/booking-conflicts";
 
 export function projectKindLabel(kind: ProjectKind): string {
   return {
@@ -176,6 +177,48 @@ export function employmentTypeVariant(type: EmploymentType): BadgeVariant {
     FREELANCER: "warning" as const,
     MINIJOBBER: "outline" as const,
   }[type];
+}
+
+export function vehicleKindLabel(kind: VehicleKind): string {
+  return {
+    FAHRZEUG: "Fahrzeug",
+    ANHAENGER: "Anhänger",
+  }[kind];
+}
+
+export function vehicleKindVariant(kind: VehicleKind): BadgeVariant {
+  return {
+    FAHRZEUG: "secondary" as const,
+    ANHAENGER: "outline" as const,
+  }[kind];
+}
+
+// ---------- Buchungskonflikte (Personal und Fuhrpark) ----------
+// Zweistufig: echte Zeitüberschneidung ist ein Fehler, gleicher Kalendertag
+// ohne Überschneidung nur eine Warnung. Siehe lib/booking-conflicts.ts.
+
+export function conflictSeverityLabel(severity: ConflictSeverity): string {
+  return {
+    OVERLAP: "Überbucht",
+    SAME_DAY: "Selber Tag",
+  }[severity];
+}
+
+export function conflictSeverityVariant(severity: ConflictSeverity): BadgeVariant {
+  return {
+    OVERLAP: "destructive" as const,
+    SAME_DAY: "warning" as const,
+  }[severity];
+}
+
+/** Tooltip-/Erklärtext zur Konfliktstufe (Ressource = "Person"/"Fahrzeug"). */
+export function conflictSeverityHint(
+  severity: ConflictSeverity,
+  resource: string
+): string {
+  return severity === "OVERLAP"
+    ? `Zeitgleich eingeplant — ${resource} kann nicht an beiden Stellen sein`
+    : `Am selben Tag eingeplant (ohne Zeitüberschneidung) — ${resource} bitte prüfen`;
 }
 
 export function serviceItemKindLabel(kind: ServiceItemKind): string {
