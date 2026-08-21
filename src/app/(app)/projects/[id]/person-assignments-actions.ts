@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { personAssignmentSchema } from "@/lib/validators";
-import { Prisma } from "@prisma/client";
+import { Prisma, ServiceItemKind } from "@prisma/client";
 
 /** Revalidiert Projekt-Seite, Kalender ("Meine Einsätze") + Public-Zeiterfassungsseite. */
 function revalidateAssignment(projectId: string, personalToken: string | null) {
@@ -35,9 +35,16 @@ export async function addPersonAssignment(projectServiceId: string, input: unkno
 
   const service = await prisma.projectService.findUnique({
     where: { id: projectServiceId },
-    select: { projectId: true },
+    select: { projectId: true, serviceItem: { select: { kind: true } } },
   });
   if (!service) throw new Error("Position nicht gefunden");
+  // Transport-Positionen tragen Fahrzeuge/Anhänger, kein Personal — wer fährt,
+  // wird als Fahrer am Fahrzeug-Einsatz eingetragen (VehicleAssignment.driver).
+  if (service.serviceItem.kind === ServiceItemKind.TRANSPORT) {
+    throw new Error(
+      "An Transport-Positionen wird kein Personal eingeplant — den Fahrer am Fahrzeug-Einsatz eintragen"
+    );
+  }
 
   const person = await prisma.person.findUnique({
     where: { id: data.personId },

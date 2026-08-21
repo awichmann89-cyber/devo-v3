@@ -1070,23 +1070,26 @@ export function ServicesSection({
         </TableCell>
         <TableCell>
           <div className="flex gap-0.5">
-            <Button
-              variant="ghost"
-              size="iconXs"
-              
-              onClick={() =>
-                setAssignDialog({
-                  projectServiceId: ps.id,
-                  serviceName: ps.serviceItem.name,
-                  groupId: ps.groupId,
-                  assignment: null,
-                })
-              }
-              disabled={pending}
-              title="Person einplanen"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-            </Button>
+            {/* Transport bekommt kein Personal: wer fährt, wird als Fahrer am
+                Fahrzeug-Einsatz eingetragen. */}
+            {ps.serviceItem.kind !== "TRANSPORT" && (
+              <Button
+                variant="ghost"
+                size="iconXs"
+                onClick={() =>
+                  setAssignDialog({
+                    projectServiceId: ps.id,
+                    serviceName: ps.serviceItem.name,
+                    groupId: ps.groupId,
+                    assignment: null,
+                  })
+                }
+                disabled={pending}
+                title="Person einplanen"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {ps.serviceItem.kind === "TRANSPORT" && (
               <Button
                 variant="ghost"
