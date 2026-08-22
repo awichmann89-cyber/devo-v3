@@ -1289,6 +1289,7 @@ export function ServicesSection({
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:services-split"
+        mobileLeftLabel="Katalog"
         defaultLeftPx={360}
         minLeftPx={280}
         minRightPx={520}

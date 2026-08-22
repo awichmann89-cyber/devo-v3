@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -25,6 +27,14 @@ interface Props {
    * statt sich an prozentualen Höhen aufzuhängen).
    */
   rightClassName?: string;
+  /**
+   * Wenn gesetzt, ist die linke Spalte auf Mobil (< lg) zunächst ausgeblendet
+   * und nur über einen Button erreichbar — auf kleinen Displays wird sonst
+   * beides übereinander gestapelt und damit unübersichtlich. Der Text benennt
+   * den Inhalt der linken Spalte, z.B. „Katalog". Auf Desktop ändert sich
+   * nichts.
+   */
+  mobileLeftLabel?: string;
 }
 
 export function HorizontalSplit({
@@ -37,10 +47,15 @@ export function HorizontalSplit({
   className,
   leftClassName,
   rightClassName,
+  mobileLeftLabel,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [leftPx, setLeftPx] = useState<number>(defaultLeftPx);
   const [dragging, setDragging] = useState(false);
+  // Bewusst nicht persistiert: beim Öffnen der Seite soll auf dem Handy
+  // zuerst die gebuchte Liste zu sehen sein, nicht der Katalog.
+  const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+  const leftId = useId();
 
   useEffect(() => {
     if (!storageKey) return;
@@ -88,7 +103,36 @@ export function HorizontalSplit({
       className={cn("flex flex-col gap-4 lg:flex-row lg:gap-0", className)}
       style={style}
     >
-      <div className={cn("w-full lg:w-[var(--left-w)] lg:shrink-0", leftClassName)}>{left}</div>
+      {mobileLeftLabel && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full lg:hidden"
+          aria-expanded={mobileLeftOpen}
+          aria-controls={leftId}
+          onClick={() => setMobileLeftOpen((o) => !o)}
+        >
+          {mobileLeftOpen ? <ChevronUp /> : <ChevronDown />}
+          {mobileLeftLabel} {mobileLeftOpen ? "ausblenden" : "einblenden"}
+        </Button>
+      )}
+      <div
+        id={leftId}
+        className={cn(
+          "w-full lg:w-[var(--left-w)] lg:shrink-0",
+          // Auf Mobil eingeklappt bzw. — aufgeklappt — auf Bildschirmhöhe
+          // begrenzt und in sich scrollbar, damit die gebuchte Liste nicht
+          // hinter den ganzen Katalog rutscht.
+          mobileLeftLabel && !mobileLeftOpen && "hidden lg:block",
+          mobileLeftLabel &&
+            mobileLeftOpen &&
+            "max-h-[70svh] overflow-y-auto lg:max-h-none lg:overflow-visible",
+          leftClassName
+        )}
+      >
+        {left}
+      </div>
       <div
         role="separator"
         aria-orientation="vertical"
