@@ -122,6 +122,22 @@
   .num-strong {
     @apply font-mono font-medium tabular-nums;
   }
+
+  /*
+   * Zahlenfelder mit eigenen −/+ Buttons (QtyStepper) verstecken die nativen
+   * Spin-Buttons — die rendert jeder Browser anders und sie doppeln die
+   * Buttons. Firefox braucht dafür zusätzlich `appearance: textfield`.
+   */
+  .no-spinner {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
 }
 
 @layer components {

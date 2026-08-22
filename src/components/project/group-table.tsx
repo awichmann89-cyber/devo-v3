@@ -321,7 +321,7 @@ export function QtyStepper({
         value={value}
         onChange={onChange}
         disabled={disabled}
-        className="h-[24px] w-11 rounded-none border-0 bg-transparent px-1 text-center font-mono text-xs font-bold shadow-none focus-visible:border-0 focus-visible:ring-0"
+        className="no-spinner h-[24px] w-11 rounded-none border-0 bg-transparent px-1 text-center font-mono text-xs font-bold shadow-none focus-visible:border-0 focus-visible:ring-0"
       />
       {suffix && (
         <span className="pr-1.5 font-mono text-[11px] text-muted-foreground">{suffix}</span>
