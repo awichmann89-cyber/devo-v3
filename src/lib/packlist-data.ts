@@ -19,6 +19,21 @@ export type PackItem = Extract<PackListItem, { kind: "PACK" }>;
 export type LooseItem = Extract<PackListItem, { kind: "LOOSE" }>;
 export type CableItem = Extract<PackListItem, { kind: "CABLE" }>;
 
+/**
+ * Ad-hoc-Position eines Projekts („Vorübergehendes Gerät") auf der Packliste.
+ *
+ * Sie hängt an einer Material-Gruppe statt an einer Kategorie und ist keinem
+ * Lagerbestand zugeordnet — deshalb steht sie nicht in den Kategorie-Sektionen,
+ * sondern in einer eigenen Sektion am Ende der Liste. Ein Gewicht führt das
+ * Datenmodell für sie nicht, gepackt werden muss sie trotzdem.
+ */
+export type AdHocPackItem = {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+};
+
 /** Eine Kategorie-Sektion der Liste, inkl. Packeinheiten/lose Geräte/Kabel. */
 export type PackListCategoryGroup = {
   key: string;
@@ -31,7 +46,10 @@ export type PackListCategoryGroup = {
 
 export type PackListTotals = {
   packs: number;
-  /** Geräte inkl. der in Packeinheiten mitreisenden. */
+  /**
+   * Geräte inkl. der in Packeinheiten mitreisenden und der Vorübergehenden
+   * Geräte — die Summe zählt Packstücke, nicht Lagerartikel.
+   */
   devices: number;
   /** Gebuchte Kabel + die in Packeinheiten mitreisenden. */
   cables: number;
@@ -46,6 +64,11 @@ const PACKLIST_PROJECT_INCLUDE = {
   cableAssignments: {
     include: { cable: { include: { category: true } } },
   },
+  // Nach Gruppe und dann nach Position sortiert — `sortOrder` ist nur
+  // innerhalb einer Gruppe eindeutig (siehe nextSortOrderForGroup()).
+  adHocItems: {
+    orderBy: [{ group: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+  },
 } satisfies Prisma.ProjectInclude;
 
 export type PackListProject = Prisma.ProjectGetPayload<{
@@ -58,6 +81,8 @@ export type ProjectPackList = {
   items: PackListItem[];
   /** Nach Kategorie-Pfad gruppiert und alphabetisch sortiert. */
   groups: PackListCategoryGroup[];
+  /** Vorübergehende Geräte des Projekts — eigene Sektion, siehe AdHocPackItem. */
+  adhoc: AdHocPackItem[];
   totals: PackListTotals;
 };
 
@@ -180,14 +205,24 @@ export async function loadProjectPackList(
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey, "de"))
     .map(({ sortKey: _sortKey, ...g }) => g);
 
+  // ===== Vorübergehende Geräte =====
+  const adhoc: AdHocPackItem[] = project.adHocItems.map((it) => ({
+    id: it.id,
+    name: it.name,
+    description: it.description,
+    quantity: it.quantity,
+  }));
+  const adhocQuantity = adhoc.reduce((s, it) => s + it.quantity, 0);
+
   // ===== Summen =====
   const totals: PackListTotals = {
     packs: items.reduce((s, p) => (p.kind === "PACK" ? s + p.quantity : s), 0),
-    devices: items.reduce((s, p) => {
-      if (p.kind === "PACK") return s + p.contents.reduce((cs, c) => cs + c.total, 0);
-      if (p.kind === "CABLE") return s;
-      return s + p.quantity;
-    }, 0),
+    devices:
+      items.reduce((s, p) => {
+        if (p.kind === "PACK") return s + p.contents.reduce((cs, c) => cs + c.total, 0);
+        if (p.kind === "CABLE") return s;
+        return s + p.quantity;
+      }, 0) + adhocQuantity,
     cables: items.reduce((s, p) => {
       if (p.kind === "PACK") return s + p.cables.reduce((cs, c) => cs + c.total, 0);
       if (p.kind === "CABLE") return s + p.quantity;
@@ -196,5 +231,5 @@ export async function loadProjectPackList(
     weightKg: items.reduce((s, p) => s + p.weightPerUnit * p.quantity, 0),
   };
 
-  return { project, items, groups, totals };
+  return { project, items, groups, adhoc, totals };
 }

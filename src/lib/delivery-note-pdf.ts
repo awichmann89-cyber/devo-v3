@@ -35,7 +35,7 @@ export async function buildDeliveryNotePdf(
 ): Promise<BuiltDeliveryNotePdf | null> {
   const data = await loadProjectPackList(projectId);
   if (!data) return null;
-  const { project, groups, totals } = data;
+  const { project, groups, adhoc, totals } = data;
   const settings = await getSettings();
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -235,6 +235,34 @@ export async function buildDeliveryNotePdf(
         { content: c.spec ? `${c.cableName} · ${c.spec}` : c.cableName },
         weightCell(c.weightPerUnit, c.quantity),
       ]);
+    }
+  }
+
+  // Vorübergehende Geräte gehören zu keiner Kategorie und stehen daher — wie
+  // auf der Packliste — in einer eigenen Sektion am Ende der Positionen.
+  if (adhoc.length > 0) {
+    body.push(sectionRow("Vorübergehende Geräte"));
+    for (const a of adhoc) {
+      body.push([
+        { content: `${a.quantity}×`, styles: { halign: "left" as const } },
+        { content: a.name },
+        // Ad-hoc-Positionen haben im Datenmodell kein Gewicht.
+        weightCell(0, a.quantity),
+      ]);
+      if (a.description) {
+        body.push([
+          {
+            content: "",
+            styles: {
+              textColor: 130,
+              fontSize: 8,
+              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
+            },
+          },
+          { content: a.description, styles: { textColor: 130, fontSize: 8 } },
+          { content: "", styles: { textColor: 130, fontSize: 8 } },
+        ]);
+      }
     }
   }
 

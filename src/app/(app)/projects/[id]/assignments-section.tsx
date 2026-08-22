@@ -695,10 +695,14 @@ export function AssignmentsSection({
     assignmentsByGroup.set(a.groupId, arr);
   }
 
-  // Packliste/Digital-Packen brauchen mindestens eine gebuchte Position —
-  // Kabel alleine reichen dafür aus.
+  // Digital-Packen braucht mindestens eine gebuchte Position — Kabel alleine
+  // reichen dafür aus. Vorübergehende Geräte NICHT: sie haben keinen Code zum
+  // Scannen und stehen deshalb nicht auf der digitalen Packliste.
   const hasPackableItems =
     project.assignments.length > 0 || cableAssignments.length > 0;
+  // Packliste/Lieferschein führen Vorübergehende Geräte dagegen mit auf — ein
+  // Projekt, das nur aus solchen besteht, hat also trotzdem Dokumente.
+  const hasPrintableItems = hasPackableItems || adHocItems.length > 0;
 
   // Kabel-Buchungen pro Gruppe
   const cableAssignmentsByGroup = new Map<string, CableAssignmentWithCable[]>();
@@ -1369,14 +1373,14 @@ export function AssignmentsSection({
           href={`/api/projects/${project.id}/lieferschein/pdf?download=1`}
           label="Lieferschein"
           title="Lieferschein herunterladen"
-          enabled={hasPackableItems}
+          enabled={hasPrintableItems}
           variant="outline"
         />
         <DocumentDownloadButton
           href={`/api/projects/${project.id}/packlist.pdf?download=1`}
           label="Packliste"
           title="Packliste herunterladen"
-          enabled={hasPackableItems}
+          enabled={hasPrintableItems}
         />
       </div>
       {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des

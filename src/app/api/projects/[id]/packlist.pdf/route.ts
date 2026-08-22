@@ -44,7 +44,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // siehe src/lib/packlist-data.ts.
   const data = await loadProjectPackList(id);
   if (!data) return new NextResponse("Not found", { status: 404 });
-  const { project, groups, totals } = data;
+  const { project, groups, adhoc, totals } = data;
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.setFontSize(20);
@@ -197,6 +197,34 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
           styles: { halign: "right" },
         },
       ]);
+    }
+  }
+
+  // Vorübergehende Geräte hängen an keiner Kategorie — sie bekommen deshalb
+  // eine eigene Sektion am Ende, statt unter „Ohne Kategorie" zu verschwinden.
+  if (adhoc.length > 0) {
+    body.push(sectionRow("Vorübergehende Geräte"));
+    for (const a of adhoc) {
+      body.push([
+        { content: `${a.quantity}×`, styles: { halign: "left" } },
+        a.name,
+        // Für Ad-hoc-Positionen führt das Datenmodell kein Gewicht.
+        { content: "—", styles: { halign: "right" } },
+      ]);
+      if (a.description) {
+        body.push([
+          {
+            content: "",
+            styles: {
+              textColor: 130,
+              fontSize: 8,
+              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
+            },
+          },
+          { content: a.description, styles: { textColor: 130, fontSize: 8 } },
+          { content: "", styles: { textColor: 130, fontSize: 8 } },
+        ]);
+      }
     }
   }
 
