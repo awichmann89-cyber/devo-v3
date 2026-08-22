@@ -21,10 +21,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BillingUnit, ServiceItemKind } from "@prisma/client";
 import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
+import {
+  vehicleOptionHint,
+  type VehicleOptionVM,
+} from "../vehicles/vehicle-dialog";
 import { createServiceItem, updateServiceItem } from "./actions";
 import { toastError } from "@/lib/toast";
 
@@ -36,6 +41,11 @@ export interface ServiceItemVM {
   unit: BillingUnit;
   unitPrice: number;
   active: boolean;
+  /**
+   * Standard-Fuhrpark-Einheit (nur Transport): wird beim Buchen der Position
+   * automatisch als Einsatz angelegt.
+   */
+  defaultVehicleId?: string | null;
 }
 
 interface Props {
@@ -43,15 +53,24 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   item?: ServiceItemVM | null;
   onCreated?: (item: ServiceItemVM) => void;
+  /** Aktive Fuhrpark-Einheiten für die Vorbelegung von Transport-Positionen. */
+  vehicles?: VehicleOptionVM[];
 }
 
-export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props) {
+export function ServiceItemDialog({
+  open,
+  onOpenChange,
+  item,
+  onCreated,
+  vehicles = [],
+}: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<ServiceItemKind>("PERSONAL");
   const [unit, setUnit] = useState<BillingUnit>("HOUR");
   const [unitPrice, setUnitPrice] = useState("0");
   const [active, setActive] = useState(true);
+  const [defaultVehicleId, setDefaultVehicleId] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -62,6 +81,7 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
       setUnit(item?.unit ?? "HOUR");
       setUnitPrice(item ? String(item.unitPrice) : "0");
       setActive(item?.active ?? true);
+      setDefaultVehicleId(item?.defaultVehicleId ?? "");
     }
   }, [open, item]);
 
@@ -88,6 +108,8 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
       unit,
       unitPrice: Number(unitPrice) || 0,
       active,
+      // Vorbelegung nur an Transport-Positionen (der Server verwirft sie sonst).
+      defaultVehicleId: unitLocked ? defaultVehicleId || null : null,
     };
 
     startTransition(async () => {
@@ -183,6 +205,33 @@ export function ServiceItemDialog({ open, onOpenChange, item, onCreated }: Props
               required
             />
           </div>
+
+          {unitLocked && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label>Fahrzeug/Anhänger (optional)</Label>
+                <InfoHint text="Wird beim Buchen dieser Position automatisch eingeplant und für den Planungszeitraum geblockt — ein Klick statt zwei Dialoge. Im Projekt bleibt der Einsatz änder- und löschbar." />
+              </div>
+              <Combobox
+                value={defaultVehicleId}
+                onValueChange={setDefaultVehicleId}
+                options={vehicles.map((v) => ({
+                  value: v.id,
+                  label: v.name,
+                  hint: vehicleOptionHint(v),
+                }))}
+                emptyLabel="— keine Vorbelegung —"
+                placeholder="Bezeichnung oder Kennzeichen suchen…"
+                clearable
+              />
+              {vehicles.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Noch keine aktiven Einheiten — lege sie unter Stammdaten →
+                  Fuhrpark an.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="si-desc">Beschreibung (optional)</Label>

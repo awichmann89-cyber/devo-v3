@@ -183,11 +183,18 @@ export const serviceItemSchema = z
     unit: z.nativeEnum(BillingUnit).default(BillingUnit.HOUR),
     unitPrice: z.coerce.number().min(0).default(0),
     active: z.coerce.boolean().default(true),
+    // Standard-Fuhrpark-Einheit (nur Transport): wird beim Buchen automatisch
+    // eingeplant.
+    defaultVehicleId: z.string().optional().nullable(),
   })
   // Transport (Fahrzeuge/Anhänger) wird immer pauschal gerechnet — die
   // Einheit wird still auf FLAT gezogen statt den Nutzer zu blockieren.
+  // Umgekehrt trägt nur Transport eine Standard-Einheit; bei Umstellung der
+  // Art fällt die Vorbelegung weg, statt unsichtbar weiterzuleben.
   .transform((d) =>
-    d.kind === ServiceItemKind.TRANSPORT ? { ...d, unit: BillingUnit.FLAT } : d
+    d.kind === ServiceItemKind.TRANSPORT
+      ? { ...d, unit: BillingUnit.FLAT }
+      : { ...d, defaultVehicleId: null }
   );
 
 export const projectServiceSchema = z.object({

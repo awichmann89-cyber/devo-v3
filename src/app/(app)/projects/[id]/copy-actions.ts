@@ -10,6 +10,9 @@ import { auth } from "@/auth";
  * Erzeugt eine Kopie des Projekts mit verschobenen Daten.
  * - Gruppen (mit Rabatt + billable-Flag)
  * - Geräte-Buchungen + Service-Positionen + Kabel-Buchungen (mit neuer groupId)
+ * - Transport-Positionen mit Standard-Fuhrpark-Einheit planen diese wieder ein
+ *   (wie beim normalen Buchen); Personal- und übrige Einsätze werden NICHT
+ *   mitkopiert.
  * - Notizen + Berechnungszeiträume (proportional verschoben)
  * - Status zurück auf DRAFT, confirmedAt + packToken zurückgesetzt
  * - Rechnungen, Angebote, PackingScans werden NICHT mitkopiert.
@@ -34,7 +37,16 @@ export async function copyProject(
     include: {
       groups: true,
       assignments: true,
-      services: true,
+      services: {
+        include: {
+          serviceItem: {
+            select: {
+              kind: true,
+              defaultVehicle: { select: { id: true, active: true } },
+            },
+          },
+        },
+      },
       cableAssignments: true,
       projectNotes: true,
       billingPeriods: true,
@@ -115,11 +127,13 @@ export async function copyProject(
       });
     }
 
-    // 4) Service-Positionen
+    // 4) Service-Positionen — Transport-Positionen mit Vorbelegung bekommen
+    //    ihre Fuhrpark-Einheit direkt wieder eingeplant (Muster
+    //    addProjectService), damit die Kopie disponiert ankommt.
     for (const s of source.services) {
       const newGroupId = groupIdMap.get(s.groupId);
       if (!newGroupId) continue;
-      await tx.projectService.create({
+      const newService = await tx.projectService.create({
         data: {
           projectId: newProject.id,
           serviceItemId: s.serviceItemId,
@@ -128,7 +142,18 @@ export async function copyProject(
           unitPriceOverride: s.unitPriceOverride,
           notes: s.notes,
         },
+        select: { id: true },
       });
+      const defaultVehicle = s.serviceItem.defaultVehicle;
+      if (s.serviceItem.kind === "TRANSPORT" && defaultVehicle?.active) {
+        await tx.vehicleAssignment.create({
+          data: {
+            projectServiceId: newService.id,
+            projectId: newProject.id,
+            vehicleId: defaultVehicle.id,
+          },
+        });
+      }
     }
 
     // 5) Kabel-Buchungen
@@ -173,5 +198,6 @@ export async function copyProject(
   });
 
   revalidatePath("/projects");
+  revalidatePath("/vehicles");
   redirect(`/projects/${created.id}`);
 }

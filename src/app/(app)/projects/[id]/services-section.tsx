@@ -108,8 +108,8 @@ import { removeVehicleAssignment } from "./vehicle-assignments-actions";
 import {
   VehicleAssignmentDialog,
   type VehicleAssignmentVM,
-  type VehicleOptionVM,
 } from "./vehicle-assignment-dialog";
+import type { VehicleOptionVM } from "../../vehicles/vehicle-dialog";
 import {
   PersonAssignmentDialog,
   periodLabel,
@@ -503,11 +503,16 @@ export function ServicesSection({
     const gid = groupId;
     startTransition(async () => {
       try {
-        await addProjectService(projectId, {
+        // Transport-Positionen mit Vorbelegung planen ihre Einheit gleich mit —
+        // das melden wir zurück, damit die Blockierung nicht unbemerkt passiert.
+        const res = await addProjectService(projectId, {
           serviceItemId,
           groupId: gid,
           quantity: 1,
         });
+        if (res?.vehicleName) {
+          toast.success(`Position hinzugefügt — ${res.vehicleName} eingeplant`);
+        }
       } catch (e) {
         toastError(e, "Anlegen");
       }
@@ -1428,6 +1433,17 @@ export function ServicesSection({
                                           <div className="truncate text-sm font-medium">
                                             {s.name}
                                           </div>
+                                          {s.defaultVehicleId && (
+                                            <div
+                                              className="flex items-center gap-1 truncate text-[11px] text-muted-foreground"
+                                              title="Wird beim Hinzufügen automatisch eingeplant"
+                                            >
+                                              <Caravan className="h-3 w-3 shrink-0" />
+                                              {vehicles.find(
+                                                (v) => v.id === s.defaultVehicleId
+                                              )?.name ?? "Einheit inaktiv"}
+                                            </div>
+                                          )}
                                         </div>
                                         <span className="shrink-0 num text-[11px] text-muted-foreground">
                                           {billingUnitShort(s.unit)}
@@ -1630,6 +1646,7 @@ export function ServicesSection({
       />
 
       <ServiceItemDialog
+        vehicles={vehicles}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onCreated={(created) => {

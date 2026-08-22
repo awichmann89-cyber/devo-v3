@@ -43,8 +43,8 @@ async function main() {
 
   await seedDemoUsers();
   await seedDemoBaseData();
-  await seedDemoServiceItems();
   await seedDemoVehicles();
+  await seedDemoServiceItems();
 
   console.log("✓ Seed abgeschlossen (inkl. Demo-Daten)");
   console.log("  Disponent: disponent@cratel.local / disponent123");
@@ -144,12 +144,21 @@ async function seedDemoBaseData() {
 async function seedDemoServiceItems() {
   // Personal- und Transport-Positionen. Die Preise sind Beispielwerte und
   // gehören deshalb hinter SEED_DEMO_DATA — jeder Betrieb kalkuliert anders.
+  // Standard-Fuhrpark-Einheit je Transport-Position (über den Namen aus
+  // seedDemoVehicles): wird beim Buchen der Position automatisch eingeplant.
+  const vehicleIdByName = new Map(
+    (await prisma.vehicle.findMany({ select: { id: true, name: true } })).map(
+      (v) => [v.name, v.id]
+    )
+  );
+
   const services: Array<{
     name: string;
     kind: ServiceItemKind;
     unit: BillingUnit;
     unitPrice: number;
     description?: string;
+    defaultVehicle?: string;
   }> = [
     {
       name: "Tagessatz Lichttechniker",
@@ -182,12 +191,21 @@ async function seedDemoServiceItems() {
       unit: BillingUnit.FLAT,
       unitPrice: 350,
       description: "An- und Abfahrt im Umkreis 50 km",
+      defaultVehicle: "LKW 7,5t",
     },
     {
       name: "Transport Sprinter",
       kind: ServiceItemKind.TRANSPORT,
       unit: BillingUnit.FLAT,
       unitPrice: 180,
+      defaultVehicle: "Sprinter groß",
+    },
+    {
+      name: "Transport Anhänger",
+      kind: ServiceItemKind.TRANSPORT,
+      unit: BillingUnit.FLAT,
+      unitPrice: 90,
+      defaultVehicle: "Anhänger 2t",
     },
     {
       name: "Stromaggregat 30 kVA",
@@ -197,11 +215,16 @@ async function seedDemoServiceItems() {
     },
   ];
 
-  for (const s of services) {
+  for (const { defaultVehicle, ...s } of services) {
     await prisma.serviceItem.upsert({
       where: { name: s.name },
       update: {},
-      create: s,
+      create: {
+        ...s,
+        defaultVehicleId: defaultVehicle
+          ? (vehicleIdByName.get(defaultVehicle) ?? null)
+          : null,
+      },
     });
   }
 }

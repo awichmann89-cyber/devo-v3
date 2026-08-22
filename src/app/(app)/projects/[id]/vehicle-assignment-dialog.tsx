@@ -28,6 +28,10 @@ import { toast } from "sonner";
 import { VehicleKind } from "@prisma/client";
 import { vehicleKindLabel } from "@/lib/labels";
 import type { ConflictHit } from "@/lib/booking-conflicts";
+import {
+  vehicleOptionHint,
+  type VehicleOptionVM,
+} from "../../vehicles/vehicle-dialog";
 import { formatDate } from "@/lib/utils";
 import {
   ConflictWarning,
@@ -46,15 +50,6 @@ import {
   updateVehicleAssignment,
 } from "./vehicle-assignments-actions";
 import { toastError } from "@/lib/toast";
-
-/** Aktive Fuhrpark-Einheit für die Auswahl im Dialog. */
-export interface VehicleOptionVM {
-  id: string;
-  name: string;
-  kind: VehicleKind;
-  licensePlate: string | null;
-  requiredLicense: string | null;
-}
 
 /** Fahrer-Auswahl (Personalstamm, optional). */
 export interface DriverOptionVM {
@@ -81,18 +76,6 @@ export interface VehicleAssignmentVM {
   notes: string | null;
   /** Überbuchungs-Konflikte (Projektname + Stufe). */
   conflicts: ConflictHit[];
-}
-
-/** Kurz-Hinweis zu einer Einheit für die Auswahl-Liste. */
-function vehicleHint(v: {
-  kind: VehicleKind;
-  licensePlate: string | null;
-  requiredLicense: string | null;
-}): string {
-  const parts = [vehicleKindLabel(v.kind)];
-  if (v.licensePlate) parts.push(v.licensePlate);
-  if (v.requiredLicense) parts.push(`Klasse ${v.requiredLicense}`);
-  return parts.join(" · ");
 }
 
 interface Props {
@@ -267,7 +250,7 @@ export function VehicleAssignmentDialog({
                 {assignment.vehicleName}{" "}
                 <span className="font-normal text-muted-foreground">
                   (
-                  {vehicleHint({
+                  {vehicleOptionHint({
                     kind: assignment.vehicleKind,
                     licensePlate: assignment.licensePlate,
                     requiredLicense: assignment.requiredLicense,
@@ -285,7 +268,7 @@ export function VehicleAssignmentDialog({
                 options={vehicles.map((v) => ({
                   value: v.id,
                   label: v.name,
-                  hint: vehicleHint(v),
+                  hint: vehicleOptionHint(v),
                 }))}
                 emptyLabel="— Fahrzeug/Anhänger wählen —"
                 placeholder="Bezeichnung oder Kennzeichen suchen…"

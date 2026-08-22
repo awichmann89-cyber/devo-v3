@@ -44,6 +44,27 @@ export interface VehicleVM {
   active: boolean;
 }
 
+/** Kompakte Einheit für Auswahl-Listen (Einplanen, Katalog-Vorbelegung). */
+export interface VehicleOptionVM {
+  id: string;
+  name: string;
+  kind: VehicleKind;
+  licensePlate: string | null;
+  requiredLicense: string | null;
+}
+
+/** Kurz-Hinweis zu einer Einheit: „Anhänger · HH-CR 200 · Klasse BE". */
+export function vehicleOptionHint(v: {
+  kind: VehicleKind;
+  licensePlate: string | null;
+  requiredLicense: string | null;
+}): string {
+  const parts = [vehicleKindLabel(v.kind)];
+  if (v.licensePlate) parts.push(v.licensePlate);
+  if (v.requiredLicense) parts.push(`Klasse ${v.requiredLicense}`);
+  return parts.join(" · ");
+}
+
 /** ISO-Instant → Wert für <input type="date"> (Browser-Lokalzeit). */
 function isoToDateInput(iso: string): string {
   const d = new Date(iso);

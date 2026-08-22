@@ -15,9 +15,10 @@ import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { ListCard } from "@/components/layout/list-card";
 import { FilterResetButton, FilterSearch } from "@/components/filters/filter-controls";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Caravan, Pencil, Trash2, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ServiceItemDialog, ServiceItemVM } from "./service-dialog";
+import type { VehicleOptionVM } from "../vehicles/vehicle-dialog";
 import { deleteServiceItem } from "./actions";
 import { toast } from "sonner";
 import { toastBlocked } from "@/lib/toast";
@@ -34,7 +35,14 @@ const KIND_ORDER: ServiceItemKind[] = [
   ServiceItemKind.SONSTIGES,
 ];
 
-export function ServicesTable({ items }: { items: Row[] }) {
+export function ServicesTable({
+  items,
+  vehicles,
+}: {
+  items: Row[];
+  vehicles: VehicleOptionVM[];
+}) {
+  const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceItemVM | null>(null);
   const [deleting, setDeleting] = useState<Row | null>(null);
@@ -145,6 +153,16 @@ export function ServicesTable({ items }: { items: Row[] }) {
                       <TableRow key={s.id}>
                         <TableCell style={{ paddingLeft: groupChildIndent(0) }}>
                           <div className="font-medium">{s.name}</div>
+                          {s.defaultVehicleId && (
+                            <div
+                              className="flex items-center gap-1 text-xs text-muted-foreground"
+                              title="Wird beim Buchen dieser Position automatisch eingeplant"
+                            >
+                              <Caravan className="h-3 w-3 shrink-0" />
+                              {vehicleById.get(s.defaultVehicleId)?.name ??
+                                "Einheit inaktiv oder gelöscht"}
+                            </div>
+                          )}
                           {s.description && (
                             <div className="line-clamp-1 text-xs text-muted-foreground">
                               {s.description}
@@ -183,7 +201,12 @@ export function ServicesTable({ items }: { items: Row[] }) {
         </Table>
       </ListCard>
 
-      <ServiceItemDialog open={dialogOpen} onOpenChange={setDialogOpen} item={editing} />
+      <ServiceItemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        item={editing}
+        vehicles={vehicles}
+      />
 
       <ConfirmDialog
         open={deleting !== null}
