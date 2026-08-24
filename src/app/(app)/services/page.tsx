@@ -24,6 +24,7 @@ export default async function ServicesPage() {
   const vmItems = items.map((s) => ({
     id: s.id,
     name: s.name,
+    externalName: s.externalName,
     description: s.description,
     kind: s.kind,
     unit: s.unit,

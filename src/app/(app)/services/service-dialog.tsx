@@ -35,7 +35,10 @@ import { toastError } from "@/lib/toast";
 
 export interface ServiceItemVM {
   id: string;
+  /** Interne Bezeichnung — Katalog, Projekt, Personal-/Fuhrparkplanung. */
   name: string;
+  /** Bezeichnung für Angebot und Rechnung; leer = interne Bezeichnung. */
+  externalName?: string | null;
   description?: string | null;
   kind: ServiceItemKind;
   unit: BillingUnit;
@@ -65,6 +68,7 @@ export function ServiceItemDialog({
   vehicles = [],
 }: Props) {
   const [name, setName] = useState("");
+  const [externalName, setExternalName] = useState("");
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<ServiceItemKind>("PERSONAL");
   const [unit, setUnit] = useState<BillingUnit>("HOUR");
@@ -76,6 +80,7 @@ export function ServiceItemDialog({
   useEffect(() => {
     if (open) {
       setName(item?.name ?? "");
+      setExternalName(item?.externalName ?? "");
       setDescription(item?.description ?? "");
       setKind(item?.kind ?? "PERSONAL");
       setUnit(item?.unit ?? "HOUR");
@@ -103,6 +108,8 @@ export function ServiceItemDialog({
 
     const payload = {
       name: name.trim(),
+      // Leer lassen ist erlaubt — dann wird die interne Bezeichnung gedruckt.
+      externalName: externalName.trim() || null,
       description: description || null,
       kind,
       unit,
@@ -141,15 +148,32 @@ export function ServiceItemDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="si-name">Bezeichnung</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="si-name">Interne Bezeichnung</Label>
+              <InfoHint text="Erscheint im Katalog, im Projekt und in der Personal- bzw. Fuhrparkplanung — nicht auf Angebot und Rechnung." />
+            </div>
             <Input
               id="si-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="z.B. Tagessatz Lichttechniker"
+              placeholder="z.B. Tagessatz LT Senior"
               maxLength={150}
               autoFocus
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="si-ext-name">Externe Bezeichnung (optional)</Label>
+              <InfoHint text="Wird auf Angebot und Rechnung gedruckt. Leer lassen, wenn die interne Bezeichnung beim Kunden stehen darf." />
+            </div>
+            <Input
+              id="si-ext-name"
+              value={externalName}
+              onChange={(e) => setExternalName(e.target.value)}
+              placeholder={name.trim() || "z.B. Lichttechniker"}
+              maxLength={150}
             />
           </div>
 

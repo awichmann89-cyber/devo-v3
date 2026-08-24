@@ -15,7 +15,7 @@ import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { ListCard } from "@/components/layout/list-card";
 import { FilterResetButton, FilterSearch } from "@/components/filters/filter-controls";
 import { Button } from "@/components/ui/button";
-import { Caravan, Pencil, Trash2, Plus } from "lucide-react";
+import { Caravan, FileText, Pencil, Trash2, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ServiceItemDialog, ServiceItemVM } from "./service-dialog";
 import type { VehicleOptionVM } from "../vehicles/vehicle-dialog";
@@ -54,7 +54,9 @@ export function ServicesTable({
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q)
+      s.name.toLowerCase().includes(q) ||
+      (s.externalName ?? "").toLowerCase().includes(q) ||
+      (s.description ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -117,7 +119,7 @@ export function ServicesTable({
             <FilterSearch
               value={search}
               onChange={setSearch}
-              placeholder="Bezeichnung oder Beschreibung…"
+              placeholder="Interne/externe Bezeichnung oder Beschreibung…"
             />
             {search && <FilterResetButton onClick={() => setSearch("")} />}
           </>
@@ -153,6 +155,15 @@ export function ServicesTable({
                       <TableRow key={s.id}>
                         <TableCell style={{ paddingLeft: groupChildIndent(0) }}>
                           <div className="font-medium">{s.name}</div>
+                          {s.externalName && s.externalName !== s.name && (
+                            <div
+                              className="flex items-center gap-1 text-xs text-muted-foreground"
+                              title="Bezeichnung auf Angebot und Rechnung"
+                            >
+                              <FileText className="h-3 w-3 shrink-0" />
+                              {s.externalName}
+                            </div>
+                          )}
                           {s.defaultVehicleId && (
                             <div
                               className="flex items-center gap-1 text-xs text-muted-foreground"

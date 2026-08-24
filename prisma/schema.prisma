@@ -733,7 +733,14 @@ enum BillingUnit {
 // Stammdaten-Eintrag im Katalog "Personal & Transport"
 model ServiceItem {
   id               String          @id @default(cuid())
+  // Interne Bezeichnung: eindeutig, erscheint im Katalog, im Projekt und in
+  // der Personal-/Fuhrparkplanung (z.B. „Tagessatz LT Senior").
   name             String          @unique
+  // Externe Bezeichnung für Angebot und Rechnung. Leer = die interne
+  // Bezeichnung wird gedruckt (siehe serviceRowLabel in lib/labels.ts).
+  // Absichtlich nicht eindeutig — mehrere interne Positionen dürfen beim
+  // Kunden unter derselben Bezeichnung erscheinen.
+  externalName     String?
   description      String?
   kind             ServiceItemKind @default(PERSONAL)
   unit             BillingUnit     @default(HOUR)

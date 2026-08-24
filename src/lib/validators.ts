@@ -183,6 +183,14 @@ export const projectPeriodsSchema = z
 export const serviceItemSchema = z
   .object({
     name: z.string().min(1, "Name erforderlich").max(150),
+    // Bezeichnung für Angebot und Rechnung. Leer = die interne wird gedruckt,
+    // deshalb wird "" hier auf null normalisiert.
+    externalName: z
+      .string()
+      .max(150)
+      .optional()
+      .nullable()
+      .transform((v) => v?.trim() || null),
     description: z.string().max(500).optional().nullable(),
     kind: z.nativeEnum(ServiceItemKind).default(ServiceItemKind.PERSONAL),
     unit: z.nativeEnum(BillingUnit).default(BillingUnit.HOUR),

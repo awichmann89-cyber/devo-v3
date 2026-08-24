@@ -323,3 +323,19 @@ export function deviceRowLabel(device: {
     make: make && make.toLowerCase() !== name.toLowerCase() ? make : null,
   };
 }
+
+/**
+ * Bezeichnung einer Personal-/Transport-Position auf Angebot, Rechnung und
+ * Angebots-Webansicht.
+ *
+ * Der Katalog führt zwei Bezeichnungen: `name` ist die interne (eindeutig,
+ * z.B. „Tagessatz LT Senior"), `externalName` die für den Kunden. Ist keine
+ * externe Bezeichnung gepflegt, wird die interne gedruckt — so verhalten sich
+ * Altdaten unverändert.
+ */
+export function serviceRowLabel(item: {
+  name: string;
+  externalName?: string | null;
+}): string {
+  return item.externalName?.trim() || item.name;
+}

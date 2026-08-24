@@ -37,6 +37,7 @@ export async function createServiceItem(input: unknown) {
     const created = await prisma.serviceItem.create({
       data: {
         name: data.name.trim(),
+        externalName: data.externalName,
         description: data.description || null,
         kind: data.kind,
         unit: data.unit,
@@ -47,6 +48,7 @@ export async function createServiceItem(input: unknown) {
       select: {
         id: true,
         name: true,
+        externalName: true,
         kind: true,
         unit: true,
         unitPrice: true,
@@ -80,6 +82,7 @@ export async function updateServiceItem(id: string, input: unknown) {
       where: { id },
       data: {
         name: data.name.trim(),
+        externalName: data.externalName,
         description: data.description || null,
         kind: data.kind,
         unit: data.unit,

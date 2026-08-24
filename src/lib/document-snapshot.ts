@@ -17,7 +17,7 @@
  * der Builder kann beide Pfade erzeugen (siehe `buildSnapshotFromProject`).
  */
 import { Prisma } from "@prisma/client";
-import { billingUnitLabel, serviceItemKindLabel } from "@/lib/labels";
+import { billingUnitLabel, serviceItemKindLabel, serviceRowLabel } from "@/lib/labels";
 import { daysBetween } from "@/lib/utils";
 import { parseDayFactorMap, getDayFactor } from "@/lib/settings";
 
@@ -258,7 +258,9 @@ export function buildSnapshotFromProject(
   for (const ps of project.services) {
     const arr = servicesByGroup.get(ps.groupId) ?? [];
     arr.push({
-      name: ps.serviceItem.name,
+      // Externe Bezeichnung, sonst die interne — der Kunde sieht nie den
+      // Katalognamen, wenn eine eigene Bezeichnung gepflegt ist.
+      name: serviceRowLabel(ps.serviceItem),
       kind: serviceItemKindLabel(ps.serviceItem.kind),
       unit: billingUnitLabel(ps.serviceItem.unit),
       quantity: Number(ps.quantity),
