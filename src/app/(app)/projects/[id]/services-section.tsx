@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
   FilterResetButton,
   FilterSearch,
@@ -55,6 +55,7 @@ import {
   Truck,
   Caravan,
   Package,
+  StickyNote,
 } from "lucide-react";
 import {
   DndContext,
@@ -103,7 +104,6 @@ import {
 import {
   removePersonAssignment,
   setAssignmentInvoiceReceived,
-  updateAssignmentRate,
 } from "./person-assignments-actions";
 import { removeVehicleAssignment } from "./vehicle-assignments-actions";
 import {
@@ -145,6 +145,7 @@ import {
   GroupTableFooter,
 } from "@/components/project/group-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import {
   billingUnitShort,
   serviceItemKindLabel,
@@ -306,8 +307,14 @@ export function ServicesSection({
     groupId: string;
     assignment: VehicleAssignmentVM | null;
   } | null>(null);
-  // Einsatzplan ein-/ausklappen
-  const [planOpen, setPlanOpen] = useState(true);
+  /**
+   * Sicht auf dieselben Einsätze: nach Position gruppiert (Default, mit
+   * Katalog und Preisen) oder chronologisch (Disposition eines Tages).
+   * Vorher standen beide Listen gleichzeitig untereinander auf der Seite.
+   */
+  const [viewMode, setViewMode] = useState<"byPosition" | "chronological">(
+    "byPosition"
+  );
 
   // Zeiträume für den Einsatz-Dialog: Auswahl der Gruppe, sonst alle.
   const dialogPeriods = useMemo(() => {
@@ -570,22 +577,10 @@ export function ServicesSection({
   }
 
   // ----- Einsatzplan (Personen an Positionen) -----
-  function handleAssignmentRate(
-    a: PersonAssignmentVM,
-    value: string,
-    kind: "agreed" | "hourly"
-  ) {
-    const trimmed = value.trim();
-    const newVal = trimmed === "" ? null : Number(trimmed);
-    if (newVal !== null && (!isFinite(newVal) || newVal < 0)) return;
-    startTransition(async () => {
-      try {
-        await updateAssignmentRate(a.id, newVal, kind);
-      } catch (e) {
-        toastError(e, "Speichern");
-      }
-    });
-  }
+  // handleAssignmentRate ist entfallen: die Vergütung wird nur noch im
+  // Einsatz-Dialog gesetzt, der die Vergütungsart explizit abfragt. Die
+  // Server-Action updateAssignmentRate bleibt bestehen, wird von hier aber
+  // nicht mehr aufgerufen.
 
   function handleInvoiceToggle(a: PersonAssignmentVM) {
     startTransition(async () => {
@@ -689,6 +684,8 @@ export function ServicesSection({
     key: string;
     person: PersonAssignmentVM | null;
     vehicle: VehicleAssignmentVM | null;
+    /** Position, an der der Einsatz hängt — für Bearbeiten/Entfernen. */
+    service: ProjectServiceVM;
     serviceName: string;
     groupName: string;
     sortKey: number;
@@ -704,6 +701,7 @@ export function ServicesSection({
           key: `person:${a.id}`,
           person: a,
           vehicle: null,
+          service: ps,
           serviceName: ps.serviceItem.name,
           groupName,
           sortKey: +new Date(start),
@@ -715,6 +713,7 @@ export function ServicesSection({
           key: `vehicle:${a.id}`,
           person: null,
           vehicle: a,
+          service: ps,
           serviceName: ps.serviceItem.name,
           groupName,
           sortKey: +new Date(start),
@@ -777,39 +776,52 @@ export function ServicesSection({
             <ConflictBadge conflicts={a.conflicts} resource="Die Person" />
           </div>
         </TableCell>
+        {/* Vergütung ist ANZEIGE, nicht Eingabe. Das frühere Zahlenfeld hat je
+            nach unsichtbarem Zustand entweder den Stundensatz ODER die
+            Pauschale geschrieben — mit einem 10px-Suffix als einzigem
+            Unterschied, und die Vergütungsart liess sich hier gar nicht
+            umstellen. Beides passiert jetzt im Dialog, der die Art explizit
+            abfragt. */}
         <TableCell className="text-right">
           {isFreelancer ? (
-            <div className="flex items-center justify-end gap-1">
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Satz"
-                defaultValue={
-                  a.hourlyRate !== null
-                    ? String(a.hourlyRate)
-                    : a.agreedRate !== null
-                      ? String(a.agreedRate)
-                      : ""
-                }
-                onBlur={(e) => {
-                  const raw = e.target.value;
-                  const kind = a.hourlyRate !== null ? "hourly" : "agreed";
-                  const current = a.hourlyRate ?? a.agreedRate;
-                  const newVal = raw.trim() === "" ? null : Number(raw);
-                  if (newVal !== current) handleAssignmentRate(a, raw, kind);
-                }}
-                className="h-7 w-24 text-right font-mono"
-                title={
-                  a.hourlyRate !== null
-                    ? "Stundensatz (€/h) — Kosten = erfasste Stunden × Satz"
-                    : "Pauschale/Tagessatz (€, gesamt) — zählt direkt als Projektkosten"
-                }
-              />
-              <span className="w-7 text-left text-[10px] text-muted-foreground">
-                {a.hourlyRate !== null ? "€/h" : "€"}
-              </span>
-            </div>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                setAssignDialog({
+                  projectServiceId: ps.id,
+                  serviceName: ps.serviceItem.name,
+                  groupId: ps.groupId,
+                  assignment: a,
+                })
+              }
+              title={
+                a.hourlyRate !== null
+                  ? "Stundensatz — Kosten = erfasste Stunden × Satz. Klick zum Ändern."
+                  : a.agreedRate !== null
+                    ? "Pauschale/Tagessatz (gesamt) — zählt direkt als Projektkosten. Klick zum Ändern."
+                    : "Noch keine Vergütung vereinbart — Klick zum Eintragen."
+              }
+              className="ml-auto flex items-center justify-end gap-1 rounded px-1 py-0.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-accent hover:text-primary disabled:opacity-50"
+            >
+              {a.hourlyRate !== null ? (
+                <>
+                  <span className="num font-medium text-foreground">
+                    {formatCurrency(a.hourlyRate)}
+                  </span>
+                  <span className="text-muted-foreground">/h</span>
+                </>
+              ) : a.agreedRate !== null ? (
+                <>
+                  <span className="num font-medium text-foreground">
+                    {formatCurrency(a.agreedRate)}
+                  </span>
+                  <span className="text-muted-foreground">pausch.</span>
+                </>
+              ) : (
+                <span className="text-warning">Satz fehlt</span>
+              )}
+            </button>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}
@@ -988,6 +1000,42 @@ export function ServicesSection({
     );
   }
 
+  /**
+   * Positionen, die noch niemanden haben — speisen den „Zu besetzen"-Streifen
+   * über der Tabelle. Vorher stand diese Zahl nur als Badge im Kopf des
+   * Einsatzplans, ohne eine Aktion daran.
+   */
+  const openPositions = useMemo(
+    () =>
+      projectServices.filter((ps) => isUnstaffed(ps) || isUnassignedTransport(ps)),
+    [projectServices]
+  );
+
+  /**
+   * Öffnet für eine Position den passenden Einplanen-Dialog — Personal- oder
+   * Fuhrpark-Dialog, je nach Art der Position.
+   */
+  function openAssignFor(ps: ProjectServiceVM) {
+    const payload = {
+      projectServiceId: ps.id,
+      serviceName: ps.serviceItem.name,
+      groupId: ps.groupId,
+      assignment: null,
+    };
+    if (ps.serviceItem.kind === "TRANSPORT") setVehicleDialog(payload);
+    else setAssignDialog(payload);
+  }
+
+  /**
+   * Einstieg über den Primärbutton: nimmt die erste unbesetzte Position, sonst
+   * die erste Position überhaupt. So landet man immer in einem sinnvollen
+   * Dialog, statt erst den Icon-Button in der richtigen Zeile suchen zu müssen.
+   */
+  function openAssignForFirstOpenPosition() {
+    const target = openPositions[0] ?? projectServices[0];
+    if (target) openAssignFor(target);
+  }
+
   /** Rendert eine sortierbare Service-Zeile (Personal/Transport). */
   function renderServiceRow(ps: ProjectServiceVM, sortId: string) {
     const otherGroups = groups.filter((g) => g.id !== ps.groupId);
@@ -1130,10 +1178,12 @@ export function ServicesSection({
                 onValueChange={(v) => handleMoveToGroup(ps.id, v)}
               >
                 <SelectTrigger
-                  className="h-7 w-7 p-0 [&>svg]:hidden"
+                  size="xs"
+                  className="w-7 justify-center px-0 [&>svg]:hidden"
                   title="In andere Gruppe verschieben"
+                  aria-label="In andere Gruppe verschieben"
                 >
-                  <ChevronRight className="h-3.5 w-3.5 mx-auto" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </SelectTrigger>
                 <SelectContent>
                   {otherGroups.map((g) => (
@@ -1163,133 +1213,133 @@ export function ServicesSection({
     );
   }
 
+  /**
+   * Chronologische Sicht auf denselben Datenbestand wie die Positions-Tabelle —
+   * dieselben Einsätze, dieselben Aktionen, nur nach Zeit sortiert statt nach
+   * Position gruppiert. Vorher standen beide Listen gleichzeitig auf der Seite
+   * und nur die Subzeilen konnten bearbeiten.
+   */
+  function renderPlanTable() {
+    return (
+      <Table density="dense" bordered={false} stickyHeader>
+        <TableHeader>
+          <TableRow className="hover:bg-secondary">
+            <TableHead className="w-[190px]">Zeit</TableHead>
+            <TableHead>Person / Einheit</TableHead>
+            <TableHead>Position</TableHead>
+            <TableHead className="w-[120px]">Gruppe</TableHead>
+            <TableHead>Hinweise</TableHead>
+            <TableHead className="w-[80px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {planEntries.map((entry) => {
+            const { person, vehicle, serviceName, groupName, service } = entry;
+            return (
+              <TableRow key={entry.key}>
+                <TableCell className="whitespace-nowrap text-sm">
+                  {person
+                    ? assignmentTimeLabel(person)
+                    : vehicleTimeLabel(vehicle!)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2 text-sm">
+                    {person ? (
+                      <>
+                        <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="font-medium">{person.personName}</span>
+                        <Badge
+                          variant={employmentTypeVariant(person.employmentType)}
+                          size="sm"
+                        >
+                          {employmentTypeLabel(person.employmentType)}
+                        </Badge>
+                      </>
+                    ) : (
+                      <>
+                        <Caravan className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="font-medium">{vehicle!.vehicleName}</span>
+                        <Badge
+                          variant={vehicleKindVariant(vehicle!.vehicleKind)}
+                          size="sm"
+                        >
+                          {vehicleKindLabel(vehicle!.vehicleKind)}
+                        </Badge>
+                      </>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm">{serviceName}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {groupName}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <ConflictBadge
+                      conflicts={person?.conflicts ?? vehicle!.conflicts}
+                      resource={person ? "Die Person" : "Die Einheit"}
+                    />
+                    {vehicle?.driverName && (
+                      <Badge variant="outline" size="sm" className="gap-1">
+                        <UserRound className="h-3 w-3" />
+                        {vehicle.driverName}
+                      </Badge>
+                    )}
+                    {(person?.notes ?? vehicle?.notes) && (
+                      <span className="inline-flex items-center gap-1">
+                        <StickyNote className="h-3 w-3 shrink-0" />
+                        {person?.notes ?? vehicle?.notes}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {/* Dieselben Aktionen wie in der Positions-Sicht — die
+                      chronologische Liste war vorher eine Sackgasse. */}
+                  <RowActions density="dense">
+                    <RowAction
+                      icon={Pencil}
+                      label="Einsatz bearbeiten"
+                      disabled={pending}
+                      onClick={() =>
+                        person
+                          ? setAssignDialog({
+                              projectServiceId: service.id,
+                              serviceName: service.serviceItem.name,
+                              groupId: service.groupId,
+                              assignment: person,
+                            })
+                          : setVehicleDialog({
+                              projectServiceId: service.id,
+                              serviceName: service.serviceItem.name,
+                              groupId: service.groupId,
+                              assignment: vehicle!,
+                            })
+                      }
+                    />
+                    <RowAction
+                      icon={Trash2}
+                      label="Einsatz entfernen"
+                      destructive
+                      disabled={pending}
+                      onClick={() =>
+                        person
+                          ? handleRemoveAssignment(person)
+                          : handleRemoveVehicleAssignment(vehicle!)
+                      }
+                    />
+                  </RowActions>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  }
+
   return (
     <>
-      {/* Einsatzplan: chronologische Übersicht aller Personal- und
-          Fuhrpark-Einsätze des Projekts. */}
-      {planEntries.length > 0 && (
-        <Card className="mb-4">
-          <CardHeader
-            className="cursor-pointer py-3"
-            onClick={() => setPlanOpen((o) => !o)}
-          >
-            <CardTitle className="flex items-center gap-2">
-              {planOpen ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-              <Users className="h-4 w-4" /> Einsatzplan
-              <span className="font-normal text-muted-foreground">
-                ({planEntries.length} Einsätze)
-              </span>
-              {planConflicts.overlap > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <AlertTriangle className="h-3 w-3" /> {planConflicts.overlap}{" "}
-                  {planConflicts.overlap === 1 ? "Überbuchung" : "Überbuchungen"}
-                </Badge>
-              )}
-              {planConflicts.sameDay > 0 && (
-                <Badge
-                  variant="warning"
-                  className="gap-1"
-                  title="Am selben Tag in einem anderen Projekt eingeplant — ohne Zeitüberschneidung"
-                >
-                  <AlertTriangle className="h-3 w-3" /> {planConflicts.sameDay}× selber Tag
-                </Badge>
-              )}
-              {projectServices.filter(isUnstaffed).length > 0 && (
-                <Badge variant="warning" className="gap-1">
-                  {projectServices.filter(isUnstaffed).length} unbesetzte{" "}
-                  {projectServices.filter(isUnstaffed).length === 1
-                    ? "Position"
-                    : "Positionen"}
-                </Badge>
-              )}
-              {projectServices.filter(isUnassignedTransport).length > 0 && (
-                <Badge variant="warning" className="gap-1">
-                  {projectServices.filter(isUnassignedTransport).length}× ohne Fahrzeug
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          {planOpen && (
-            <CardContent className="p-0">
-              <Table density="compact">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Zeit</TableHead>
-                    <TableHead>Person / Einheit</TableHead>
-                    <TableHead>Position</TableHead>
-                    <TableHead>Gruppe</TableHead>
-                    <TableHead>Hinweise</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {planEntries.map((entry) => {
-                    const { person, vehicle, serviceName, groupName } = entry;
-                    return (
-                      <TableRow key={entry.key}>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {person
-                            ? assignmentTimeLabel(person)
-                            : vehicleTimeLabel(vehicle!)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm">
-                            {person ? (
-                              <>
-                                <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="font-medium">{person.personName}</span>
-                                <Badge
-                                  variant={employmentTypeVariant(person.employmentType)}
-                                >
-                                  {employmentTypeLabel(person.employmentType)}
-                                </Badge>
-                              </>
-                            ) : (
-                              <>
-                                <Caravan className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="font-medium">
-                                  {vehicle!.vehicleName}
-                                </span>
-                                <Badge variant={vehicleKindVariant(vehicle!.vehicleKind)}>
-                                  {vehicleKindLabel(vehicle!.vehicleKind)}
-                                </Badge>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{serviceName}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {groupName}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <ConflictBadge
-                              conflicts={person?.conflicts ?? vehicle!.conflicts}
-                              resource={person ? "Die Person" : "Die Einheit"}
-                            />
-                            {vehicle?.driverName && (
-                              <Badge variant="outline" className="gap-1">
-                                <UserRound className="h-3 w-3" />
-                                {vehicle.driverName}
-                              </Badge>
-                            )}
-                            {(person?.notes ?? vehicle?.notes) && (
-                              <span>📝 {person?.notes ?? vehicle?.notes}</span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          )}
-        </Card>
-      )}
 
       {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
           52px-Headers + Abstände) und clippt intern. So kann die Seite nicht
@@ -1310,9 +1360,12 @@ export function ServicesSection({
         left={
           <div className="flex flex-col lg:flex-1 lg:min-h-0">
             <div className="space-y-3 pb-3">
+              {/* „Katalog" — wie im Material-Tab und wie das eigene
+                  mobileLeftLabel. Vorher hiess das Panel wie der Tab, in dem es
+                  steht, und wie die Tabelle daneben. */}
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" /> Personal &amp; Transport
+                  <Package className="h-4 w-4" /> Katalog
                 </CardTitle>
                 <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
                   <Plus className="h-4 w-4" /> Position anlegen
@@ -1347,28 +1400,10 @@ export function ServicesSection({
                   />
                 )}
               </div>
-              {groups.length > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-muted-foreground shrink-0">
-                    Hinzufügen zu:
-                  </span>
-                  <Select
-                    value={activeGroupId ?? ""}
-                    onValueChange={(v) => setActiveGroupId(v)}
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue placeholder="Gruppe wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              {/* Das „Hinzufügen zu:"-Select ist entfallen — die aktive Gruppe
+                  wird wie im Material-Tab ueber die Checkbox in der
+                  Gruppen-Kopfzeile gesetzt. Zwei Controls fuer dieselbe
+                  Entscheidung waren auf genau diesem Tab redundant. */}
             </div>
             <div className="min-h-0 flex-1 rounded-lg border">
               <div className="h-full overflow-y-auto">
@@ -1493,20 +1528,150 @@ export function ServicesSection({
         right={
           <div className="flex flex-col lg:flex-1 lg:min-h-0">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
-              <div className="text-xs text-muted-foreground">
-                <span className="font-bold text-foreground">
-                  {projectServices.length} Positionen
-                </span>{" "}
-                zugewiesen
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Umschalter statt zwei gleichzeitiger Listen. */}
+                <div
+                  role="group"
+                  aria-label="Ansicht"
+                  className="inline-flex overflow-hidden rounded-md border border-input"
+                >
+                  {(
+                    [
+                      ["byPosition", "Nach Position"],
+                      ["chronological", "Chronologisch"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={viewMode === mode}
+                      onClick={() => setViewMode(mode)}
+                      className={cn(
+                        "h-[30px] px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        viewMode === mode
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card text-secondary-foreground hover:bg-accent hover:text-primary"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {viewMode === "byPosition" ? (
+                    <>
+                      <span className="font-bold text-foreground">
+                        {projectServices.length} Positionen
+                      </span>{" "}
+                      zugewiesen
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold text-foreground">
+                        {planEntries.length}{" "}
+                        {planEntries.length === 1 ? "Einsatz" : "Einsätze"}
+                      </span>{" "}
+                      geplant
+                    </>
+                  )}
+                </span>
+                {/* Konflikt-Zähler gelten in beiden Sichten. */}
+                {planConflicts.overlap > 0 && (
+                  <Badge variant="destructive" size="sm" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" /> {planConflicts.overlap}{" "}
+                    {planConflicts.overlap === 1 ? "Überbuchung" : "Überbuchungen"}
+                  </Badge>
+                )}
+                {planConflicts.sameDay > 0 && (
+                  <Badge
+                    variant="warning"
+                    size="sm"
+                    className="gap-1"
+                    title="Am selben Tag in einem anderen Projekt eingeplant — ohne Zeitüberschneidung"
+                  >
+                    <AlertTriangle className="h-3 w-3" /> {planConflicts.sameDay}×
+                    selber Tag
+                  </Badge>
+                )}
               </div>
-              {/* Mengen, Sätze und Gruppennamen speichern sofort. */}
-              <AutoSaveIndicator status={saveStatus} />
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Mengen, Sätze und Gruppennamen speichern sofort. */}
+                <AutoSaveIndicator status={saveStatus} />
+                {/* Zweiter, expliziter Einstieg in die Zuweisung. Der
+                    Icon-Button in der Zeile bleibt fuer Power-User. */}
+                <Button
+                  size="sm"
+                  disabled={projectServices.length === 0}
+                  title={
+                    projectServices.length === 0
+                      ? "Erst eine Position aus dem Katalog hinzufügen"
+                      : "Person auf eine Position einplanen"
+                  }
+                  onClick={() => openAssignForFirstOpenPosition()}
+                >
+                  <UserPlus className="h-4 w-4" /> Personal einplanen
+                </Button>
+              </div>
             </div>
+
+            {/* Erklaerzeile statt Tooltip-Streuung: die Position/Einsatz-
+                Unterscheidung ist der Punkt, an dem neue Nutzer haengen. */}
+            <p className="mb-2 px-0.5 text-xs text-muted-foreground">
+              <strong className="font-semibold text-foreground">Position</strong> ={" "}
+              was abgerechnet wird ·{" "}
+              <strong className="font-semibold text-foreground">Einsatz</strong> ={" "}
+              wer es macht. Gelb hinterlegte Positionen haben noch niemanden.
+            </p>
+
+            {/* „Zu besetzen"-Streifen: die Zahl gab es schon im Kopf des
+                Einsatzplans, aber ohne Aktion. Ein Klick oeffnet den Dialog
+                mit vorbelegter Position. */}
+            {openPositions.length > 0 && (
+              <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-warning/40 bg-warning-subtle px-2.5 py-2">
+                <span className="mr-0.5 inline-flex items-center gap-1.5 text-xs font-semibold text-warning">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Zu besetzen ({openPositions.length})
+                </span>
+                {openPositions.map((ps) => (
+                  <button
+                    key={ps.id}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => openAssignFor(ps)}
+                    title={
+                      ps.serviceItem.kind === "TRANSPORT"
+                        ? `Fahrzeug für „${ps.serviceItem.name}" einplanen`
+                        : `Person für „${ps.serviceItem.name}" einplanen`
+                    }
+                    className="inline-flex h-[26px] max-w-[220px] items-center gap-1 rounded-[5px] border border-warning/40 bg-card px-2 text-xs font-medium text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-primary hover:text-primary disabled:opacity-50"
+                  >
+                    {ps.serviceItem.kind === "TRANSPORT" ? (
+                      <Caravan className="h-3 w-3 shrink-0" />
+                    ) : (
+                      <UserPlus className="h-3 w-3 shrink-0" />
+                    )}
+                    <span className="truncate">{ps.serviceItem.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* EINE durchgehende Tabelle — Gruppen als Kopfzeilen (Redesign). */}
             <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
               <div className="min-h-0 flex-1 overflow-y-auto">
-                {groups.length === 0 ? (
+                {viewMode === "chronological" ? (
+                  planEntries.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+                      <Users className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">
+                        Noch keine Einsätze geplant — weise in der Sicht „Nach
+                        Position" Personen und Fahrzeuge zu.
+                      </p>
+                    </div>
+                  ) : (
+                    renderPlanTable()
+                  )
+                ) : groups.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
                     <FolderPlus className="h-8 w-8 opacity-30" />
                     <p className="text-sm">

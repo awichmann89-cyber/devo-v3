@@ -297,7 +297,10 @@ export function PersonAssignmentDialog({
           ) : (
             <div className="space-y-2">
               <Label>Person</Label>
+              {/* autoFocus: Die Person ist das, weswegen der Dialog geoeffnet
+                  wurde — der Cursor gehoert hierher, nicht in den Zeitraum. */}
               <Combobox
+                autoFocus
                 value={personId}
                 onValueChange={handlePersonChange}
                 options={personOptions}
@@ -315,8 +318,11 @@ export function PersonAssignmentDialog({
 
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Label>Berechnungszeitraum</Label>
-              <InfoHint text="Ohne eigene Uhrzeiten übernimmt der Einsatz die Zeiten des gewählten Zeitraums — ganztägig nur, wenn der Zeitraum keine Uhrzeiten trägt (00:00)." />
+              {/* „Einsatzzeitraum", nicht „Berechnungszeitraum": das Feld
+                  entscheidet, WANN die Person arbeitet. Dass die Auswahl aus
+                  den Berechnungszeitraeumen kommt, sagt der InfoHint. */}
+              <Label>Einsatzzeitraum</Label>
+              <InfoHint text="Zur Auswahl stehen die Berechnungszeiträume des Projekts. Ohne eigene Uhrzeiten übernimmt der Einsatz die Zeiten des gewählten Zeitraums — ganztägig nur, wenn der Zeitraum keine Uhrzeiten trägt (00:00)." />
             </div>
             <Select
               value={billingPeriodId || "__none__"}
@@ -325,16 +331,20 @@ export function PersonAssignmentDialog({
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
+              {/* Reihenfolge identisch zum Fuhrpark-Dialog: der gesamte
+                  Planungszeitraum steht immer zuoberst. Die Vorbelegung bleibt
+                  unterschiedlich (Personal: erster Zeitraum) — das ist fachlich
+                  gewollt, die Sortierung war nur Drift. */}
               <SelectContent>
+                <SelectItem value="__none__">
+                  Gesamter Planungszeitraum ({formatDate(planningStartIso)} –{" "}
+                  {formatDate(planningEndIso)})
+                </SelectItem>
                 {periods.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {periodLabel(p)}
                   </SelectItem>
                 ))}
-                <SelectItem value="__none__">
-                  Gesamter Planungszeitraum ({formatDate(planningStartIso)} –{" "}
-                  {formatDate(planningEndIso)})
-                </SelectItem>
               </SelectContent>
             </Select>
           </div>

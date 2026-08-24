@@ -27,6 +27,12 @@ interface Props {
   /** Optionale CSS-Klasse für den Trigger-Button */
   className?: string;
   id?: string;
+  /**
+   * Setzt den Fokus beim Mounten auf den Trigger — für das erste Feld eines
+   * Dialogs (docs/ui-conventions.md §9). Tastatur-Nutzer können direkt mit
+   * Enter/Leertaste öffnen und lostippen.
+   */
+  autoFocus?: boolean;
 }
 
 /**
@@ -43,6 +49,7 @@ export function Combobox({
   disabled,
   className,
   id,
+  autoFocus,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -81,6 +88,7 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          autoFocus={autoFocus}
           disabled={disabled}
           className={cn(
             "w-full justify-between font-normal",

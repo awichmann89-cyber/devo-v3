@@ -263,6 +263,7 @@ export function VehicleAssignmentDialog({
             <div className="space-y-2">
               <Label>Einheit</Label>
               <Combobox
+                autoFocus
                 value={vehicleId}
                 onValueChange={setVehicleId}
                 options={vehicles.map((v) => ({
