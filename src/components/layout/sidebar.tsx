@@ -37,7 +37,9 @@ interface NavSection {
 }
 
 // Flache Navigation mit Abschnitts-Überschriften (Redesign):
-// Hauptbereich · Finanzen · Stammdaten · Verwaltung
+// Hauptbereich · Finanzen · Stammdaten · Ressourcen · Verwaltung
+// Stammdaten = Katalog-/Abrechnungsdaten (Positionen in Angebot und Rechnung),
+// Ressourcen = disponierbare Einheiten mit Einsätzen und Überbuchungs-Prüfung.
 const SECTIONS: NavSection[] = [
   {
     items: [
@@ -62,6 +64,11 @@ const SECTIONS: NavSection[] = [
       { href: "/customers", label: "Kunden", icon: Building2 },
       { href: "/material", label: "Material", icon: Boxes },
       { href: "/services", label: "Personal & Transport", icon: Truck },
+    ],
+  },
+  {
+    label: "Ressourcen",
+    items: [
       { href: "/persons", label: "Personalstamm", icon: UserRound },
       { href: "/vehicles", label: "Fuhrpark", icon: Caravan },
     ],
