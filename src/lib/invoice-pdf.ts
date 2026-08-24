@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { jsPDF } from "jspdf";
 import autoTable, { RowInput } from "jspdf-autotable";
-import { projectKindLabel } from "@/lib/labels";
+import { deviceRowLabel, projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import { getSettings, parseHexColor } from "@/lib/settings";
@@ -523,11 +523,10 @@ export async function buildInvoicePdf(
         if (item.kind === "DEVICE") {
           const r = item.row;
           const line = r.dailyRate * r.quantity * gFactor;
-          const make = [r.manufacturer, r.model].filter(Boolean).join(" ");
-          const label =
-            make && make.toLowerCase() !== r.name.toLowerCase()
-              ? `${INDENT_2}${r.name}\n${INDENT_2}${make}`
-              : `${INDENT_2}${r.name}`;
+          const { name, make } = deviceRowLabel(r);
+          const label = make
+            ? `${INDENT_2}${name}\n${INDENT_2}${make}`
+            : `${INDENT_2}${name}`;
           body.push(
             row(label, String(r.quantity), fmt(r.dailyRate), gFactorLabel, fmt(line))
           );
@@ -584,6 +583,8 @@ export async function buildInvoicePdf(
 
   // -------- Personal & Transport --------
   if (hasServices) {
+    // Abstand zwischen der Bereichs-Zwischensumme Material und dem nächsten Bereich.
+    if (hasMaterial) body.push(spacerRow());
     body.push(sectionRow("Personal & Transport", ""));
 
     for (const group of serviceGroups) {

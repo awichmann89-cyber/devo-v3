@@ -289,3 +289,37 @@ export function cableSpecLabel(cable: {
 
   return parts.length > 0 ? parts.join(" · ") : null;
 }
+
+/**
+ * Anzeige einer Geräte-Zeile auf Angebot, Rechnung und Angebots-Webansicht.
+ *
+ * Der `name` eines Geräts wird beim Anlegen aus Hersteller + Modell gebaut
+ * (device-dialog.tsx), kann bei Altdaten aber davon abweichen — nur dann ist
+ * `make` gesetzt und wird als Zusatzzeile ausgegeben.
+ *
+ * Verglichen wird über normalisierten Whitespace: Hersteller/Modell wurden bis
+ * Migration 31 ungetrimmt gespeichert, der `name` dagegen aus getrimmten
+ * Werten gebaut. Ein angehängtes Leerzeichen am Hersteller ergab so
+ * „MA Lighting␣␣grandMA3" ≠ „MA Lighting␣grandMA3" und druckte dieselbe
+ * Bezeichnung ein zweites Mal unter die Zeile. Die Normalisierung hier fängt
+ * das auch für bereits geschriebene Dokument-Snapshots ab, die die alten Werte
+ * eingefroren haben.
+ */
+export function deviceRowLabel(device: {
+  name: string;
+  manufacturer?: string | null;
+  model?: string | null;
+}): { name: string; make: string | null } {
+  const squash = (s: string) => s.replace(/\s+/g, " ").trim();
+
+  const name = squash(device.name);
+  const make = [device.manufacturer, device.model]
+    .map((part) => squash(part ?? ""))
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    name,
+    make: make && make.toLowerCase() !== name.toLowerCase() ? make : null,
+  };
+}

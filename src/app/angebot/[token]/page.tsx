@@ -6,6 +6,7 @@ import { Download, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { isValidSnapshot, type DocumentSnapshot } from "@/lib/document-snapshot";
 import { AcceptanceForm } from "./acceptance-form";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { deviceRowLabel } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -515,9 +516,7 @@ function SnapshotSection({
                   if (item.kind === "DEVICE") {
                     const r = item.row;
                     const line = r.dailyRate * r.quantity * factor;
-                    const make = [r.manufacturer, r.model]
-                      .filter(Boolean)
-                      .join(" ");
+                    const { name, make } = deviceRowLabel(r);
                     return (
                       <li
                         key={idx}
@@ -527,13 +526,12 @@ function SnapshotSection({
                           {r.quantity}×
                         </span>
                         <span className="flex-1 min-w-0">
-                          <span className="font-medium">{r.name}</span>
-                          {make &&
-                            make.toLowerCase() !== r.name.toLowerCase() && (
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                {make}
-                              </span>
-                            )}
+                          <span className="font-medium">{name}</span>
+                          {make && (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {make}
+                            </span>
+                          )}
                           {r.description && (
                             <span className="block text-xs text-muted-foreground">
                               {r.description}

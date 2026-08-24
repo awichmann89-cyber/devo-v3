@@ -35,9 +35,14 @@ export const packUnitSchema = z.object({
 });
 
 export const deviceSchema = z.object({
-  name: z.string().min(1, "Name erforderlich").max(150),
-  manufacturer: z.string().max(100).optional().nullable(),
-  model: z.string().max(100).optional().nullable(),
+  // .trim() vor den Längenchecks: Hersteller/Modell wurden früher roh
+  // gespeichert, der daraus abgeleitete `name` dagegen aus getrimmten Werten
+  // gebaut — ein angehängtes Leerzeichen ließ beide auseinanderlaufen und
+  // druckte die Bezeichnung auf Angebot/Rechnung doppelt (siehe
+  // deviceRowLabel in lib/labels.ts, Migration 31).
+  name: z.string().trim().min(1, "Name erforderlich").max(150),
+  manufacturer: z.string().trim().max(100).optional().nullable(),
+  model: z.string().trim().max(100).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
   stockQuantity: z.coerce.number().int().min(1).default(1),
   dailyRate: z.coerce.number().min(0).default(0),
