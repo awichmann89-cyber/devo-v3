@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -30,8 +30,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatTile, StatTileGrid } from "@/components/ui/stat-tile";
+import {
+  FilterCount,
+  FilterResetButton,
+  FilterSearch,
+} from "@/components/filters/filter-controls";
 import { InfoHint } from "@/components/ui/info-hint";
 import {
+  ChevronRight,
   HandCoins,
   Pencil,
   Trash2,
@@ -108,12 +117,12 @@ import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 const TYPE_SUBHIRE = {
   icon: HandCoins,
   className: "text-subhire",
-  label: "Material (zugemietet)",
+  label: "Zumietung",
 } as const;
 const TYPE_EXTRA = {
   icon: Receipt,
   className: "text-muted-foreground",
-  label: "Sonstiges (Extrakosten)",
+  label: "Sonstiges",
 } as const;
 const TYPE_PERSONNEL = {
   icon: Users,
@@ -125,7 +134,7 @@ const PERSONNEL_INFO =
   "Automatisch aus dem Einsatzplan (Tab Personal & Transport): " +
   "Freelancer-Pauschalen direkt, Stunden-Vergütungen über die erfassten Zeiten. " +
   "Eine Zeile je Person — alle Einsätze des Projekts zusammengefasst. " +
-  "Hier nicht doppelt als Extrakosten erfassen.";
+  "Hier nicht doppelt als Sonstiges erfassen.";
 
 /** Bezeichnungs-Zelle: Typ-Icon links, Titel und Zusatzzeilen rechts. */
 function ItemLabel({
@@ -338,18 +347,21 @@ export function CostsSection({
   const [groupDialog, setGroupDialog] = useState<{ name: string } | null>(null);
   const [deleteGroup, setDeleteGroup] = useState<DeleteGroupState>(null);
 
-  // ----- Aktive Gruppe (Ziel neuer Positionen) -----
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(
-    costGroups[0]?.id ?? null
-  );
-  useEffect(() => {
-    if (!activeGroupId && costGroups[0]) {
-      setActiveGroupId(costGroups[0].id);
-    }
-    if (activeGroupId && !costGroups.find((g) => g.id === activeGroupId)) {
-      setActiveGroupId(costGroups[0]?.id ?? null);
-    }
-  }, [costGroups, activeGroupId]);
+  /**
+   * Suche über Bezeichnung, Vermieter und Notiz. Diese Seite war die einzige
+   * Tabellen-Seite der App ohne Suchfeld — mit „Gruppe je Vermieter" wächst die
+   * Liste aber mit jedem Vermieter.
+   */
+  const [search, setSearch] = useState("");
+
+  /*
+   * Das „aktive Gruppe"-Konzept ist hier entfallen. Es kam vom Material- und
+   * Personal-Tab, wo es das Ziel für Klicks im Katalog bezeichnet. Diese Seite
+   * hat keinen Katalog, also hatte die Checkbox kein Ziel mehr — sie steuerte
+   * nur noch eine unsichtbare Vorbelegung für zwei Dialoge, die die Gruppe
+   * ohnehin selbst abfragen. Ein Control, das aussieht wie das gelernte, aber
+   * etwas anderes tut, ist schlimmer als keines.
+   */
 
   // ----- Ableitungen -----
   const deviceNameById = new Map(devices.map((d) => [d.id, d.name]));
@@ -362,11 +374,37 @@ export function CostsSection({
 
   const groupNameById = new Map(costGroups.map((g) => [g.id, g.name]));
   const costGroupIds = new Set(costGroups.map((g) => g.id));
+
+  /**
+   * Sucht in Bezeichnung, Vermieter, Notiz und Gruppenname. Ohne Suchbegriff
+   * ist alles sichtbar; die Summen bleiben immer die des ganzen Projekts —
+   * eine Suche darf die Kosten nicht kleiner aussehen lassen, als sie sind.
+   */
+  const q = search.trim().toLowerCase();
+  function matchesSubhire(s: SubhireVM): boolean {
+    if (!q) return true;
+    const groupName = s.costGroupId ? groupNameById.get(s.costGroupId) : null;
+    return [s.name, s.supplier, s.notes, linkedName(s), groupName].some((x) =>
+      (x ?? "").toLowerCase().includes(q)
+    );
+  }
+  function matchesExtra(c: ExtraCostVM): boolean {
+    if (!q) return true;
+    const groupName = c.groupId ? groupNameById.get(c.groupId) : null;
+    return [c.label, c.notes, groupName].some((x) =>
+      (x ?? "").toLowerCase().includes(q)
+    );
+  }
+  const visibleSubhires = subhires.filter(matchesSubhire);
+  const visibleExtras = extraCosts.filter(matchesExtra);
+  const totalCount = subhires.length + extraCosts.length;
+  const filteredCount = visibleSubhires.length + visibleExtras.length;
+
   // Fallback: Positionen ohne (gültige) Gruppe — z.B. nach Löschen der letzten Gruppe.
-  const ungroupedSubhires = subhires.filter(
+  const ungroupedSubhires = visibleSubhires.filter(
     (s) => !s.costGroupId || !costGroupIds.has(s.costGroupId)
   );
-  const ungroupedExtras = extraCosts.filter(
+  const ungroupedExtras = visibleExtras.filter(
     (c) => !c.groupId || !costGroupIds.has(c.groupId)
   );
 
@@ -425,7 +463,7 @@ export function CostsSection({
    */
   function buildGroupRows(groupId: string): GroupRow[] {
     const out: GroupRow[] = [];
-    for (const s of subhires) {
+    for (const s of visibleSubhires) {
       if (s.costGroupId !== groupId) continue;
       out.push({
         sortId: `SUBHIRE:${s.id}`,
@@ -434,12 +472,16 @@ export function CostsSection({
         sortOrder: s.costSortOrder,
       });
     }
-    for (const c of extraCosts) {
+    for (const c of visibleExtras) {
       if (c.groupId !== groupId) continue;
       out.push({ sortId: `EXTRA:${c.id}`, kind: "EXTRA", id: c.id, sortOrder: c.sortOrder });
     }
-    for (const c of commentsByGroup.get(groupId) ?? []) {
-      out.push({ sortId: `COMMENT:${c.id}`, kind: "COMMENT", id: c.id, sortOrder: c.sortOrder });
+    // Zwischenüberschriften nur ohne aktive Suche — sie gliedern die volle
+    // Liste und würden im Suchergebnis über leeren Abschnitten stehen.
+    if (!q) {
+      for (const c of commentsByGroup.get(groupId) ?? []) {
+        out.push({ sortId: `COMMENT:${c.id}`, kind: "COMMENT", id: c.id, sortOrder: c.sortOrder });
+      }
     }
     return out.sort((a, b) => a.sortOrder - b.sortOrder);
   }
@@ -472,8 +514,7 @@ export function CostsSection({
     }
     startTransition(async () => {
       try {
-        const res = await createProjectGroup(projectId, { name, kind: "COST" });
-        setActiveGroupId(res.id);
+        await createProjectGroup(projectId, { name, kind: "COST" });
         setGroupDialog(null);
       } catch (e) {
         toastError(e, "Anlegen");
@@ -659,49 +700,51 @@ export function CostsSection({
     };
   }
 
-  /** Aktions-Zellen (Gruppen-Select, Bearbeiten, Entfernen) einer Zeile. */
+  /**
+   * Aktions-Zellen einer Zeile.
+   *
+   * Das Verschieben läuft über denselben Chevron-Trigger wie im Material- und
+   * Personal-Tab. Vorher stand hier in JEDER Zeile ein 110px-Select, das die
+   * aktuelle Gruppe anzeigte — bei 20 Zeilen also 20 Dropdowns mit 20
+   * redundanten Gruppennamen. Der Chevron listet nur die anderen Gruppen.
+   */
   function rowActions(opts: {
     currentGroupId: string | null;
     onMove: (groupId: string) => void;
     onEdit: () => void;
     onDelete: () => void;
   }) {
+    const otherGroups = costGroups.filter((g) => g.id !== opts.currentGroupId);
     return (
-      <div className="flex items-center justify-end gap-1">
-        {costGroups.length > 1 && opts.currentGroupId && (
-          <Select value={opts.currentGroupId} onValueChange={opts.onMove}>
-            <SelectTrigger className="h-7 w-[110px] text-xs">
-              <SelectValue />
+      <RowActions density="dense">
+        {otherGroups.length > 0 && (
+          <Select value="" onValueChange={opts.onMove}>
+            <SelectTrigger
+              size="xs"
+              className="w-7 justify-center px-0 [&>svg]:hidden"
+              title="In andere Gruppe verschieben"
+              aria-label="In andere Gruppe verschieben"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
             </SelectTrigger>
             <SelectContent>
-              {costGroups.map((og) => (
+              {otherGroups.map((og) => (
                 <SelectItem key={og.id} value={og.id}>
-                  {og.name}
+                  → {og.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         )}
-        <Button
-          variant="ghost"
-          size="iconXs"
-          title="Bearbeiten"
-          aria-label="Bearbeiten"
-          onClick={opts.onEdit}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghostDestructive"
-          size="iconXs"
-          title="Entfernen"
-          aria-label="Entfernen"
-          onClick={opts.onDelete}
+        <RowAction icon={Pencil} label="Bearbeiten" onClick={opts.onEdit} />
+        <RowAction
+          icon={Trash2}
+          label="Entfernen"
+          destructive
           disabled={pending}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+          onClick={opts.onDelete}
+        />
+      </RowActions>
     );
   }
 
@@ -716,7 +759,15 @@ export function CostsSection({
       <>
         <TableCell>
           <ItemLabel type={TYPE_SUBHIRE}>
-            <div className="truncate font-medium">{s.name}</div>
+            {/* Zeilentyp-Badge: auf DIESER Seite besteht alles aus Zumietung
+                und Sonstiges, deshalb muss der Unterschied ohne Icon-Deutung
+                lesbar sein. Im Material-Tab traegt das der Zeilen-Hintergrund. */}
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-medium">{s.name}</span>
+              <Badge variant="subhire" size="sm" className="shrink-0">
+                Zumietung
+              </Badge>
+            </div>
             {showSupplier && (
               <div className="truncate text-[11px] text-muted-foreground">
                 {supplier}
@@ -866,16 +917,16 @@ export function CostsSection({
         onDragEnd={(e) => handleDragEnd(rows, e)}
       >
         <TableBody>
+          {/* Ohne `active`/`onActivate`: diese Seite hat keinen Katalog, aus dem
+              Positionen in eine „aktive" Gruppe fallen könnten. Die Gruppe wird
+              im Dialog gewählt. */}
           <GroupHeaderRow
             group={g}
             colSpan={COL_SPAN_ALL}
             sumLabel={formatCurrency(groupSum(g.id))}
-            active={activeGroupId === g.id}
             isFirst={index === 0}
             isLast={index === costGroups.length - 1}
             pending={pending}
-            onActivate={() => setActiveGroupId(g.id)}
-            activeHint="Aktive Gruppe — neue Zumietungen und Extrakosten landen hier"
             onRename={(name) => handleRenameGroup(g.id, name)}
             onMoveUp={() => handleMoveGroup(index, -1)}
             onMoveDown={() => handleMoveGroup(index, 1)}
@@ -888,8 +939,9 @@ export function CostsSection({
                 colSpan={COL_SPAN_ALL}
                 className="py-3 text-center text-xs text-muted-foreground"
               >
-                Noch nichts in dieser Gruppe — neue Zumietungen und Extrakosten
-                landen in der aktiven Gruppe.
+                {q
+                  ? "Keine Position in dieser Gruppe passt zur Suche."
+                  : "Noch nichts in dieser Gruppe — beim Hinzufügen wählst du die Gruppe im Dialog."}
               </TableCell>
             </TableRow>
           )}
@@ -921,15 +973,52 @@ export function CostsSection({
     // ihrer eigenen Fläche scrollt statt die ganze Seite wachsen zu lassen.
     <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
-        {/* Kopfzeile: Summen links, Aktionen rechts. */}
+        {/* Die vier Summen standen vorher als 12px-Fussnote im Tabellen-Footer,
+            der beim Laden unter dem Falz liegt. Als Kacheln stehen sie da, wo
+            die Seite anfaengt — dasselbe Muster wie Projekt-Kopf und Forecast. */}
+        <StatTileGrid className="mb-3">
+          <StatTile
+            label="Zumietung"
+            size="sm"
+            value={formatCurrency(subhireTotal)}
+            hint={`${subhires.length} ${subhires.length === 1 ? "Position" : "Positionen"}`}
+          />
+          <StatTile
+            label="Sonstiges"
+            size="sm"
+            value={formatCurrency(extraTotal)}
+            hint={`${extraCosts.length} ${extraCosts.length === 1 ? "Position" : "Positionen"}`}
+          />
+          <StatTile
+            label="Personal"
+            size="sm"
+            tone="info"
+            value={formatCurrency(personnelCost)}
+            hint="aus dem Einsatzplan"
+          />
+          <StatTile
+            label="Kosten gesamt"
+            size="sm"
+            value={formatCurrency(grandTotal)}
+            hint="rein intern — nicht auf Kundendokumenten"
+          />
+        </StatTileGrid>
+
+        {/* Kopfzeile: Suche links, Aktionen rechts. */}
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>
-              <span className="font-bold text-foreground">
-                {subhires.length} Zumietung(en)
-              </span>{" "}
-              · {extraCosts.length} Sonstiges-Position(en)
-            </span>
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            {/* Bisher die einzige Tabellen-Seite der App ohne Suche — bei
+                "Gruppe je Vermieter" waechst die Liste mit jedem Vermieter. */}
+            <FilterSearch
+              grow
+              value={search}
+              onChange={setSearch}
+              placeholder="Bezeichnung, Vermieter oder Notiz…"
+            />
+            {search && <FilterResetButton onClick={() => setSearch("")} />}
+            {search && (
+              <FilterCount shown={filteredCount} total={totalCount} />
+            )}
             <InfoHint text="Rein interne Kosten — erscheinen nicht auf Angeboten, Rechnungen oder Packlisten und ändern die Planung nicht." />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -940,7 +1029,7 @@ export function CostsSection({
               variant="outline"
               onClick={() =>
                 setExtraDialog({
-                  groupId: activeGroupId,
+                  groupId: costGroups[0]?.id ?? null,
                   label: "",
                   kind: "SONSTIGES",
                   amount: 0,
@@ -948,13 +1037,11 @@ export function CostsSection({
                 })
               }
             >
-              <Receipt className="h-4 w-4" /> Sonstiges
+              <Receipt className="h-4 w-4" /> Sonstiges hinzufügen
             </Button>
             <Button
               size="sm"
-              onClick={() =>
-                setSubhireDialog(emptySubhire({ costGroupId: activeGroupId }))
-              }
+              onClick={() => setSubhireDialog(emptySubhire())}
             >
               <HandCoins className="h-4 w-4" /> Zumietung hinzufügen
             </Button>
@@ -966,20 +1053,32 @@ export function CostsSection({
         <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:flex-1">
           <div className="min-h-0 flex-1 overflow-y-auto">
             {isEmpty ? (
+              <EmptyState
+                bare
+                icon={HandCoins}
+                title="Noch keine Kosten erfasst"
+                hint="Zumietungen und sonstige Kosten sind rein intern — sie erscheinen nicht auf Angeboten oder Rechnungen. Beim ersten Hinzufügen wird automatisch eine Gruppe angelegt."
+                action={
+                  <Button onClick={() => setSubhireDialog(emptySubhire())}>
+                    <HandCoins className="h-4 w-4" /> Zumietung hinzufügen
+                  </Button>
+                }
+              />
+            ) : filteredCount === 0 && !hasPersonnel ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                <p>
-                  Noch keine Kosten erfasst — beim ersten Hinzufügen wird automatisch
-                  eine Gruppe angelegt.
-                </p>
+                Keine Position passt zu „{search}".
               </div>
             ) : (
               <Table density="dense" bordered={false} stickyHeader>
                 <TableHeader>
+                  {/* Neutrale Koepfe: die Tabelle traegt drei Zeilentypen.
+                      "Anzahl"/"€ pro Stück" beschrieb nur die Zumietung —
+                      Sonstiges zeigt dort "—", Personal Stunden und Satz. */}
                   <TableRow className="hover:bg-secondary">
                     <TableHead className="w-8"></TableHead>
                     <TableHead>Bezeichnung</TableHead>
-                    <TableHead className="w-[110px] text-center">Anzahl</TableHead>
-                    <TableHead className="w-[96px] text-right">€ / Stück</TableHead>
+                    <TableHead className="w-[110px] text-center">Menge</TableHead>
+                    <TableHead className="w-[96px] text-right">Einzel</TableHead>
                     <TableHead className="w-[110px] text-right">Summe</TableHead>
                     <TableHead className="w-[110px]"></TableHead>
                   </TableRow>
@@ -1014,6 +1113,11 @@ export function CostsSection({
                       readOnly
                       icon={Users}
                       info={PERSONNEL_INFO}
+                      /* Weg aus der Sackgasse: die Gruppe ist read-only, der
+                         Infotext nannte den Pflegeort bisher nur als Text.
+                         Dank ?tab= ist er jetzt verlinkbar. */
+                      linkHref="?tab=services"
+                      linkLabel="Im Einsatzplan öffnen"
                     />
                     {personnelRows.map((r) => {
                       const positions = r.serviceNames.join(" · ");
@@ -1092,21 +1196,14 @@ export function CostsSection({
             )}
           </div>
 
+          {/* Nur noch die Gesamtsumme — die Aufteilung steht als Kacheln über
+              der Tabelle, wo sie beim Laden auch sichtbar ist. Vorher standen
+              hier vier Summen in 12px-Grau unter dem Falz. */}
           <GroupTableFooter
             addLabel="Gruppe"
             onAddGroup={() => setGroupDialog({ name: "" })}
             pending={pending}
           >
-            <span>
-              Zumietung <span className="num">{formatCurrency(subhireTotal)}</span>
-            </span>
-            <span>
-              Sonstiges <span className="num">{formatCurrency(extraTotal)}</span>
-            </span>
-            <span className="inline-flex items-center gap-1">
-              Personal <span className="num">{formatCurrency(personnelCost)}</span>
-              <InfoHint text={PERSONNEL_INFO} />
-            </span>
             <span>Kosten gesamt</span>
             <span className="font-mono text-sm font-extrabold text-primary">
               {formatCurrency(grandTotal)}

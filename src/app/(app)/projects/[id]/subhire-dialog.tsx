@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -195,50 +196,16 @@ export function SubhireDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Verknüpfung (optional)</Label>
-            <Combobox
-              value={currentLinkValue}
-              onValueChange={handleLinkChange}
-              options={linkOptions}
-              placeholder="Gerät oder Vorübergehendes Gerät suchen…"
-              emptyLabel="— keine Verknüpfung (freie Position) —"
-              clearable
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Verknüpft mit einem Gerät oder einem Vorübergehenden Gerät: dessen
-              Zeile wird auf der Materialseite magenta markiert. Ohne Verknüpfung
-              erscheint die Zumietung als eigene Zeile in der gewählten Gruppe.
-            </p>
-          </div>
-
-          {!form.deviceId && !form.adHocItemId && groups.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Material-Gruppe (optional)</Label>
-              <Select
-                value={form.groupId ?? NO_GROUP}
-                onValueChange={(v) => set("groupId", v === NO_GROUP ? null : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Gruppe wählen…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_GROUP}>— keine Gruppe —</SelectItem>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
+        {/* Reihenfolge nach Wirkung: WAS → VON WEM → WAS KOSTET'S → WO
+            EINSORTIEREN. Vorher fragte das Formular vier Platzierungen ab
+            (Verknüpfung, Material-Gruppe, Vermieter, Kosten-Gruppe), zwei davon
+            in unterschiedlichen Gruppen-Taxonomien und direkt hintereinander. */}
+        <DialogBody className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="subhire-name">Bezeichnung</Label>
             <Input
               id="subhire-name"
+              autoFocus
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="z.B. Moving Head XY"
@@ -253,34 +220,9 @@ export function SubhireDialog({
               onChange={(e) => set("supplier", e.target.value)}
               placeholder="Von wem zugemietet?"
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Kosten-Gruppe</Label>
-            <Select
-              value={form.costGroupId ?? AUTO_GROUP}
-              onValueChange={(v) =>
-                set("costGroupId", v === AUTO_GROUP ? null : v)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={AUTO_GROUP}>
-                  Automatisch — Gruppe je Vermieter
-                </SelectItem>
-                {costGroups.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <p className="text-[11px] text-muted-foreground">
-              Bestimmt, in welcher Gruppe die Position unter „Zumietung &amp; Kosten"
-              steht. „Automatisch" legt bei Bedarf eine Gruppe mit dem Namen des
-              Vermieters an — die Zuordnung lässt sich dort jederzeit ändern.
+              Legt ohne weitere Angabe die Kosten-Gruppe fest — eine Gruppe je
+              Vermieter.
             </p>
           </div>
 
@@ -313,9 +255,7 @@ export function SubhireDialog({
 
           <div className="flex justify-between border-t pt-2 text-sm">
             <span className="text-muted-foreground">Zumietkosten gesamt</span>
-            <span className="num-strong">
-              {formatCurrency(lineTotal)}
-            </span>
+            <span className="num-strong">{formatCurrency(lineTotal)}</span>
           </div>
 
           <div className="space-y-1.5">
@@ -327,7 +267,87 @@ export function SubhireDialog({
               rows={2}
             />
           </div>
-        </div>
+
+          {/* Erweitert: Verknüpfung und Platzierung. Im Normalfall ist beides
+              richtig vorbelegt — deshalb eingeklappt statt mitten im Fluss. */}
+          <details className="rounded-md border bg-secondary/40">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-secondary-foreground marker:text-faint">
+              Erweitert: Verknüpfung und Platzierung
+            </summary>
+            <div className="space-y-4 border-t p-3">
+              <div className="space-y-1.5">
+                <Label>Verknüpfung mit einem Gerät (optional)</Label>
+                <Combobox
+                  value={currentLinkValue}
+                  onValueChange={handleLinkChange}
+                  options={linkOptions}
+                  placeholder="Gerät oder Vorübergehendes Gerät suchen…"
+                  emptyLabel="— keine Verknüpfung (freie Position) —"
+                  clearable
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Verknüpft: die Zeile des Geräts wird auf der Materialseite als
+                  Zumietung markiert. Ohne Verknüpfung erscheint die Zumietung
+                  als eigene Zeile.
+                </p>
+              </div>
+
+              {!form.deviceId && !form.adHocItemId && groups.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Material-Gruppe (optional)</Label>
+                  <Select
+                    value={form.groupId ?? NO_GROUP}
+                    onValueChange={(v) => set("groupId", v === NO_GROUP ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Gruppe wählen…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_GROUP}>— keine Gruppe —</SelectItem>
+                      {groups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Nur für die Anzeige im Material-Tab — betrifft freie,
+                    unverknüpfte Zumietungen.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label>Kosten-Gruppe</Label>
+                <Select
+                  value={form.costGroupId ?? AUTO_GROUP}
+                  onValueChange={(v) =>
+                    set("costGroupId", v === AUTO_GROUP ? null : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={AUTO_GROUP}>
+                      Automatisch — Gruppe je Vermieter
+                    </SelectItem>
+                    {costGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Gruppe unter „Zumietung &amp; Kosten". Die Zuordnung lässt sich
+                  dort jederzeit ändern.
+                </p>
+              </div>
+            </div>
+          </details>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={pending}>

@@ -1642,7 +1642,7 @@ export function AssignmentsSection({
                     )
                   }
                 >
-                  <HandCoins className="h-4 w-4" /> Zumieten
+                  <HandCoins className="h-4 w-4" /> Zumietung hinzufügen
                 </Button>
               </div>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
+import Link from "next/link";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,6 +9,7 @@ import { QuantityInput } from "@/components/ui/quantity-input";
 import { InfoHint } from "@/components/ui/info-hint";
 import { cn } from "@/lib/utils";
 import {
+  ArrowUpRight,
   ChevronDown,
   ChevronUp,
   Heading,
@@ -77,6 +79,14 @@ export interface GroupHeaderRowProps {
   icon?: LucideIcon;
   /** Hilfetext hinter dem Gruppennamen. */
   info?: string;
+  /**
+   * Ziel für abgeleitete Gruppen, die woanders gepflegt werden (z.B. „Personal
+   * (Einsatzplan)" auf der Kosten-Seite → Tab Personal & Transport). Ohne den
+   * Link ist so eine Gruppe eine Sackgasse: sie sieht aus wie eine Zeile mit
+   * Aktionen, hat aber keine.
+   */
+  linkHref?: string;
+  linkLabel?: string;
   /** Klick auf die Zeile — setzt die Gruppe als aktiv (Ziel neuer Buchungen). */
   onActivate?: () => void;
   /** Tooltip der Aktiv-Checkbox — je Tab unterschiedlich formuliert. */
@@ -102,6 +112,8 @@ export function GroupHeaderRow({
   readOnly,
   icon: Icon,
   info,
+  linkHref,
+  linkLabel,
   onActivate,
   activeHint = "Aktive Gruppe — neue Positionen aus dem Katalog landen hier",
   onRename,
@@ -186,6 +198,16 @@ export function GroupHeaderRow({
             <span className="shrink-0 pl-1 font-mono text-xs font-bold text-primary">
               {sumLabel}
             </span>
+          )}
+          {linkHref && (
+            <Link
+              href={linkHref}
+              title={linkLabel}
+              className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[5px] border bg-card px-1.5 text-[11px] font-semibold text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background hover:border-primary hover:text-primary"
+            >
+              {linkLabel}
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
           )}
           {onMoveUp && (
             <HeaderIconButton onClick={onMoveUp} title="Gruppe nach oben" disabled={pending || isFirst}>
