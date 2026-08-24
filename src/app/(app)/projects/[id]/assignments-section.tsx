@@ -126,6 +126,7 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
 import { toastError } from "@/lib/toast";
+import { useViewportFill } from "@/lib/use-viewport-fill";
 
 type DeviceLite = Device & { category: Category | null };
 type CableLite = Cable & { category: Category | null };
@@ -290,6 +291,10 @@ export function AssignmentsSection({
   const reservedSet = new Set(reservedDeviceIds);
   const [pending, startTransition] = useTransition();
   const saveStatus = useTransitionSaveStatus(pending);
+  // Hoehe der Karte = gemessener Restplatz im Viewport, damit die Fusszeile
+  // mit der Summe nicht unter dem Falz liegt und die Seite nicht zusaetzlich
+  // zur Tabelle scrollt.
+  const fill = useViewportFill();
 
   // Tagesfaktor/-tage einer Gruppe — Fallback auf die globalen Werte.
   const factorFor = (groupId: string) => groupFactors[groupId] ?? billingFactor;
@@ -1396,7 +1401,11 @@ export function AssignmentsSection({
           so weit scrollen, dass die Katalog-Suche hinter dem App-Header
           verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
           jeweils in ihrer eigenen Spalte. */}
-      <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <Card
+      ref={fill.ref}
+      style={fill.style}
+      className={cn("flex flex-col", fill.clamped && "overflow-hidden")}
+    >
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:material-split"

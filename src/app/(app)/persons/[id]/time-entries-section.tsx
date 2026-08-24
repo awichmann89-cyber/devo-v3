@@ -384,6 +384,7 @@ export function TimeEntriesSection({
               <div className="space-y-2 col-span-2 sm:col-span-1">
                 <Label>Datum</Label>
                 <Input
+                  autoFocus
                   type="date"
                   value={dialog?.workDate ?? ""}
                   onChange={(e) =>

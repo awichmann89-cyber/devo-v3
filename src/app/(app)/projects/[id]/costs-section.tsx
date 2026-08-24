@@ -106,6 +106,7 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
 import { toastError } from "@/lib/toast";
+import { useViewportFill } from "@/lib/use-viewport-fill";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 
@@ -338,6 +339,10 @@ export function CostsSection({
 }: Props) {
   const [pending, startTransition] = useTransition();
   const saveStatus = useTransitionSaveStatus(pending);
+  // Hoehe der Karte = gemessener Restplatz im Viewport, damit die Fusszeile
+  // mit der Summe nicht unter dem Falz liegt und die Seite nicht zusaetzlich
+  // zur Tabelle scrollt.
+  const fill = useViewportFill();
 
   // ----- Dialog-/Lösch-State -----
   const [subhireDialog, setSubhireDialog] = useState<SubhireFormValue | null>(null);
@@ -971,7 +976,11 @@ export function CostsSection({
     // Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
     // 52px-Headers + Abstände) und clippt intern, sodass die Kosten-Tabelle in
     // ihrer eigenen Fläche scrollt statt die ganze Seite wachsen zu lassen.
-    <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+    <Card
+      ref={fill.ref}
+      style={fill.style}
+      className={cn("flex flex-col", fill.clamped && "overflow-hidden")}
+    >
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
         {/* Die vier Summen standen vorher als 12px-Fussnote im Tabellen-Footer,
             der beim Laden unter dem Falz liegt. Als Kacheln stehen sie da, wo

@@ -29,6 +29,7 @@ Immer die semantischen Tokens aus [globals.css](../src/app/globals.css):
 | Fehler, überfällig, Verlust | `destructive` | `destructive-subtle` |
 | Neutrale Information | `info` | `info-subtle` |
 | Zumietung | `subhire` | `subhire-subtle` |
+| Eigene Einträge (Kalender) | `mine` | `mine-subtle` |
 
 Flächen: `background` · `card` · `secondary` (surface-2) · `accent` (Hover) · `muted`.
 Text: `foreground` · `muted-foreground` · `faint`.
@@ -36,16 +37,24 @@ Text: `foreground` · `muted-foreground` · `faint`.
 Neue Statusfarbe? → Token-Paar in `globals.css` (Light **und** Dark) + Eintrag in
 [tailwind.config.ts](../tailwind.config.ts). Nicht inline lösen.
 
+Ein Token gehört **einer** Bedeutung. Zwei Bedeutungen, die zufällig gleich aussehen,
+bekommen zwei Tokens — sonst färbt ein späteres Umfärben still die andere mit. Genau
+deshalb ist „Meine Einträge“ im Kalender `mine` und nicht `subhire`, obwohl beide heute
+denselben Wert haben.
+
 ## 2. Control-Höhen
 
-| Höhe | Wofür |
-|---|---|
-| **34 px** | Standard: `Button` (default), `Input`, `SelectTrigger`, `Button size="icon"` |
-| **30 px** | Kompakt: `Button size="sm"`, Filter-Chips, `Button size="icon"`→`iconSm` ist 32 px |
-| 40 px | `Button size="lg"` — nur für Primäraktionen auf leeren Seiten |
+Alle Controls haben dieselben drei Stufen, gekoppelt an die Tabellen-Dichte:
 
-Nie per `className="h-9"` o. ä. nachjustieren. Wenn eine Höhe fehlt, kommt sie als Variante
-ins Primitive.
+| Höhe | Variante | Wofür |
+|---|---|---|
+| **34 px** | `Button` default · `Input`/`SelectTrigger` default · `size="icon"` | Standard: Filterleisten, Dialoge, `density="comfortable"` |
+| **30 px** | `Button size="sm"` · `Input`/`SelectTrigger size="sm"` · `iconSm` (32 px) | Kompakt: Filter-Chips, `density="compact"` |
+| **28 px** | `Input`/`SelectTrigger size="xs"` · `iconXs` | Dicht: Zuordnungstabellen im Projekt, `density="dense"` |
+| 40 px | `Button size="lg"` | nur für Primäraktionen auf leeren Seiten |
+
+Nie per `className="h-9"` o. ä. nachjustieren — `npm run check:ui` bricht darüber
+(`controlHeight`). Wenn eine Höhe fehlt, kommt sie als Variante ins Primitive.
 
 ## 3. Tabellen
 
@@ -56,7 +65,10 @@ ins Primitive.
 ```
 
 - **Kein** `className="[&_td]:px-2 …"` — ausschließlich die `density`-Prop.
-- Rahmen ist Standard (`bordered`, default `true`).
+- Rahmen ist Standard (`bordered`, default `true`). **`bordered={false}`**, wenn die Tabelle
+  in einem Container sitzt, der schon `rounded-lg border` hat — sonst doppelte Linie.
+- **`stickyHeader`** für jede Tabelle, die in einem höhenbegrenzten Container scrollt.
+  Ohne sie sind nach zehn Zeilen die Spaltenköpfe weg.
 - Leerzeile immer über `<TableEmpty colSpan={n} hasData={rows.length > 0} entity="Kunden" />`.
 - Gruppen-Kopfzeilen über `<TableGroupRow />`, Kind-Einrückung über `groupChildIndent(depth)`.
 - Zeile klickbar, **wenn es eine Detailseite gibt** (Projekte, Geräte, Packeinheiten, Kabel,
@@ -74,9 +86,14 @@ ins Primitive.
 
 - `label` ist Pflicht — wird `title` **und** `aria-label`.
 - Destruktive Aktionen immer `destructive` (rot + `destructive-subtle`-Hover), nie grau.
+  Freistehend außerhalb einer Zeile: `variant="ghostDestructive"`. Nie
+  `className="text-destructive hover:text-destructive"` — `check:ui` bricht darüber
+  (`handRolledDestructive`), und die Handbau-Variante hat keinen Hover-Hintergrund.
 - Der **Stift öffnet einen Dialog**. Navigation läuft über den Namens-Link bzw. den
   Zeilen-Klick — kein Stift, der navigiert.
 - Löschen geht **immer** über `ConfirmDialog`.
+- Zeilen-Aktionen **nicht von Hand** als Ghost-Icon-Button bauen. `check:ui` verlangt an
+  jedem Icon-Button ein `aria-label` (`iconButtonLabel`); `RowAction` setzt es aus `label`.
 
 ## 5. Listenseiten
 
@@ -112,6 +129,16 @@ Container-Abstand: `space-y-4`.
 ```
 
 Danach `space-y-4`, Karten mit `<CardHeader>` / `<CardContent>` im Standard-Padding.
+
+**Tabs gehören in die URL.** Immer `<UrlTabs defaultValue="…">` statt `<Tabs defaultValue>`
+(intern `useTabParam`). Sonst ist kein Tab verlinkbar, der Zurück-Button überspringt ihn
+und ein Reload landet wieder auf dem ersten Tab. Tab-Labels **nicht** auf Mobile ausblenden —
+`TabsList` scrollt bereits horizontal, und unbeschriftete Icons sind nicht erratbar.
+
+**Höhe begrenzen nur gemessen.** Eine Karte, die ihre Tabelle in sich scrollen lässt, nutzt
+`useViewportFill()` — nie eine geschätzte Formel wie `max-h-[calc(100vh-80px)]`. Die Schätzung
+kennt DetailHeader, Kachelreihe und Tab-Leiste nicht und schiebt die Fußzeile mit der Summe
+unter den Falz — mit zwei Scrollbalken als Nebenwirkung.
 
 ## 7. Filterleiste
 

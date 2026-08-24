@@ -41,6 +41,7 @@ export function ProjectDialog({ customers, users, currentUserId }: Props) {
         {/* DialogBody scrollt — sonst wachsen die Berechnungszeiträume aus dem Dialog heraus. */}
         <DialogBody>
           <ProjectForm
+            autoFocusFirst
             customers={customers}
             users={users}
             currentUserId={currentUserId}

@@ -44,6 +44,10 @@
        den Erfolg/Warnung/Fehler-Zuständen unterscheiden lassen. */
     --subhire: 292 69% 45%; /* #B024C4 */
     --subhire-subtle: 292 60% 95%; /* #FAEBFD */
+    /* "Meine Eintraege" im Kalender. Eigenes Token, weil sonst ein
+       Umfaerben der Zumietung still die Kalender-Eintraege mitfaerbt. */
+    --mine: 292 69% 45%;
+    --mine-subtle: 292 60% 95%;
 
     --border: 189 12% 88%; /* #DEE4E5 */
     --input: 186 10% 80%; /* #C7D0D1 border-strong */
@@ -93,6 +97,8 @@
     --info-subtle: 195 50% 16%;
     --subhire: 289 85% 72%; /* #E67CF7 */
     --subhire-subtle: 295 35% 18%;
+    --mine: 289 85% 72%;
+    --mine-subtle: 295 35% 18%;
 
     --border: 203 17% 21%; /* #2C373E */
     --input: 203 16% 28%; /* #3B4952 */

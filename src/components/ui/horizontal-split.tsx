@@ -68,7 +68,9 @@ export function HorizontalSplit({
 
   useEffect(() => {
     if (!dragging) return;
-    function onMove(e: MouseEvent) {
+    // Pointer-Events statt Mouse-Events: deckt Maus, Touch und Pen ab. Vorher
+    // war der Griff auf Tablets nicht bedienbar.
+    function onMove(e: PointerEvent) {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -77,17 +79,37 @@ export function HorizontalSplit({
       setLeftPx(next);
     }
     function onUp() { setDragging(false); }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
     return () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
     };
   }, [dragging, minLeftPx, minRightPx]);
+
+  /** Tastatur-Bedienung des Griffs: Pfeiltasten, Home/End, 20px pro Schritt. */
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const maxLeft = rect
+      ? Math.max(minLeftPx, rect.width - minRightPx)
+      : minLeftPx;
+    const step = e.shiftKey ? 60 : 20;
+    let next: number | null = null;
+    if (e.key === "ArrowLeft") next = leftPx - step;
+    else if (e.key === "ArrowRight") next = leftPx + step;
+    else if (e.key === "Home") next = minLeftPx;
+    else if (e.key === "End") next = maxLeft;
+    else if (e.key === "Enter" || e.key === " ") next = defaultLeftPx;
+    if (next === null) return;
+    e.preventDefault();
+    setLeftPx(Math.max(minLeftPx, Math.min(maxLeft, next)));
+  }
 
   useEffect(() => {
     if (!dragging && storageKey) {
@@ -133,23 +155,36 @@ export function HorizontalSplit({
       >
         {left}
       </div>
+      {/* Griff zwischen den Spalten. `aria-orientation` beschreibt die
+          Bewegungsrichtung des Separators, nicht seine Optik — der Griff
+          bewegt sich horizontal. `tabIndex` + Pfeiltasten, damit die
+          Spaltenbreite auch ohne Maus einstellbar ist. */}
       <div
         role="separator"
-        aria-orientation="vertical"
-        onMouseDown={(e) => { e.preventDefault(); setDragging(true); }}
+        aria-orientation="horizontal"
+        aria-label="Spaltenbreite"
+        aria-valuenow={Math.round(leftPx)}
+        aria-valuemin={minLeftPx}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onPointerDown={(e) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
         onDoubleClick={() => setLeftPx(defaultLeftPx)}
-        title="Ziehen zum Verschieben · Doppelklick zum Zurücksetzen"
+        title="Ziehen oder Pfeiltasten zum Verschieben · Doppelklick zum Zurücksetzen"
         className={cn(
-          "hidden lg:flex group relative w-4 shrink-0 cursor-col-resize select-none items-center justify-center",
+          "hidden lg:flex group relative w-4 shrink-0 cursor-col-resize touch-none select-none items-center justify-center",
           "before:absolute before:inset-y-2 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border",
-          "hover:before:bg-primary",
+          "hover:before:bg-primary focus-visible:outline-none focus-visible:before:bg-primary",
           dragging && "before:bg-primary"
         )}
       >
         <div
           className={cn(
             "z-10 h-10 w-1 rounded-full bg-border transition-colors",
-            "group-hover:bg-primary",
+            "group-hover:bg-primary group-focus-visible:bg-primary",
             dragging && "bg-primary"
           )}
         />

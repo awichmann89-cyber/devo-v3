@@ -48,6 +48,7 @@ export function ProjectForm({
   currentUserId,
   billingPeriods,
   onCancel,
+  autoFocusFirst,
 }: {
   project?: Project & { maintainerId?: string | null };
   customers: Customer[];
@@ -57,6 +58,12 @@ export function ProjectForm({
   currentUserId?: string | null;
   billingPeriods?: BillingPeriod[];
   onCancel?: () => void;
+  /**
+   * Fokus auf das erste Feld. Nur im Dialog gewuenscht (§9) — auf der
+   * Stammdaten-Seite wuerde das Formular beim Laden den Fokus stehlen und die
+   * Seite an sich heranscrollen.
+   */
+  autoFocusFirst?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -192,6 +199,7 @@ export function ProjectForm({
           <Label htmlFor="name">Projektname</Label>
           <Input
             id="name"
+            autoFocus={autoFocusFirst}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required

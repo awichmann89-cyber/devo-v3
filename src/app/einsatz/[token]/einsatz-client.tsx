@@ -18,6 +18,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  StickyNote,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -425,7 +426,12 @@ export function EinsatzClient({
             <span className="block font-medium text-foreground">
               {timeLabel(a)}
             </span>
-            {a.notes && <span className="block">📝 {a.notes}</span>}
+            {a.notes && (
+              <span className="flex items-start gap-1.5">
+                <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {a.notes}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         {(allowTimeEntry || entries.length > 0) && (

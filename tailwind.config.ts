@@ -87,6 +87,12 @@ const config: Config = {
           DEFAULT: "hsl(var(--subhire))",
           subtle: "hsl(var(--subhire-subtle))",
         },
+        // „Meine Einträge" im Kalender — bewusst getrennt von `subhire`,
+        // damit ein Umfärben der Zumietung den Kalender nicht mitfärbt.
+        mine: {
+          DEFAULT: "hsl(var(--mine))",
+          subtle: "hsl(var(--mine-subtle))",
+        },
         faint: "hsl(var(--faint))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar))",

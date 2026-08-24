@@ -169,11 +169,16 @@ function SidebarLogo({ onClose }: { onClose?: () => void }) {
   );
 }
 
+/**
+ * Fußzeile der Sidebar. Hier stand ein grüner Punkt mit „System online" — der
+ * war hartkodiert und behauptete den Zustand auch dann, wenn nichts online war.
+ * Ein Statusindikator, der immer dasselbe sagt, ist keiner; bis es eine echte
+ * Healthcheck-Quelle gibt, steht hier nur die Produktkennung.
+ */
 function SidebarFooter() {
   return (
     <div className="flex items-center gap-2 border-t px-4 py-2.5 text-[11px] text-faint">
-      <span className="h-[7px] w-[7px] rounded-full bg-success" aria-hidden />
-      <span>System online</span>
+      <span>Cratel</span>
     </div>
   );
 }

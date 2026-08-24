@@ -157,6 +157,7 @@ import { HorizontalSplit } from "@/components/ui/horizontal-split";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 import { toastError } from "@/lib/toast";
+import { useViewportFill } from "@/lib/use-viewport-fill";
 
 export interface ProjectServiceVM {
   id: string;
@@ -291,6 +292,10 @@ export function ServicesSection({
   const [collapsedKinds, setCollapsedKinds] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const saveStatus = useTransitionSaveStatus(pending);
+  // Hoehe der Karte = gemessener Restplatz im Viewport, damit die Fusszeile
+  // mit der Summe nicht unter dem Falz liegt und die Seite nicht zusaetzlich
+  // zur Tabelle scrollt.
+  const fill = useViewportFill();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<ProjectServiceVM | null>(null);
   // Einsatz-Dialog: anlegen (assignment null) oder bearbeiten
@@ -1346,7 +1351,11 @@ export function ServicesSection({
           so weit scrollen, dass die Katalog-Suche hinter dem App-Header
           verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
           jeweils in ihrer eigenen Spalte. */}
-      <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      <Card
+      ref={fill.ref}
+      style={fill.style}
+      className={cn("flex flex-col", fill.clamped && "overflow-hidden")}
+    >
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:services-split"
@@ -1418,7 +1427,7 @@ export function ServicesSection({
                   <p className="px-4 py-8 text-center text-xs text-muted-foreground">
                     {search || kindFilter !== "all"
                       ? "Keine passenden Positionen"
-                      : "Noch keine aktiven Positionen — über „Neue Position“ kannst du eine anlegen."}
+                      : "Noch keine aktiven Positionen — über „Position anlegen“ kannst du eine anlegen."}
                   </p>
                 ) : (
                   (() => {

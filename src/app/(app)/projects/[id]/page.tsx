@@ -747,35 +747,35 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         <TabsList>
           <TabsTrigger value="details">
             <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Details</span>
+            <span>Details</span>
           </TabsTrigger>
           <TabsTrigger value="periods">
             <CalendarRange className="h-4 w-4" />
-            <span className="hidden sm:inline">Zeiträume</span>
+            <span>Zeiträume</span>
           </TabsTrigger>
           <TabsTrigger value="notes">
             <StickyNote className="h-4 w-4" />
-            <span className="hidden sm:inline">Notizen</span>
+            <span>Notizen</span>
           </TabsTrigger>
           <TabsTrigger value="files">
             <Paperclip className="h-4 w-4" />
-            <span className="hidden sm:inline">Dateien</span>
+            <span>Dateien</span>
           </TabsTrigger>
           <TabsTrigger value="material">
             <Boxes className="h-4 w-4" />
-            <span className="hidden sm:inline">Material</span>
+            <span>Material</span>
           </TabsTrigger>
           <TabsTrigger value="services">
             <Truck className="h-4 w-4" />
-            <span className="hidden sm:inline">Personal & Transport</span>
+            <span>Personal & Transport</span>
           </TabsTrigger>
           <TabsTrigger value="costs">
             <HandCoins className="h-4 w-4" />
-            <span className="hidden sm:inline">Zumietung & Kosten</span>
+            <span>Zumietung & Kosten</span>
           </TabsTrigger>
           <TabsTrigger value="finances">
             <Wallet className="h-4 w-4" />
-            <span className="hidden sm:inline">Finanzen</span>
+            <span>Finanzen</span>
           </TabsTrigger>
         </TabsList>
 

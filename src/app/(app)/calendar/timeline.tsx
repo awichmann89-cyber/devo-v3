@@ -12,22 +12,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ArrowRight, Boxes, ChevronLeft, ChevronRight, UserRound } from "lucide-react";
+  FILTER_DEFAULT_STATUSES,
+  FilterResetButton,
+  StatusChips,
+} from "@/components/filters/filter-controls";
+import {
+  ArrowRight,
+  Boxes,
+  ChevronLeft,
+  ChevronRight,
+  StickyNote,
+  UserRound,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
 import { ProjectStatus } from "@prisma/client";
-import {
-  projectStatusEmoji,
-  projectStatusLabel,
-  projectStatusVariant,
-} from "@/lib/labels";
+import { projectStatusLabel, projectStatusVariant } from "@/lib/labels";
 
 interface ProjectVM {
   id: string;
@@ -165,7 +166,27 @@ export function Timeline({
   const params = useSearchParams();
   const start = useMemo(() => new Date(viewStart), [viewStart]);
 
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  /**
+   * Status-Filter über dieselben Chips wie auf allen anderen Seiten. Vorher war
+   * das hier ein 180px-Select mit eigenen Sammelwerten („Aktive Projekte") —
+   * das einzige abweichende Filter-Konzept der App.
+   */
+  const [statuses, setStatuses] = useState<Set<ProjectStatus>>(
+    () => new Set(FILTER_DEFAULT_STATUSES)
+  );
+  const statusesAreDefault =
+    statuses.size === FILTER_DEFAULT_STATUSES.length &&
+    FILTER_DEFAULT_STATUSES.every((s) => statuses.has(s));
+
+  function toggleStatus(s: ProjectStatus) {
+    setStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }
+
   // Info-Popup: angeklickter Kalendereintrag (Projekt oder eigener Einsatz)
   const [selected, setSelected] = useState<
     | { kind: "project"; project: ProjectVM }
@@ -174,20 +195,16 @@ export function Timeline({
   >(null);
 
   const filtered = useMemo(
-    () =>
-      projects.filter((p) => {
-        if (statusFilter === "all") return true;
-        if (statusFilter === "active") {
-          return (
-            p.status === "DRAFT" ||
-            p.status === "CONFIRMED" ||
-            p.status === "ACTIVE"
-          );
-        }
-        return p.status === statusFilter;
-      }),
-    [projects, statusFilter]
+    () => projects.filter((p) => statuses.has(p.status)),
+    [projects, statuses]
   );
+
+  /** Trefferzahl je Status für die Chips. */
+  const statusCounts = useMemo(() => {
+    const out: Partial<Record<ProjectStatus, number>> = {};
+    for (const p of projects) out[p.status] = (out[p.status] ?? 0) + 1;
+    return out;
+  }, [projects]);
 
   const grid = useMemo(() => buildMonthGrid(start), [start]);
   const currentMonth = start.getMonth();
@@ -200,8 +217,8 @@ export function Timeline({
       kind: "assignment" as const,
       start: dayFloor(a.start),
       end: dayFloor(a.end),
-      label: `${projectStatusEmoji(a.status)} ${a.projectName} — ${a.serviceName}`,
-      chip: "bg-subhire text-primary-foreground hover:opacity-90",
+      label: `${a.projectName} — ${a.serviceName}`,
+      chip: "bg-mine text-primary-foreground hover:opacity-90",
       assignment: a,
     }));
     for (const p of filtered) {
@@ -210,7 +227,7 @@ export function Timeline({
         kind: "project" as const,
         start: dayFloor(p.planningStart),
         end: dayFloor(p.planningEnd),
-        label: `${projectStatusEmoji(p.status)} ${p.name}`,
+        label: p.name,
         chip: projectChipClass(p.status),
         project: p,
       });
@@ -249,22 +266,17 @@ export function Timeline({
           Heute
         </Button>
         <span className="ml-2 text-base font-semibold capitalize">{monthLabel}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Aktive Projekte</SelectItem>
-              <SelectItem value="all">Alle Projekte</SelectItem>
-              {Object.values(ProjectStatus).map((s) => (
-                <SelectItem key={s} value={s}>
-                  {projectStatusLabel(s)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <StatusChips
+            selected={statuses}
+            onToggle={toggleStatus}
+            counts={statusCounts}
+          />
+          {!statusesAreDefault && (
+            <FilterResetButton
+              onClick={() => setStatuses(new Set(FILTER_DEFAULT_STATUSES))}
+            />
+          )}
         </div>
       </div>
 
@@ -445,7 +457,7 @@ export function Timeline({
         <LegendItem color="bg-faint" label="Abgeschlossen" />
         <LegendItem color="bg-destructive/60" label="Storniert" />
         {myAssignments.length > 0 && (
-          <LegendItem color="bg-subhire" label="Meine Einsätze" />
+          <LegendItem color="bg-mine" label="Meine Einsätze" />
         )}
       </div>
 
@@ -457,7 +469,7 @@ export function Timeline({
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {projectStatusEmoji(selected.project.status)} {selected.project.name}
+                  {selected.project.name}
                 </DialogTitle>
                 <DialogDescription>
                   {selected.project.customer ?? "Ohne Kunde"}
@@ -493,7 +505,7 @@ export function Timeline({
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <UserRound className="h-4 w-4" />
-                  {projectStatusEmoji(selected.assignment.status)} Mein Einsatz —{" "}
+                  Mein Einsatz —{" "}
                   {selected.assignment.projectName}
                 </DialogTitle>
                 <DialogDescription>{selected.assignment.serviceName}</DialogDescription>
@@ -509,8 +521,9 @@ export function Timeline({
                   {assignmentTimeLabel(selected.assignment)}
                 </p>
                 {selected.assignment.notes && (
-                  <p className="text-muted-foreground">
-                    📝 {selected.assignment.notes}
+                  <p className="flex items-start gap-1.5 text-muted-foreground">
+                    <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    {selected.assignment.notes}
                   </p>
                 )}
               </div>
