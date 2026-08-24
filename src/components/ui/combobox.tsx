@@ -120,7 +120,7 @@ export function Combobox({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={placeholder}
-            className="h-8"
+            size="sm"
           />
         </div>
         <ul

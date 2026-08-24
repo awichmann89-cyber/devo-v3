@@ -95,7 +95,8 @@ function UnitRow({ unit, index }: { unit: CableUnitVM; index: number }) {
             if (e.target.value !== (unit.barcode ?? "")) save("barcode", e.target.value);
           }}
           placeholder="z.B. CB-00042"
-          className="h-8 font-mono text-sm"
+          size="sm"
+          className="font-mono"
         />
       </TableCell>
       <TableCell>
@@ -106,7 +107,7 @@ function UnitRow({ unit, index }: { unit: CableUnitVM; index: number }) {
             if (e.target.value !== (unit.notes ?? "")) save("notes", e.target.value);
           }}
           placeholder="optional"
-          className="h-8 text-sm"
+          size="sm"
         />
       </TableCell>
       <TableCell>

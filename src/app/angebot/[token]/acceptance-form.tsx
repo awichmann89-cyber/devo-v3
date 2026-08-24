@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, CheckCircle2, AlertCircle, Eraser } from "lucide-react";
 import { acceptQuote, type AcceptQuoteResult } from "./acceptance-actions";
@@ -209,7 +210,7 @@ export function AcceptanceForm({
                   size="sm"
                   variant="ghost"
                   onClick={clearSignature}
-                  className="h-7 gap-1 text-xs text-muted-foreground"
+                  className="gap-1 text-muted-foreground"
                 >
                   <Eraser className="h-3.5 w-3.5" /> Löschen
                 </Button>
@@ -231,19 +232,22 @@ export function AcceptanceForm({
             </p>
           </div>
 
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
+          <div className="flex items-start gap-2 text-sm">
+            <Checkbox
+              id="quote-agreement"
               checked={agreementChecked}
-              onChange={(e) => setAgreementChecked(e.target.checked)}
+              onCheckedChange={(v) => setAgreementChecked(v === true)}
               disabled={pending}
-              className="mt-0.5 h-4 w-4"
+              className="mt-0.5"
             />
-            <span>
+            <Label
+              htmlFor="quote-agreement"
+              className="cursor-pointer font-normal leading-snug"
+            >
               Ich nehme das Angebot <strong>{quoteNumber}</strong> hiermit
               verbindlich an.
-            </span>
-          </label>
+            </Label>
+          </div>
 
           {error && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">

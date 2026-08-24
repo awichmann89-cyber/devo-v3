@@ -239,10 +239,10 @@ export function Timeline({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="icon" onClick={() => shiftMonth(-1)} title="Vormonat">
+        <Button variant="outline" size="icon" onClick={() => shiftMonth(-1)} title="Vormonat" aria-label="Vormonat">
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => shiftMonth(1)} title="Nächster Monat">
+        <Button variant="outline" size="icon" onClick={() => shiftMonth(1)} title="Nächster Monat" aria-label="Nächster Monat">
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={() => router.push("/calendar")}>

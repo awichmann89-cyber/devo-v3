@@ -390,17 +390,18 @@ export function EinsatzClient({
                 setOpenForm({ assignmentId, initial: editForm(e) })
               }
               title="Bearbeiten"
+              aria-label="Bearbeiten"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
           )}
           <Button
-            variant="ghost"
+            variant="ghostDestructive"
             size="iconXs"
-            className="text-destructive hover:text-destructive"
             disabled={pending}
             onClick={() => setDeleting(e)}
             title="Löschen"
+            aria-label="Löschen"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -551,7 +552,7 @@ export function EinsatzClient({
           </CardHeader>
           <CardContent className="flex gap-2">
             <Input readOnly value={icsUrl} className="font-mono text-xs" />
-            <Button variant="outline" size="icon" onClick={copyIcsUrl} title="Link kopieren">
+            <Button variant="outline" size="icon" onClick={copyIcsUrl} title="Link kopieren" aria-label="Link kopieren">
               {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
             </Button>
           </CardContent>

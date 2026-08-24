@@ -25,12 +25,29 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
    * Redesign-Muster für Tabellen in Cards. Standard: an.
    */
   bordered?: boolean;
+  /**
+   * Hält die Spaltenköpfe beim Scrollen sichtbar. Für jede Tabelle, die in
+   * einem höhenbegrenzten Container scrollt (Zuordnungstabellen im Projekt) —
+   * sonst weiß man nach zehn Zeilen nicht mehr, welche Spalte welche ist.
+   * `bg-secondary` sitzt schon auf `TableHead`, deshalb reicht sticky + z-Index.
+   */
+  stickyHeader?: boolean;
   /** Klassen für den scrollenden Wrapper (z.B. `max-h-…`). */
   wrapperClassName?: string;
 }
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, density = "comfortable", bordered = true, wrapperClassName, ...props }, ref) => (
+  (
+    {
+      className,
+      density = "comfortable",
+      bordered = true,
+      stickyHeader,
+      wrapperClassName,
+      ...props
+    },
+    ref
+  ) => (
     <div
       className={cn(
         "relative w-full overflow-auto",
@@ -40,7 +57,16 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
     >
       <table
         ref={ref}
-        className={cn("w-full caption-bottom text-[13px]", DENSITIES[density], className)}
+        className={cn(
+          "w-full caption-bottom text-[13px]",
+          DENSITIES[density],
+          // Die Trennlinie muss auf den Zellen sitzen, nicht auf der Zeile:
+          // ein `border-b` am <tr> wandert beim Scrollen nicht mit den
+          // sticky-Zellen mit und verschwindet.
+          stickyHeader &&
+            "[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-20 [&_thead_th]:shadow-[inset_0_-1px_0_hsl(var(--border))]",
+          className
+        )}
         {...props}
       />
     </div>

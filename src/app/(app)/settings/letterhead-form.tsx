@@ -109,22 +109,21 @@ function Slot({
                   })}
                 </div>
               </div>
-              <Button asChild variant="ghost" size="iconSm" >
+              <Button asChild variant="ghost" size="iconSm" title="Anzeigen" aria-label="Anzeigen">
                 <a
                   href={`/api/letterhead/${kind}`}
                   target="_blank"
                   rel="noopener"
-                  title="Anzeigen"
                 >
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
               <Button
-                variant="ghost"
+                variant="ghostDestructive"
                 size="iconSm"
-                className="text-destructive hover:text-destructive"
                 onClick={() => setConfirmDelete(true)}
                 title="Entfernen"
+                aria-label="Entfernen"
                 disabled={pending}
               >
                 <Trash2 className="h-4 w-4" />

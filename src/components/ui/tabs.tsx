@@ -3,8 +3,38 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";
+import { useTabParam } from "@/lib/use-tab-param";
 
 const Tabs = TabsPrimitive.Root;
+
+/**
+ * `Tabs` mit dem aktiven Tab in der URL (`?tab=…`) — verlinkbar, Zurück-Button
+ * funktioniert, und ein Reload bleibt auf dem Tab, auf dem man gearbeitet hat.
+ *
+ * Kann aus Server-Komponenten heraus gerendert werden: nur dieser Wrapper ist
+ * Client, `TabsContent`-Kinder dürfen serverseitig gerendert bleiben.
+ */
+export function UrlTabs({
+  defaultValue,
+  paramKey,
+  children,
+  ...props
+}: Omit<
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>,
+  "value" | "onValueChange" | "defaultValue"
+> & {
+  /** Tab, der ohne `?tab=` aktiv ist. */
+  defaultValue: string;
+  /** Query-Parameter, falls eine Seite mehrere Tab-Gruppen hat. */
+  paramKey?: string;
+}) {
+  const [value, setValue] = useTabParam(defaultValue, paramKey);
+  return (
+    <Tabs value={value} onValueChange={setValue} {...props}>
+      {children}
+    </Tabs>
+  );
+}
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,

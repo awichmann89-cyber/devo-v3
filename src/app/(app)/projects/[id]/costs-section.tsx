@@ -686,15 +686,16 @@ export function CostsSection({
           variant="ghost"
           size="iconXs"
           title="Bearbeiten"
+          aria-label="Bearbeiten"
           onClick={opts.onEdit}
         >
           <Pencil className="h-3.5 w-3.5" />
         </Button>
         <Button
-          variant="ghost"
+          variant="ghostDestructive"
           size="iconXs"
-          className="text-destructive hover:text-destructive"
           title="Entfernen"
+          aria-label="Entfernen"
           onClick={opts.onDelete}
           disabled={pending}
         >
@@ -972,7 +973,7 @@ export function CostsSection({
                 </p>
               </div>
             ) : (
-              <Table density="dense">
+              <Table density="dense" bordered={false} stickyHeader>
                 <TableHeader>
                   <TableRow className="hover:bg-secondary">
                     <TableHead className="w-8"></TableHead>

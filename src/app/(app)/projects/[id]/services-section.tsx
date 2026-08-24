@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -848,6 +849,12 @@ export function ServicesSection({
                     ? "Rechnung erhalten — Klick zum Zurücksetzen"
                     : "Rechnung noch nicht erhalten — Klick zum Markieren"
                 }
+                aria-label={
+                  a.invoiceReceived
+                    ? "Rechnung erhalten — zurücksetzen"
+                    : "Rechnung als erhalten markieren"
+                }
+                aria-pressed={a.invoiceReceived}
               >
                 <Receipt className="h-3.5 w-3.5" />
               </Button>
@@ -866,16 +873,17 @@ export function ServicesSection({
               }
               disabled={pending}
               title="Einsatz bearbeiten"
+              aria-label="Einsatz bearbeiten"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
-              variant="ghost"
+              variant="ghostDestructive"
               size="iconXs"
-              className="text-destructive hover:text-destructive"
               onClick={() => handleRemoveAssignment(a)}
               disabled={pending}
               title="Einsatz entfernen (erfasste Zeiten bleiben erhalten)"
+              aria-label="Einsatz entfernen (erfasste Zeiten bleiben erhalten)"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -948,16 +956,17 @@ export function ServicesSection({
               }
               disabled={pending}
               title="Einsatz bearbeiten"
+              aria-label="Einsatz bearbeiten"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
-              variant="ghost"
+              variant="ghostDestructive"
               size="iconXs"
-              className="text-destructive hover:text-destructive"
               onClick={() => handleRemoveVehicleAssignment(a)}
               disabled={pending}
               title="Einsatz entfernen"
+              aria-label="Einsatz entfernen"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -1091,6 +1100,7 @@ export function ServicesSection({
                 }
                 disabled={pending}
                 title="Person einplanen"
+                aria-label="Person einplanen"
               >
                 <UserPlus className="h-3.5 w-3.5" />
               </Button>
@@ -1109,6 +1119,7 @@ export function ServicesSection({
                 }
                 disabled={pending}
                 title="Fahrzeug/Anhänger einplanen"
+                aria-label="Fahrzeug/Anhänger einplanen"
               >
                 <Caravan className="h-3.5 w-3.5" />
               </Button>
@@ -1134,12 +1145,12 @@ export function ServicesSection({
               </Select>
             )}
             <Button
-              variant="ghost"
+              variant="ghostDestructive"
               size="iconXs"
-              className="text-destructive hover:text-destructive"
               onClick={() => setConfirmRemove(ps)}
               disabled={pending}
               title="Entfernen"
+              aria-label="Entfernen"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -1460,6 +1471,7 @@ export function ServicesSection({
                                               ? `Zur Gruppe „${groups.find((g) => g.id === activeGroupId)?.name}“ hinzufügen`
                                               : "Eine Standardgruppe wird automatisch angelegt"
                                           }
+                                          aria-label="Zur aktiven Gruppe hinzufügen"
                                         >
                                           <ArrowRight className="h-4 w-4" />
                                         </Button>
@@ -1503,7 +1515,7 @@ export function ServicesSection({
                     </p>
                   </div>
                 ) : (
-                  <Table density="dense">
+                  <Table density="dense" bordered={false} stickyHeader>
                     <TableHeader>
                       <TableRow className="hover:bg-secondary">
                         <TableHead className="w-8"></TableHead>
@@ -1773,19 +1785,16 @@ export function ServicesSection({
               />
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={groupDialog?.billable ?? true}
-                  onChange={(e) =>
-                    setGroupDialog((g) =>
-                      g ? { ...g, billable: e.target.checked } : g
-                    )
-                  }
-                  className="h-4 w-4 rounded border-input"
-                />
-                <span className="font-medium">Abrechenbar</span>
-              </label>
+              <Checkbox
+                id="service-group-billable"
+                checked={groupDialog?.billable ?? true}
+                onCheckedChange={(v) =>
+                  setGroupDialog((g) => (g ? { ...g, billable: v === true } : g))
+                }
+              />
+              <Label htmlFor="service-group-billable" className="cursor-pointer">
+                Abrechenbar
+              </Label>
               <InfoHint text="Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder Rechnungen auf und fließt nicht in Gesamtsummen ein." />
             </div>
             {billingPeriods.length > 0 && (
@@ -1799,23 +1808,28 @@ export function ServicesSection({
                     const checked =
                       groupDialog?.billingPeriodIds.includes(p.id) ?? false;
                     return (
-                      <label key={p.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                      <div key={p.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`service-group-period-${p.id}`}
                           checked={checked}
-                          onChange={(e) =>
+                          onCheckedChange={(v) =>
                             setGroupDialog((g) => {
                               if (!g) return g;
-                              const ids = e.target.checked
-                                ? [...g.billingPeriodIds, p.id]
-                                : g.billingPeriodIds.filter((x) => x !== p.id);
+                              const ids =
+                                v === true
+                                  ? [...g.billingPeriodIds, p.id]
+                                  : g.billingPeriodIds.filter((x) => x !== p.id);
                               return { ...g, billingPeriodIds: ids };
                             })
                           }
-                          className="h-4 w-4 rounded border-input"
                         />
-                        {periodLabel(p)}
-                      </label>
+                        <Label
+                          htmlFor={`service-group-period-${p.id}`}
+                          className="cursor-pointer font-normal"
+                        >
+                          {periodLabel(p)}
+                        </Label>
+                      </div>
                     );
                   })}
                 </div>

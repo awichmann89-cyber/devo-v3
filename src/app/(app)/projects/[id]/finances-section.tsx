@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
@@ -380,7 +382,8 @@ export function FinancesSection({
               onBlur={(e) =>
                 handleBereichDiscount(kind, e.target.value, data.discountPercent)
               }
-              className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
+              size="xs"
+                    className="ml-auto w-[72px] num text-right"
               disabled={data.items.length === 0}
             />
           </TableCell>
@@ -441,7 +444,8 @@ export function FinancesSection({
                     onBlur={(e) =>
                       handleGroupDiscount(g.id, e.target.value, g.discountPercent)
                     }
-                    className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
+                    size="xs"
+                    className="ml-auto w-[72px] num text-right"
                     disabled={!isBillable}
                   />
                 </TableCell>
@@ -536,7 +540,8 @@ export function FinancesSection({
                       max="100"
                       defaultValue={safePct(projectDiscountPercent)}
                       onBlur={(e) => handleProjectDiscount(e.target.value)}
-                      className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
+                      size="xs"
+                    className="ml-auto w-[72px] num text-right"
                     />
                   </TableCell>
                   <TableCell className="text-right num text-muted-foreground">
@@ -710,27 +715,22 @@ export function FinancesSection({
                       {formatCurrency(invoiceGross(inv))}
                     </TableCell>
                     <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button asChild variant="ghost" size="iconXs" >
-                          <a
-                            href={`/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`}
-                            download
-                            rel="noopener"
-                            title="PDF herunterladen"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="iconXs"
-                          className="text-destructive hover:text-destructive"
+                      <RowActions density="dense">
+                        <RowAction
+                          icon={Download}
+                          label="PDF herunterladen"
+                          download={{
+                            href: `/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`,
+                            fileName: true,
+                          }}
+                        />
+                        <RowAction
+                          icon={Trash2}
+                          label="Rechnung löschen"
+                          destructive
                           onClick={() => setDeleteInv(inv)}
-                          title="Rechnung löschen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                        />
+                      </RowActions>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1526,15 +1526,19 @@ function QuotesCard({
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Erstellte Angebote</CardTitle>
         {supersededCount > 0 && (
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-1.5">
+            <Checkbox
+              id="quotes-show-superseded"
               checked={showSuperseded}
-              onChange={(e) => setShowSuperseded(e.target.checked)}
-              className="h-3.5 w-3.5"
+              onCheckedChange={(v) => setShowSuperseded(v === true)}
             />
-            Ersetzte zeigen ({supersededCount})
-          </label>
+            <Label
+              htmlFor="quotes-show-superseded"
+              className="cursor-pointer text-xs font-normal text-muted-foreground"
+            >
+              Ersetzte zeigen ({supersededCount})
+            </Label>
+          </div>
         )}
       </CardHeader>
       <CardContent className="p-0">
@@ -1605,27 +1609,22 @@ function QuotesCard({
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button asChild variant="ghost" size="iconXs" >
-                        <a
-                          href={`/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`}
-                          download
-                          rel="noopener"
-                          title="PDF herunterladen"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="iconXs"
-                        className="text-destructive hover:text-destructive"
+                    <RowActions density="dense">
+                      <RowAction
+                        icon={Download}
+                        label="PDF herunterladen"
+                        download={{
+                          href: `/api/projects/${projectId}/quotes/${q.id}/pdf?download=1`,
+                          fileName: true,
+                        }}
+                      />
+                      <RowAction
+                        icon={Trash2}
+                        label="Angebot löschen"
+                        destructive
                         onClick={() => onDelete(q)}
-                        title="Angebot löschen"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                      />
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               );

@@ -257,6 +257,7 @@ export function ProjectForm({
               size="icon"
               onClick={() => setCustomerDialogOpen(true)}
               title="Neuen Kunden anlegen"
+              aria-label="Neuen Kunden anlegen"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -350,6 +351,7 @@ export function ProjectForm({
                     
                     onClick={() => removePeriod(i)}
                     title="Zeitraum entfernen"
+                    aria-label="Zeitraum entfernen"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

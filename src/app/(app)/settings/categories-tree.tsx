@@ -136,6 +136,7 @@ export function CategoriesTree({ categories }: Props) {
               size="iconXs"
               
               title="Unterkategorie hinzufügen"
+              aria-label="Unterkategorie hinzufügen"
               onClick={() => setDialogState({ mode: "create", parent: c })}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -145,6 +146,7 @@ export function CategoriesTree({ categories }: Props) {
               size="iconXs"
               
               title="Bearbeiten"
+              aria-label="Bearbeiten"
               onClick={() => setDialogState({ mode: "edit", category: c })}
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -154,6 +156,7 @@ export function CategoriesTree({ categories }: Props) {
               size="iconXs"
               
               title="Löschen"
+              aria-label="Löschen"
               disabled={pending}
               onClick={() => setDeleting(c)}
             >

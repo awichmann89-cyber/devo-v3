@@ -168,6 +168,7 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
                 variant="outline"
                 onClick={handleCopy}
                 title="Kopieren"
+                aria-label="Kopieren"
                 disabled={!scanUrl}
               >
                 <Copy className="h-4 w-4" />

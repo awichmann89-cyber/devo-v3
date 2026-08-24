@@ -12,6 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -925,6 +927,7 @@ export function AssignmentsSection({
               }
               disabled={pending}
               title="Material zumieten"
+              aria-label="Material zumieten"
             >
               <HandCoins className="h-4 w-4" />
             </Button>
@@ -944,16 +947,17 @@ export function AssignmentsSection({
                 })
               }
               title="Bearbeiten"
+              aria-label="Bearbeiten"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
-              variant="ghost"
+              variant="ghostDestructive"
               size="iconXs"
-              className="text-destructive hover:text-destructive"
               onClick={() => setAdHocDelete(it)}
               disabled={pending}
               title="Entfernen"
+              aria-label="Entfernen"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -1065,7 +1069,7 @@ export function AssignmentsSection({
                   value={a.groupId}
                   onValueChange={(v) => handleMoveToGroup(a.id, v)}
                 >
-                  <SelectTrigger className="h-7 w-[110px] text-xs">
+                  <SelectTrigger size="xs" className="w-[110px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1092,6 +1096,7 @@ export function AssignmentsSection({
                 }
                 disabled={pending}
                 title="Material zumieten"
+                aria-label="Material zumieten"
               >
                 <HandCoins className="h-4 w-4" />
               </Button>
@@ -1102,6 +1107,7 @@ export function AssignmentsSection({
                 onClick={() => handleRemove(a.id)}
                 disabled={pending}
                 title="Entfernen"
+                aria-label="Entfernen"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -1192,6 +1198,7 @@ export function AssignmentsSection({
               size="iconXs"
               
               title="Bearbeiten"
+              aria-label="Bearbeiten"
               onClick={() =>
                 setSubhireDialog({
                   id: s.id,
@@ -1210,10 +1217,10 @@ export function AssignmentsSection({
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
-              variant="ghost"
+              variant="ghostDestructive"
               size="iconXs"
-              className="text-destructive hover:text-destructive"
               title="Entfernen"
+              aria-label="Entfernen"
               onClick={() => setSubhireDelete(s)}
               disabled={pending}
             >
@@ -1282,7 +1289,7 @@ export function AssignmentsSection({
                   value={ca.groupId}
                   onValueChange={(v) => handleMoveCableToGroup(ca.id, v)}
                 >
-                  <SelectTrigger className="h-7 w-[110px] text-xs">
+                  <SelectTrigger size="xs" className="w-[110px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1301,6 +1308,7 @@ export function AssignmentsSection({
                 onClick={() => handleRemoveCable(ca.id)}
                 disabled={pending}
                 title="Entfernen"
+                aria-label="Entfernen"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -1489,6 +1497,7 @@ export function AssignmentsSection({
                                         ? `Zur Gruppe "${groups.find((g) => g.id === activeGroupId)?.name}" hinzufügen`
                                         : "Eine Standardgruppe wird automatisch angelegt"
                                     }
+                                    aria-label="Zur aktiven Gruppe hinzufügen"
                                   >
                                     <ArrowRight className="h-4 w-4" />
                                   </Button>
@@ -1573,6 +1582,7 @@ export function AssignmentsSection({
                                     ? `Zur Gruppe "${groups.find((g) => g.id === activeGroupId)?.name}" hinzufügen`
                                     : "Eine Standardgruppe wird automatisch angelegt"
                                 }
+                                aria-label="Zur aktiven Gruppe hinzufügen"
                               >
                                 <ArrowRight className="h-4 w-4" />
                               </Button>
@@ -1646,7 +1656,7 @@ export function AssignmentsSection({
                     <p>Noch keine Gruppen — beim ersten Buchen wird automatisch eine angelegt.</p>
                   </div>
                 ) : (
-                  <Table density="dense">
+                  <Table density="dense" bordered={false} stickyHeader>
                     <TableHeader>
                       <TableRow className="hover:bg-secondary">
                         <TableHead className="w-8"></TableHead>
@@ -1826,25 +1836,22 @@ export function AssignmentsSection({
               />
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={groupDialog?.billable ?? true}
-                  onChange={(e) =>
-                    setGroupDialog((g) =>
-                      g ? { ...g, billable: e.target.checked } : g
-                    )
-                  }
-                  className="h-4 w-4 rounded border-input"
-                />
-                <span className="font-medium">Abrechenbar</span>
-              </label>
+              <Checkbox
+                id="material-group-billable"
+                checked={groupDialog?.billable ?? true}
+                onCheckedChange={(v) =>
+                  setGroupDialog((g) => (g ? { ...g, billable: v === true } : g))
+                }
+              />
+              <Label htmlFor="material-group-billable" className="cursor-pointer">
+                Abrechenbar
+              </Label>
               <InfoHint text="Wenn deaktiviert, taucht diese Gruppe nicht auf Angeboten oder Rechnungen auf und fließt nicht in Gesamtsummen ein." />
             </div>
             {billingPeriods.length > 0 && (
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5">
-                  <label className="text-sm font-medium">Berechnungszeiträume</label>
+                  <Label>Berechnungszeiträume</Label>
                   <InfoHint text="Der Mietpreis dieser Gruppe wird nur über die gewählten Zeiträume berechnet (Tagesfaktor). Keine Auswahl = alle Zeiträume. So lässt sich z.B. ein Aufbautag von der Materialberechnung ausnehmen." />
                 </div>
                 <div className="space-y-1 rounded-md border p-2">
@@ -1852,23 +1859,28 @@ export function AssignmentsSection({
                     const checked =
                       groupDialog?.billingPeriodIds.includes(p.id) ?? false;
                     return (
-                      <label key={p.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                      <div key={p.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`material-group-period-${p.id}`}
                           checked={checked}
-                          onChange={(e) =>
+                          onCheckedChange={(v) =>
                             setGroupDialog((g) => {
                               if (!g) return g;
-                              const ids = e.target.checked
-                                ? [...g.billingPeriodIds, p.id]
-                                : g.billingPeriodIds.filter((x) => x !== p.id);
+                              const ids =
+                                v === true
+                                  ? [...g.billingPeriodIds, p.id]
+                                  : g.billingPeriodIds.filter((x) => x !== p.id);
                               return { ...g, billingPeriodIds: ids };
                             })
                           }
-                          className="h-4 w-4 rounded border-input"
                         />
-                        {periodLabel(p)}
-                      </label>
+                        <Label
+                          htmlFor={`material-group-period-${p.id}`}
+                          className="cursor-pointer font-normal"
+                        >
+                          {periodLabel(p)}
+                        </Label>
+                      </div>
                     );
                   })}
                 </div>

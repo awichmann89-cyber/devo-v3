@@ -459,6 +459,7 @@ export function ScanClient({
                   setManual("");
                 }}
                 title="Manuell-Eingabe schließen"
+                aria-label="Manuell-Eingabe schließen"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -562,6 +563,7 @@ export function ScanClient({
                               disabled={pending || it.scanned === 0}
                               onClick={() => handleCableToggle(it.cableId, -1)}
                               title="Einen Haken zurücknehmen"
+                              aria-label="Einen Haken zurücknehmen"
                             >
                               <Minus className="h-4 w-4" />
                             </Button>
@@ -572,6 +574,7 @@ export function ScanClient({
                               disabled={pending || complete}
                               onClick={() => handleCableToggle(it.cableId, 1)}
                               title="Ein Stück abhaken"
+                              aria-label="Ein Stück abhaken"
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -623,6 +626,7 @@ export function ScanClient({
                     onClick={() => handleDelete(s.id)}
                     disabled={pending}
                     title="Diesen Scan löschen"
+                    aria-label="Diesen Scan löschen"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

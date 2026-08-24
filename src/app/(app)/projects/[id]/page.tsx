@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatTile, StatTileGrid } from "@/components/ui/stat-tile";
 import { DetailHeader } from "@/components/layout/detail-header";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "@/components/ui/tabs";
 import Link from "next/link";
 import { FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip, HandCoins } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
@@ -743,7 +743,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         />
       </StatTileGrid>
 
-      <Tabs defaultValue="details">
+      <UrlTabs defaultValue="details">
         <TabsList>
           <TabsTrigger value="details">
             <FileText className="h-4 w-4" />
@@ -1092,7 +1092,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             invoiceEmailBodyTemplate={appSettings.invoiceEmailBody}
           />
         </TabsContent>
-      </Tabs>
+      </UrlTabs>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
 import { FolderTree, Receipt, FileText, Building2, CalendarClock, Mail } from "lucide-react";
@@ -77,7 +77,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="categories">
+      <UrlTabs defaultValue="categories">
         <TabsList>
           <TabsTrigger value="categories">
             <FolderTree className="h-4 w-4" /> Kategorien
@@ -353,7 +353,7 @@ export default async function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+      </UrlTabs>
     </div>
   );
 }

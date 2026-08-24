@@ -4,13 +4,7 @@ import { DeviceVM } from "./devices-section";
 import { CableVM } from "./cables-section";
 import { serialize } from "@/lib/utils";
 
-interface SearchParams {
-  tab?: string;
-}
-
-export default async function MaterialPage(props: { searchParams: Promise<SearchParams> }) {
-  const sp = await props.searchParams;
-  const tab = sp.tab ?? "devices";
+export default async function MaterialPage() {
 
   const [packUnits, devices, locations, categories, cables] = await Promise.all([
     prisma.packUnit.findMany({
@@ -92,7 +86,6 @@ export default async function MaterialPage(props: { searchParams: Promise<Search
 
   return (
     <MaterialView
-      tab={tab}
       devices={devicesVM}
       packUnits={serialize(packUnits)}
       cables={cablesVM}

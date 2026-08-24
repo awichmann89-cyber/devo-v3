@@ -89,6 +89,7 @@ export function PersonLinksCard({
               size="icon"
               onClick={() => copy(calendarUrl, "calendar")}
               title="URL kopieren"
+              aria-label="URL kopieren"
             >
               {copied === "calendar" ? (
                 <Check className="h-4 w-4" />
@@ -114,6 +115,7 @@ export function PersonLinksCard({
               size="icon"
               onClick={() => copy(einsatzUrl, "einsatz")}
               title="URL kopieren"
+              aria-label="URL kopieren"
             >
               {copied === "einsatz" ? (
                 <Check className="h-4 w-4" />

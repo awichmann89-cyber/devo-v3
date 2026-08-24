@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityInput } from "@/components/ui/quantity-input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "@/components/ui/tabs";
 import {
   ArrowRight,
   Search,
@@ -172,7 +172,7 @@ export function ItemsManager({
   }
 
   return (
-    <Tabs defaultValue="devices" className="space-y-4">
+    <UrlTabs defaultValue="devices" paramKey="pu-tab" className="space-y-4">
       <TabsList>
         <TabsTrigger value="devices">
           <Package className="h-4 w-4" /> Geräte
@@ -197,7 +197,7 @@ export function ItemsManager({
                 placeholder="Suche…"
                 value={deviceSearch}
                 onChange={(e) => setDeviceSearch(e.target.value)}
-                className="h-9 pl-8"
+                className="pl-8"
               />
             </div>
           </CardHeader>
@@ -243,6 +243,7 @@ export function ItemsManager({
                         disabled={pending}
                         onClick={() => handleAddDevice(d.id)}
                         title="Zur Packeinheit hinzufügen"
+                        aria-label="Zur Packeinheit hinzufügen"
                       >
                         <ArrowRight className="h-4 w-4" />
                       </Button>
@@ -370,6 +371,7 @@ export function ItemsManager({
                           onClick={() => handleRemoveDevice(it.id)}
                           disabled={pending}
                           title="Aus Packeinheit entfernen"
+                          aria-label="Aus Packeinheit entfernen"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -398,7 +400,7 @@ export function ItemsManager({
                 placeholder="Suche…"
                 value={cableSearch}
                 onChange={(e) => setCableSearch(e.target.value)}
-                className="h-9 pl-8"
+                className="pl-8"
               />
             </div>
           </CardHeader>
@@ -442,6 +444,7 @@ export function ItemsManager({
                       disabled={pending}
                       onClick={() => handleAddCable(c.id)}
                       title="Zur Packeinheit hinzufügen"
+                      aria-label="Zur Packeinheit hinzufügen"
                     >
                       <ArrowRight className="h-4 w-4" />
                     </Button>
@@ -566,6 +569,7 @@ export function ItemsManager({
                         onClick={() => handleRemoveCable(it.id)}
                         disabled={pending}
                         title="Aus Packeinheit entfernen"
+                        aria-label="Aus Packeinheit entfernen"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -579,6 +583,6 @@ export function ItemsManager({
         </Card>
       </div>
       </TabsContent>
-    </Tabs>
+    </UrlTabs>
   );
 }

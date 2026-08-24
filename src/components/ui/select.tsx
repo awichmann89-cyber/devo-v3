@@ -3,28 +3,47 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
 
+/**
+ * Höhenstufen wie bei `Input` an die Tabellen-Dichte gekoppelt:
+ * default (34px) · sm (30px, `density="compact"`) · xs (28px, `density="dense"`).
+ * Nie per `className="h-7"` nachjustieren — docs/ui-conventions.md §2.
+ */
+const selectTriggerVariants = cva(
+  "flex w-full items-center justify-between rounded-md border border-input bg-card ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+  {
+    variants: {
+      triggerSize: {
+        default: "h-[34px] px-3 py-1.5 text-[13px] [&>svg]:h-4 [&>svg]:w-4",
+        sm: "h-[30px] px-2.5 py-1 text-xs [&>svg]:h-3.5 [&>svg]:w-3.5",
+        xs: "h-7 px-2 py-0.5 text-xs [&>svg]:h-3.5 [&>svg]:w-3.5",
+      },
+    },
+    defaultVariants: { triggerSize: "default" },
+  }
+);
+
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
+  Omit<React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>, "size"> & {
+    /** Höhenstufe — an die Tabellen-Dichte gekoppelt. */
+    size?: "default" | "sm" | "xs";
+  }
+>(({ className, children, size, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
-    className={cn(
-      // 34px — siehe Kommentar in input.tsx (Standard-Controlhöhe).
-      "flex h-[34px] w-full items-center justify-between rounded-md border border-input bg-card px-3 py-1.5 text-[13px] ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
-      className
-    )}
+    className={cn(selectTriggerVariants({ triggerSize: size }), className)}
     {...props}
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50" />
+      <ChevronDown className="opacity-50" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -129,6 +148,7 @@ const SelectSeparator = React.forwardRef<
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 
 export {
+  selectTriggerVariants,
   Select,
   SelectGroup,
   SelectValue,

@@ -57,7 +57,8 @@ export function StockEditor({ packUnitId, stockQuantity, devicesPerUnit }: Props
             }
           }}
           disabled={pending}
-          className="num h-8 w-16"
+          size="sm"
+          className="num w-16"
         />
         <span className="text-sm text-muted-foreground">× Packeinheit</span>
       </div>

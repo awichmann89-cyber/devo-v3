@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils";
 
 type Props = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
-  "value" | "onChange" | "type" | "min" | "max" | "step"
+  "value" | "onChange" | "type" | "min" | "max" | "step" | "size"
 > & {
+  /** Höhenstufe — wird an `Input` durchgereicht (default · sm · xs). */
+  size?: "default" | "sm" | "xs";
   /** Aktueller Zahlenwert. */
   value: number;
   /** Wird gefeuert, sobald der Buffer eine gültige Zahl enthält. Bei leerem Buffer NICHT gefeuert. */

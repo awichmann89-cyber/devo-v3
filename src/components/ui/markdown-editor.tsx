@@ -532,7 +532,7 @@ function DuePicker({
       <Input
         type="date"
         aria-label="Anderes Datum"
-        className="h-[30px] text-xs"
+        size="sm"
         onChange={(e) => {
           const [year, month, day] = e.target.value.split("-").map(Number);
           if (!year || !month || !day) return;

@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Loader2, Hash } from "lucide-react";
@@ -244,7 +245,8 @@ function SerialRow({
               save({ serialNumber: e.target.value.trim(), barcode: bc.trim() || null, notes: nt || null });
             }
           }}
-          className="h-8 font-mono text-sm"
+          size="sm"
+          className="font-mono"
           placeholder="Seriennummer"
         />
       </TableCell>
@@ -257,7 +259,8 @@ function SerialRow({
               save({ serialNumber: sn.trim(), barcode: e.target.value.trim() || null, notes: nt || null });
             }
           }}
-          className="h-8 font-mono text-sm"
+          size="sm"
+          className="font-mono"
           placeholder="optional"
         />
       </TableCell>
@@ -270,7 +273,7 @@ function SerialRow({
               save({ serialNumber: sn.trim(), barcode: bc.trim() || null, notes: e.target.value || null });
             }
           }}
-          className="h-8 text-sm"
+          size="sm"
           placeholder="optional"
         />
       </TableCell>
@@ -290,9 +293,15 @@ function SerialRow({
         </TableCell>
       )}
       <TableCell>
-        <Button variant="ghost" size="iconSm" onClick={onDelete} disabled={pending || rowPending} >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <RowActions density="compact">
+          <RowAction
+            icon={Trash2}
+            label="Seriennummer löschen"
+            destructive
+            disabled={pending || rowPending}
+            onClick={onDelete}
+          />
+        </RowActions>
       </TableCell>
     </TableRow>
   );

@@ -187,7 +187,8 @@ export function SignatureEditor({
           }}
         >
           <SelectTrigger
-            className="h-8 w-[110px] px-2 text-xs"
+            size="sm"
+            className="w-[110px]"
             aria-label="Schriftgröße"
           >
             <SelectValue placeholder="Normal" />

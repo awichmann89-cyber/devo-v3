@@ -86,6 +86,7 @@ export function CalendarFeedForm({
             size="icon"
             onClick={() => copy(planningUrl, "planning")}
             title="URL kopieren"
+            aria-label="URL kopieren"
           >
             {copied === "planning" ? (
               <Check className="h-4 w-4" />
@@ -111,6 +112,7 @@ export function CalendarFeedForm({
             size="icon"
             onClick={() => copy(billingUrl, "billing")}
             title="URL kopieren"
+            aria-label="URL kopieren"
           >
             {copied === "billing" ? (
               <Check className="h-4 w-4" />
@@ -141,6 +143,7 @@ export function CalendarFeedForm({
                 size="icon"
                 onClick={() => copy(personalUrl, "personal")}
                 title="URL kopieren"
+                aria-label="URL kopieren"
               >
                 {copied === "personal" ? (
                   <Check className="h-4 w-4" />

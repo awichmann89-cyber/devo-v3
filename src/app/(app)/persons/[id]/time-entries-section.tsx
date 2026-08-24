@@ -234,7 +234,7 @@ export function TimeEntriesSection({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="h-9 w-[180px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -320,15 +320,16 @@ export function TimeEntriesSection({
                         
                         onClick={() => openEdit(e)}
                         title="Bearbeiten"
+                        aria-label="Bearbeiten"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="ghostDestructive"
                         size="iconSm"
-                        className="text-destructive hover:text-destructive"
                         onClick={() => setDeleting(e)}
                         title="Löschen"
+                        aria-label="Löschen"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

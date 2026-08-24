@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ListCard } from "@/components/layout/list-card";
 import { FilterResetButton, FilterSearch } from "@/components/filters/filter-controls";
@@ -26,7 +26,6 @@ type PackUnitWithItems = PackUnit & {
 type LocationWithCount = Location & { _count: { packUnits: number } };
 
 interface Props {
-  tab: string;
   devices: DeviceVM[];
   packUnits: PackUnitWithItems[];
   cables: CableVM[];
@@ -40,7 +39,6 @@ interface Props {
  * Card-Header sitzt und nicht in jeder Sektion neu gebaut wird.
  */
 export function MaterialView({
-  tab,
   devices,
   packUnits,
   cables,
@@ -83,7 +81,7 @@ export function MaterialView({
   }).length;
 
   return (
-    <Tabs defaultValue={tab}>
+    <UrlTabs defaultValue="devices">
       <TabsList>
         <TabsTrigger value="devices">
           <Package className="h-4 w-4" /> Geräte ({devices.length})
@@ -179,7 +177,7 @@ export function MaterialView({
           <LocationsTable locations={locations} />
         </ListCard>
       </TabsContent>
-    </Tabs>
+    </UrlTabs>
   );
 }
 

@@ -154,6 +154,7 @@ export function PeriodsSection({
                     
                     onClick={() => removePeriod(i)}
                     title="Zeitraum entfernen"
+                    aria-label="Zeitraum entfernen"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

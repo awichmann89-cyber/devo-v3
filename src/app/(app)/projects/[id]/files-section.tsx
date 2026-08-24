@@ -213,6 +213,7 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
                           
                           asChild
                           title="Herunterladen"
+                          aria-label="Herunterladen"
                         >
                           <a
                             href={f.blobUrl}
@@ -225,12 +226,12 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
                         </Button>
                         {canWrite && (
                           <Button
-                            variant="ghost"
+                            variant="ghostDestructive"
                             size="iconXs"
-                            className="text-destructive hover:text-destructive"
                             onClick={() => setDeleteTarget(f)}
                             disabled={pending}
                             title="Löschen"
+                            aria-label="Löschen"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
