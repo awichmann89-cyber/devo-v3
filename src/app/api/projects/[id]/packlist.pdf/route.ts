@@ -44,7 +44,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // siehe src/lib/packlist-data.ts.
   const data = await loadProjectPackList(id);
   if (!data) return new NextResponse("Not found", { status: 404 });
-  const { project, groups, adhoc, totals } = data;
+  const { project, sections, adhoc, totals } = data;
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.setFontSize(20);
@@ -63,35 +63,60 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   type CellDef = PdfCell;
   const body: CellDef[][] = [];
 
-  // Kategorie-Section: dunkler Streifen, Text in Bezeichnungs-Spalte
-  const sectionRow = (label: string): CellDef[] => [
-    {
-      content: "",
-      styles: {
-        fillColor: [60, 60, 60] as [number, number, number],
-        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+  // ===== Ordnerstruktur =====
+  // Kategorien kommen als Baum (siehe loadProjectPackList().sections). Jede
+  // Ebene rückt um INDENT_STEP ein, ihre Positionen um eine Ebene mehr. Ab
+  // MAX_INDENT_DEPTH wird nicht weiter eingerückt, sonst frisst eine tiefe
+  // Kategorie-Hierarchie die Bezeichnungs-Spalte auf.
+  const INDENT_STEP = 4; // mm pro Ebene
+  const MAX_INDENT_DEPTH = 4;
+  const indent = (depth: number) =>
+    3 + Math.min(depth, MAX_INDENT_DEPTH) * INDENT_STEP;
+  const pad = (depth: number, top = 1.5, bottom = 1.5) => ({
+    top,
+    bottom,
+    left: indent(depth),
+    right: 3,
+  });
+  // Die Anzahl-Spalte ist nur 28 mm breit — sie macht die Einrückung NICHT
+  // mit, sonst bricht „12×  (= 24)" um. Die Staffelung trägt die Bezeichnung.
+  // Einzige Ausnahme: Case-Inhalte rücken einen Schritt ein, damit ihre
+  // Stückzahlen nicht mit denen der Packeinheiten verwechselt werden.
+  const QTY_PAD = { top: 1.5, bottom: 1.5, left: 3, right: 3 };
+  const QTY_PAD_CONTENT = { ...QTY_PAD, left: 8 };
+
+  // Kategorie-Sektion: Die Ebene macht sich über Einrückung UND Farbe
+  // bemerkbar — je tiefer, desto heller der Streifen.
+  const sectionRow = (label: string, depth: number): CellDef[] => {
+    const dark: [number, number, number] = [60, 60, 60];
+    const mid: [number, number, number] = [120, 120, 120];
+    const light: [number, number, number] = [215, 215, 215];
+    const fillColor = depth === 0 ? dark : depth === 1 ? mid : light;
+    const textColor = depth >= 2 ? 50 : 255;
+    const fontSize = depth === 0 ? 10 : depth === 1 ? 9 : 8.5;
+    return [
+      { content: "", styles: { fillColor, cellPadding: pad(0, 2.5, 2.5) } },
+      {
+        content: label,
+        colSpan: 2,
+        styles: {
+          fillColor,
+          textColor,
+          fontStyle: "bold",
+          fontSize,
+          cellPadding: pad(depth, 2.5, 2.5),
+        },
       },
-    },
-    {
-      content: label,
-      colSpan: 2,
-      styles: {
-        fillColor: [60, 60, 60] as [number, number, number],
-        textColor: 255,
-        fontStyle: "bold",
-        fontSize: 10,
-        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
-      },
-    },
-  ];
+    ];
+  };
 
   // Sub-Section („Packeinheiten" / „Lose Geräte"): hellgrau, kleiner
-  const subSectionRow = (label: string): CellDef[] => [
+  const subSectionRow = (label: string, depth: number): CellDef[] => [
     {
       content: "",
       styles: {
         fillColor: [235, 235, 235] as [number, number, number],
-        cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 },
+        cellPadding: pad(0),
       },
     },
     {
@@ -102,129 +127,165 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         textColor: 90,
         fontStyle: "bold",
         fontSize: 8,
-        cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 },
+        cellPadding: pad(depth),
       },
     },
   ];
 
-  for (const g of groups) {
-    body.push(sectionRow(g.label));
+  /**
+   * Beschreibung aus den Stammdaten als Kleingedrucktes unter der Position.
+   * Bewusst winzig (6.5 pt) — sie ist Zusatzinfo beim Packen, die Zeile
+   * darüber bleibt die Position.
+   */
+  const descriptionRow = (text: string, depth: number): CellDef[] => [
+    { content: "", styles: { cellPadding: pad(0, 0, 1.2) } },
+    {
+      content: text,
+      colSpan: 2,
+      styles: {
+        textColor: 140,
+        fontSize: 6.5,
+        cellPadding: { ...pad(depth, 0, 1.2), right: 20 },
+      },
+    },
+  ];
 
-    if (g.packs.length > 0) body.push(subSectionRow("Packeinheiten"));
-    for (const p of g.packs) {
+  /** Gesamtgewicht einer Position; ohne gepflegtes Gewicht ein Gedankenstrich. */
+  const weightCell = (weightPerUnit: number, quantity: number): CellDef => ({
+    content: weightPerUnit ? `${(weightPerUnit * quantity).toFixed(1)} kg` : "—",
+    styles: { halign: "right" },
+  });
+
+  /** Eine Position der Liste (Packeinheit / loses Gerät / Kabel). */
+  const positionRow = (
+    quantity: string,
+    label: string,
+    weight: CellDef,
+    depth: number,
+    bold = false
+  ): CellDef[] => [
+    {
+      content: quantity,
+      styles: {
+        halign: "left",
+        ...(bold ? { fontStyle: "bold" } : {}),
+        cellPadding: QTY_PAD,
+      },
+    },
+    {
+      content: label,
+      styles: {
+        ...(bold ? { fontStyle: "bold" } : {}),
+        cellPadding: pad(depth),
+      },
+    },
+    weight,
+  ];
+
+  /** Inhalt einer Packeinheit — kleiner, grau, eine Ebene tiefer. */
+  const contentRow = (
+    quantity: string,
+    label: string,
+    depth: number,
+    italic = false
+  ): CellDef[] => [
+    {
+      content: quantity,
+      styles: {
+        textColor: 130,
+        fontSize: 8,
+        halign: "left",
+        cellPadding: QTY_PAD_CONTENT,
+      },
+    },
+    {
+      content: label,
+      styles: {
+        textColor: 130,
+        fontSize: 8,
+        ...(italic ? { fontStyle: "italic" } : {}),
+        cellPadding: pad(depth),
+      },
+    },
+    { content: "", styles: { textColor: 130, fontSize: 8 } },
+  ];
+
+  for (const sec of sections) {
+    body.push(sectionRow(sec.name, sec.depth));
+    // Positionen hängen eine Ebene unter ihrer Kategorie, Case-Inhalte noch
+    // eine darunter. Leere Zwischenebenen liefern nur ihren Header.
+    const itemDepth = sec.depth + 1;
+    const contentDepth = sec.depth + 2;
+
+    if (sec.packs.length > 0) body.push(subSectionRow("Packeinheiten", itemDepth));
+    for (const p of sec.packs) {
       const mode = p.mode === "FIXED" ? "Fix" : "Variabel";
       const loc = p.locationName ? ` · ${p.locationName}` : "";
-      body.push([
-        {
-          content: `${p.quantity}×`,
-          styles: { fontStyle: "bold", halign: "left" },
-        },
-        {
-          content: `${p.name}  (${mode}${loc})`,
-          styles: { fontStyle: "bold" },
-        },
-        {
-          content: p.weightPerUnit
-            ? `${(p.weightPerUnit * p.quantity).toFixed(1)} kg`
-            : "—",
-          styles: { halign: "right" },
-        },
-      ]);
+      body.push(
+        positionRow(
+          `${p.quantity}×`,
+          `${p.name}  (${mode}${loc})`,
+          weightCell(p.weightPerUnit, p.quantity),
+          itemDepth,
+          true
+        )
+      );
+      if (p.description) body.push(descriptionRow(p.description, itemDepth));
       for (const c of p.contents) {
-        body.push([
-          {
-            content: `${c.perUnit}×  (= ${c.total})`,
-            styles: {
-              textColor: 130,
-              fontSize: 8,
-              halign: "left",
-              // extra Padding links → Inhalts-Anzahl rutscht vom linken Rand
-              // nach innen und steht damit eingerückt unter der Pack-Anzahl.
-              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
-            },
-          },
-          {
-            content: `        ${c.deviceName}`,
-            styles: { textColor: 130, fontSize: 8 },
-          },
-          { content: "", styles: { textColor: 130, fontSize: 8 } },
-        ]);
+        body.push(
+          contentRow(`${c.perUnit}×  (= ${c.total})`, c.deviceName, contentDepth)
+        );
       }
       for (const cab of p.cables) {
-        body.push([
-          {
-            content: `${cab.perUnit}×  (= ${cab.total})`,
-            styles: {
-              textColor: 130,
-              fontSize: 8,
-              halign: "left",
-              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
-            },
-          },
-          {
-            content: `        ${cab.cableName}${cab.spec ? ` · ${cab.spec}` : ""}  (Kabel)`,
-            styles: { textColor: 130, fontSize: 8, fontStyle: "italic" },
-          },
-          { content: "", styles: { textColor: 130, fontSize: 8 } },
-        ]);
+        body.push(
+          contentRow(
+            `${cab.perUnit}×  (= ${cab.total})`,
+            `${cab.cableName}${cab.spec ? ` · ${cab.spec}` : ""}  (Kabel)`,
+            contentDepth,
+            true
+          )
+        );
       }
     }
 
-    if (g.loose.length > 0) body.push(subSectionRow("Lose Geräte"));
-    for (const l of g.loose) {
-      body.push([
-        { content: `${l.quantity}×`, styles: { halign: "left" } },
-        l.deviceName,
-        {
-          content: l.weightPerUnit
-            ? `${(l.weightPerUnit * l.quantity).toFixed(1)} kg`
-            : "—",
-          styles: { halign: "right" },
-        },
-      ]);
+    if (sec.loose.length > 0) body.push(subSectionRow("Lose Geräte", itemDepth));
+    for (const l of sec.loose) {
+      body.push(
+        positionRow(
+          `${l.quantity}×`,
+          l.deviceName,
+          weightCell(l.weightPerUnit, l.quantity),
+          itemDepth
+        )
+      );
+      if (l.description) body.push(descriptionRow(l.description, itemDepth));
     }
 
-    if (g.cables.length > 0) body.push(subSectionRow("Kabel"));
-    for (const c of g.cables) {
-      body.push([
-        { content: `${c.quantity}×`, styles: { halign: "left" } },
-        // Länge + Steckerenden dazu, damit beim Packen klar ist welches Kabel
-        c.spec ? `${c.cableName} · ${c.spec}` : c.cableName,
-        {
-          content: c.weightPerUnit
-            ? `${(c.weightPerUnit * c.quantity).toFixed(1)} kg`
-            : "—",
-          styles: { halign: "right" },
-        },
-      ]);
+    if (sec.cables.length > 0) body.push(subSectionRow("Kabel", itemDepth));
+    for (const c of sec.cables) {
+      body.push(
+        positionRow(
+          `${c.quantity}×`,
+          // Länge + Steckerenden dazu, damit beim Packen klar ist welches Kabel
+          c.spec ? `${c.cableName} · ${c.spec}` : c.cableName,
+          weightCell(c.weightPerUnit, c.quantity),
+          itemDepth
+        )
+      );
+      if (c.description) body.push(descriptionRow(c.description, itemDepth));
     }
   }
 
   // Vorübergehende Geräte hängen an keiner Kategorie — sie bekommen deshalb
   // eine eigene Sektion am Ende, statt unter „Ohne Kategorie" zu verschwinden.
   if (adhoc.length > 0) {
-    body.push(sectionRow("Vorübergehende Geräte"));
+    body.push(sectionRow("Vorübergehende Geräte", 0));
     for (const a of adhoc) {
-      body.push([
-        { content: `${a.quantity}×`, styles: { halign: "left" } },
-        a.name,
+      body.push(
         // Für Ad-hoc-Positionen führt das Datenmodell kein Gewicht.
-        { content: "—", styles: { halign: "right" } },
-      ]);
-      if (a.description) {
-        body.push([
-          {
-            content: "",
-            styles: {
-              textColor: 130,
-              fontSize: 8,
-              cellPadding: { top: 1.5, bottom: 1.5, left: 8, right: 3 },
-            },
-          },
-          { content: a.description, styles: { textColor: 130, fontSize: 8 } },
-          { content: "", styles: { textColor: 130, fontSize: 8 } },
-        ]);
-      }
+        positionRow(`${a.quantity}×`, a.name, weightCell(0, a.quantity), 1)
+      );
+      if (a.description) body.push(descriptionRow(a.description, 1));
     }
   }
 

@@ -25,6 +25,8 @@ export type PackListItem =
       packUnitId: string;
       code: string;
       name: string;
+      /** Freitext aus den Stammdaten — auf der Packliste als Kleingedrucktes. */
+      description: string | null;
       mode: "FIXED" | "VARIABLE";
       quantity: number;
       locationName: string | null;
@@ -47,6 +49,7 @@ export type PackListItem =
       kind: "LOOSE";
       deviceId: string;
       deviceName: string;
+      description: string | null;
       quantity: number;
       weightPerUnit: number;
     }
@@ -56,6 +59,7 @@ export type PackListItem =
       kind: "CABLE";
       cableId: string;
       cableName: string;
+      description: string | null;
       // Länge + Steckerenden zur eindeutigen Identifikation beim Packen
       spec: string | null;
       quantity: number;
@@ -65,12 +69,17 @@ export type PackListItem =
 type AssignmentInput = {
   deviceId: string;
   quantity: number;
-  device: { name: string; weight: Prisma.Decimal | number | null };
+  device: {
+    name: string;
+    description?: string | null;
+    weight: Prisma.Decimal | number | null;
+  };
 };
 
 /** Kabel-Stammdaten, soweit die Packliste sie braucht. */
 type CableInput = {
   name: string;
+  description?: string | null;
   weight?: Prisma.Decimal | number | null;
   lengthMeters?: Prisma.Decimal | number | null;
   connectorA?: string | null;
@@ -87,6 +96,7 @@ type PackUnitInput = {
   id: string;
   code: string;
   name: string;
+  description?: string | null;
   packMode: "FIXED" | "VARIABLE";
   weight: Prisma.Decimal | number | null;
   location: { name: string } | null;
@@ -119,10 +129,12 @@ export function buildPackList(
   const demand = new Map<string, number>();
   const deviceWeights = new Map<string, number>();
   const deviceNames = new Map<string, string>();
+  const deviceDescriptions = new Map<string, string | null>();
   for (const a of assignments) {
     demand.set(a.deviceId, (demand.get(a.deviceId) ?? 0) + a.quantity);
     deviceWeights.set(a.deviceId, Number(a.device.weight ?? 0));
     deviceNames.set(a.deviceId, a.device.name);
+    deviceDescriptions.set(a.deviceId, a.device.description ?? null);
   }
 
   // 2) PackUnits durchgehen — FIXED zuerst, dann VARIABLE
@@ -197,6 +209,7 @@ export function buildPackList(
       packUnitId: pu.id,
       code: pu.code,
       name: pu.name,
+      description: pu.description ?? null,
       mode: pu.packMode,
       quantity: useCount,
       locationName: pu.location?.name ?? null,
@@ -224,6 +237,7 @@ export function buildPackList(
       kind: "LOOSE",
       deviceId,
       deviceName: deviceNames.get(deviceId) ?? "(unbekannt)",
+      description: deviceDescriptions.get(deviceId) ?? null,
       quantity: qty,
       weightPerUnit: deviceWeights.get(deviceId) ?? 0,
     });
@@ -234,11 +248,13 @@ export function buildPackList(
   const cableDemand = new Map<string, number>();
   const cableNames = new Map<string, string>();
   const cableSpecs = new Map<string, string | null>();
+  const cableDescriptions = new Map<string, string | null>();
   const cableWeights = new Map<string, number>();
   for (const ca of cableAssignments) {
     cableDemand.set(ca.cableId, (cableDemand.get(ca.cableId) ?? 0) + ca.quantity);
     cableNames.set(ca.cableId, ca.cable.name);
     cableSpecs.set(ca.cableId, cableSpecLabel(ca.cable));
+    cableDescriptions.set(ca.cableId, ca.cable.description ?? null);
     cableWeights.set(ca.cableId, Number(ca.cable.weight ?? 0));
   }
   for (const [cableId, qty] of cableDemand) {
@@ -247,6 +263,7 @@ export function buildPackList(
       kind: "CABLE",
       cableId,
       cableName: cableNames.get(cableId) ?? "(unbekannt)",
+      description: cableDescriptions.get(cableId) ?? null,
       spec: cableSpecs.get(cableId) ?? null,
       quantity: qty,
       weightPerUnit: cableWeights.get(cableId) ?? 0,

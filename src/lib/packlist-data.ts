@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { buildPackList, type PackListItem } from "@/lib/packlist";
+import { groupItemsByCategory } from "@/lib/category-tree";
 
 /**
  * Lade- und Gruppierungsschicht über `buildPackList()`.
@@ -44,6 +45,26 @@ export type PackListCategoryGroup = {
   cables: CableItem[];
 };
 
+/**
+ * Eine Kategorie-Ebene der Packliste in Baum-Reihenfolge.
+ *
+ * Anders als `PackListCategoryGroup` (ein Eintrag pro Kategorie mit vollem
+ * Pfad-Label) ist das hier die aufgeklappte Ordnerstruktur: Eltern stehen vor
+ * ihren Kindern, `depth` gibt die Einrücktiefe, `name` nur das eigene Segment.
+ * Zwischenebenen ohne eigene Positionen kommen als leere Sektion mit — sonst
+ * fehlte im Baum der Ast, unter dem die Unterkategorien hängen.
+ */
+export type PackListCategorySection = {
+  key: string;
+  /** Nur der eigene Kategoriename, z.B. „Mikrofone" (nicht „Ton / Mikrofone"). */
+  name: string;
+  /** 0 = Hauptkategorie; jede Ebene wird beim Rendern eingerückt. */
+  depth: number;
+  packs: PackItem[];
+  loose: LooseItem[];
+  cables: CableItem[];
+};
+
 export type PackListTotals = {
   packs: number;
   /**
@@ -81,6 +102,12 @@ export type ProjectPackList = {
   items: PackListItem[];
   /** Nach Kategorie-Pfad gruppiert und alphabetisch sortiert. */
   groups: PackListCategoryGroup[];
+  /**
+   * Dieselben Positionen als Kategorie-Baum (Ordnerstruktur). Die Packliste
+   * rendert daraus ihre eingerückten Sektionen; der Lieferschein bleibt bei
+   * `groups` mit vollem Pfad-Label.
+   */
+  sections: PackListCategorySection[];
   /** Vorübergehende Geräte des Projekts — eigene Sektion, siehe AdHocPackItem. */
   adhoc: AdHocPackItem[];
   totals: PackListTotals;
@@ -142,12 +169,17 @@ export async function loadProjectPackList(
     project.assignments.map((a) => ({
       deviceId: a.deviceId,
       quantity: a.quantity,
-      device: { name: a.device.name, weight: a.device.weight },
+      device: {
+        name: a.device.name,
+        description: a.device.description,
+        weight: a.device.weight,
+      },
     })),
     candidatePackUnits.map((p) => ({
       id: p.id,
       code: p.code,
       name: p.name,
+      description: p.description,
       packMode: p.packMode,
       weight: p.weight,
       location: p.location ? { name: p.location.name } : null,
@@ -188,22 +220,46 @@ export async function loadProjectPackList(
     return g;
   }
 
+  // Jede Position einmal ihrer Kategorie zuordnen — daraus entstehen sowohl
+  // die flachen Gruppen (Lieferschein) als auch der Kategorie-Baum (Packliste).
+  const tagged: { categoryId: string | null; item: PackListItem }[] = [];
   for (const item of items) {
+    let categoryId: string | null;
     if (item.kind === "PACK") {
       const pu = candidatePackUnits.find((c) => c.id === item.packUnitId);
-      ensureGroup(pu?.categoryId ?? null).packs.push(item);
+      categoryId = pu?.categoryId ?? null;
+      ensureGroup(categoryId).packs.push(item);
     } else if (item.kind === "LOOSE") {
       const a = project.assignments.find((x) => x.deviceId === item.deviceId);
-      ensureGroup(a?.device.categoryId ?? null).loose.push(item);
+      categoryId = a?.device.categoryId ?? null;
+      ensureGroup(categoryId).loose.push(item);
     } else {
       const ca = project.cableAssignments.find((x) => x.cableId === item.cableId);
-      ensureGroup(ca?.cable.categoryId ?? null).cables.push(item);
+      categoryId = ca?.cable.categoryId ?? null;
+      ensureGroup(categoryId).cables.push(item);
     }
+    tagged.push({ categoryId, item });
   }
 
   const groups = Array.from(groupMap.values())
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey, "de"))
     .map(({ sortKey: _sortKey, ...g }) => g);
+
+  // ===== Dieselben Positionen als Baum =====
+  // Bewusst über denselben Helfer wie die Material-Listen und die digitale
+  // Packliste, damit die Ordnerstruktur überall identisch aussieht
+  // (Eltern vor Kindern, alphabetisch, Zwischenebenen als leere Header).
+  const sections: PackListCategorySection[] = groupItemsByCategory(
+    tagged,
+    allCategories
+  ).map((g) => ({
+    key: g.key,
+    name: g.name,
+    depth: g.depth,
+    packs: g.items.map((t) => t.item).filter((i) => i.kind === "PACK"),
+    loose: g.items.map((t) => t.item).filter((i) => i.kind === "LOOSE"),
+    cables: g.items.map((t) => t.item).filter((i) => i.kind === "CABLE"),
+  }));
 
   // ===== Vorübergehende Geräte =====
   const adhoc: AdHocPackItem[] = project.adHocItems.map((it) => ({
@@ -231,5 +287,5 @@ export async function loadProjectPackList(
     weightKg: items.reduce((s, p) => s + p.weightPerUnit * p.quantity, 0),
   };
 
-  return { project, items, groups, adhoc, totals };
+  return { project, items, groups, sections, adhoc, totals };
 }
