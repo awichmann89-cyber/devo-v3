@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { cableSpecLabel } from "@/lib/labels";
+import { cableSpecLabel, cableSpecParts } from "@/lib/labels";
 
 /**
  * Eine PackUnit (Case) wird auf der Packliste als Eintrag aufgeführt:
@@ -19,6 +19,9 @@ import { cableSpecLabel } from "@/lib/labels";
  * Sie werden NICHT gegen Kabel im Case verrechnet: was im Case liegt, ist
  * Case-Inventar; was gebucht wurde, wird zusätzlich gepackt.
  */
+/** Länge und Steckerenden einzeln, siehe cableSpecParts(). */
+type CableSpecParts = { lengthLabel: string | null; connectors: string | null };
+
 export type PackListItem =
   | {
       kind: "PACK";
@@ -41,6 +44,7 @@ export type PackListItem =
         cableId: string;
         cableName: string;
         spec: string | null;
+        specParts: CableSpecParts;
         perUnit: number;
         total: number;
       }[];
@@ -62,6 +66,9 @@ export type PackListItem =
       description: string | null;
       // Länge + Steckerenden zur eindeutigen Identifikation beim Packen
       spec: string | null;
+      // Dieselbe Angabe getrennt — die Packliste setzt die Steckerenden als
+      // eigene Kleingedruckt-Zeile unter die Position, statt sie anzuhängen.
+      specParts: CableSpecParts;
       quantity: number;
       weightPerUnit: number;
     };
@@ -224,6 +231,7 @@ export function buildPackList(
         cableId: ci.cableId,
         cableName: ci.cable.name,
         spec: cableSpecLabel(ci.cable),
+        specParts: cableSpecParts(ci.cable),
         perUnit: ci.quantity,
         total: ci.quantity * useCount,
       })),
@@ -248,12 +256,14 @@ export function buildPackList(
   const cableDemand = new Map<string, number>();
   const cableNames = new Map<string, string>();
   const cableSpecs = new Map<string, string | null>();
+  const cableSpecPartsById = new Map<string, CableSpecParts>();
   const cableDescriptions = new Map<string, string | null>();
   const cableWeights = new Map<string, number>();
   for (const ca of cableAssignments) {
     cableDemand.set(ca.cableId, (cableDemand.get(ca.cableId) ?? 0) + ca.quantity);
     cableNames.set(ca.cableId, ca.cable.name);
     cableSpecs.set(ca.cableId, cableSpecLabel(ca.cable));
+    cableSpecPartsById.set(ca.cableId, cableSpecParts(ca.cable));
     cableDescriptions.set(ca.cableId, ca.cable.description ?? null);
     cableWeights.set(ca.cableId, Number(ca.cable.weight ?? 0));
   }
@@ -265,6 +275,10 @@ export function buildPackList(
       cableName: cableNames.get(cableId) ?? "(unbekannt)",
       description: cableDescriptions.get(cableId) ?? null,
       spec: cableSpecs.get(cableId) ?? null,
+      specParts: cableSpecPartsById.get(cableId) ?? {
+        lengthLabel: null,
+        connectors: null,
+      },
       quantity: qty,
       weightPerUnit: cableWeights.get(cableId) ?? 0,
     });

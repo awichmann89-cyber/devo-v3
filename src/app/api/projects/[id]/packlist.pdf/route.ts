@@ -63,6 +63,19 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   type CellDef = PdfCell;
   const body: CellDef[][] = [];
 
+  // Spalten: [0] Abhak-Kästchen · [1] Anzahl · [2] Bezeichnung · [3] Länge ·
+  // [4] Gewicht. Die Längen-Spalte gibt es, damit die Kabellängen unabhängig
+  // von der Namenslänge untereinander stehen; für Geräte bleibt sie leer.
+  const COL_COUNT = 5;
+  // Zeilen, die im Lager abgehakt werden — nur echte Positionen, keine
+  // Überschriften und keine Case-Inhalte (die reisen mit ihrem Case).
+  // Die Kästchen zeichnet der didDrawCell-Hook, siehe unten.
+  const checkboxRows = new Set<number>();
+  const pushPosition = (row: CellDef[]) => {
+    checkboxRows.add(body.length);
+    body.push(row);
+  };
+
   // ===== Ordnerstruktur =====
   // Kategorien kommen als Baum (siehe loadProjectPackList().sections). Jede
   // Ebene rückt um INDENT_STEP ein, ihre Positionen um eine Ebene mehr. Ab
@@ -83,7 +96,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // Einzige Ausnahme: Case-Inhalte rücken einen Schritt ein, damit ihre
   // Stückzahlen nicht mit denen der Packeinheiten verwechselt werden.
   const QTY_PAD = { top: 1.5, bottom: 1.5, left: 3, right: 3 };
-  const QTY_PAD_CONTENT = { ...QTY_PAD, left: 8 };
+  const QTY_PAD_CONTENT = { ...QTY_PAD, left: 6 };
 
   // Kategorie-Sektion: Die Ebene macht sich über Einrückung UND Farbe
   // bemerkbar — je tiefer, desto heller der Streifen.
@@ -96,9 +109,10 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     const fontSize = depth === 0 ? 10 : depth === 1 ? 9 : 8.5;
     return [
       { content: "", styles: { fillColor, cellPadding: pad(0, 2.5, 2.5) } },
+      { content: "", styles: { fillColor, cellPadding: pad(0, 2.5, 2.5) } },
       {
         content: label,
-        colSpan: 2,
+        colSpan: COL_COUNT - 2,
         styles: {
           fillColor,
           textColor,
@@ -120,8 +134,15 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       },
     },
     {
+      content: "",
+      styles: {
+        fillColor: [235, 235, 235] as [number, number, number],
+        cellPadding: pad(0),
+      },
+    },
+    {
       content: label,
-      colSpan: 2,
+      colSpan: COL_COUNT - 2,
       styles: {
         fillColor: [235, 235, 235] as [number, number, number],
         textColor: 90,
@@ -139,9 +160,10 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
    */
   const descriptionRow = (text: string, depth: number): CellDef[] => [
     { content: "", styles: { cellPadding: pad(0, 0, 1.2) } },
+    { content: "", styles: { cellPadding: pad(0, 0, 1.2) } },
     {
       content: text,
-      colSpan: 2,
+      colSpan: COL_COUNT - 2,
       styles: {
         textColor: 140,
         fontSize: 6.5,
@@ -156,14 +178,27 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     styles: { halign: "right" },
   });
 
+  /** Kabellänge; rechtsbündig, damit die Zahlen untereinander stehen. */
+  const lengthCell = (lengthLabel: string | null, small = false): CellDef => ({
+    content: lengthLabel ?? "",
+    styles: small
+      ? { halign: "right", textColor: 130, fontSize: 8 }
+      : { halign: "right" },
+  });
+
+  /** Platzhalter der Abhak-Spalte — das Kästchen selbst zeichnet didDrawCell. */
+  const checkCell: CellDef = { content: "" };
+
   /** Eine Position der Liste (Packeinheit / loses Gerät / Kabel). */
   const positionRow = (
     quantity: string,
     label: string,
+    length: CellDef,
     weight: CellDef,
     depth: number,
     bold = false
   ): CellDef[] => [
+    checkCell,
     {
       content: quantity,
       styles: {
@@ -179,6 +214,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         cellPadding: pad(depth),
       },
     },
+    length,
     weight,
   ];
 
@@ -187,8 +223,10 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     quantity: string,
     label: string,
     depth: number,
-    italic = false
+    italic = false,
+    length: CellDef = { content: "" }
   ): CellDef[] => [
+    checkCell,
     {
       content: quantity,
       styles: {
@@ -207,6 +245,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         cellPadding: pad(depth),
       },
     },
+    length,
     { content: "", styles: { textColor: 130, fontSize: 8 } },
   ];
 
@@ -221,10 +260,11 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     for (const p of sec.packs) {
       const mode = p.mode === "FIXED" ? "Fix" : "Variabel";
       const loc = p.locationName ? ` · ${p.locationName}` : "";
-      body.push(
+      pushPosition(
         positionRow(
           `${p.quantity}×`,
           `${p.name}  (${mode}${loc})`,
+          lengthCell(null),
           weightCell(p.weightPerUnit, p.quantity),
           itemDepth,
           true
@@ -237,23 +277,30 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         );
       }
       for (const cab of p.cables) {
+        // Wie bei den gebuchten Kabeln: Steckerenden stehen darunter.
+        const len = cab.specParts.lengthLabel;
         body.push(
           contentRow(
             `${cab.perUnit}×  (= ${cab.total})`,
-            `${cab.cableName}${cab.spec ? ` · ${cab.spec}` : ""}  (Kabel)`,
+            `${cab.cableName}  (Kabel)`,
             contentDepth,
-            true
+            true,
+            lengthCell(len, true)
           )
         );
+        if (cab.specParts.connectors) {
+          body.push(descriptionRow(cab.specParts.connectors, contentDepth));
+        }
       }
     }
 
     if (sec.loose.length > 0) body.push(subSectionRow("Lose Geräte", itemDepth));
     for (const l of sec.loose) {
-      body.push(
+      pushPosition(
         positionRow(
           `${l.quantity}×`,
           l.deviceName,
+          lengthCell(null),
           weightCell(l.weightPerUnit, l.quantity),
           itemDepth
         )
@@ -263,15 +310,23 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
 
     if (sec.cables.length > 0) body.push(subSectionRow("Kabel", itemDepth));
     for (const c of sec.cables) {
-      body.push(
+      // In der Positionszeile steht nur der Name — die Länge bekommt eine
+      // eigene Spalte, damit sie unabhängig vom Namen untereinander steht.
+      // Die Steckerenden sind zwar zum Identifizieren nötig, machen die Zeile
+      // aber doppelt so lang — sie stehen deshalb als Kleingedrucktes darunter,
+      // zusammen mit einer gepflegten Beschreibung.
+      pushPosition(
         positionRow(
           `${c.quantity}×`,
-          // Länge + Steckerenden dazu, damit beim Packen klar ist welches Kabel
-          c.spec ? `${c.cableName} · ${c.spec}` : c.cableName,
+          c.cableName,
+          lengthCell(c.specParts.lengthLabel),
           weightCell(c.weightPerUnit, c.quantity),
           itemDepth
         )
       );
+      if (c.specParts.connectors) {
+        body.push(descriptionRow(c.specParts.connectors, itemDepth));
+      }
       if (c.description) body.push(descriptionRow(c.description, itemDepth));
     }
   }
@@ -281,9 +336,15 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   if (adhoc.length > 0) {
     body.push(sectionRow("Vorübergehende Geräte", 0));
     for (const a of adhoc) {
-      body.push(
+      pushPosition(
         // Für Ad-hoc-Positionen führt das Datenmodell kein Gewicht.
-        positionRow(`${a.quantity}×`, a.name, weightCell(0, a.quantity), 1)
+        positionRow(
+          `${a.quantity}×`,
+          a.name,
+          lengthCell(null),
+          weightCell(0, a.quantity),
+          1
+        )
       );
       if (a.description) body.push(descriptionRow(a.description, 1));
     }
@@ -291,7 +352,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
 
   autoTable(doc, {
     startY: 48,
-    head: [["Anzahl", "Bezeichnung", "Gewicht"]],
+    head: [["", "Anzahl", "Bezeichnung", "Länge", "Gewicht"]],
     // Sonderzeichen erst hier abfangen — so muss keine der Zeilen-Bauten
     // oben daran denken.
     body: body.map((row) => row.map(sanitizeCell)),
@@ -303,9 +364,27 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       fontStyle: "bold",
     },
     columnStyles: {
-      0: { cellWidth: 28, halign: "left" },
-      1: { cellWidth: "auto" },
-      2: { cellWidth: 28, halign: "right" },
+      0: { cellWidth: 9 },
+      1: { cellWidth: 28, halign: "left" },
+      2: { cellWidth: "auto" },
+      3: { cellWidth: 20, halign: "right" },
+      4: { cellWidth: 26, halign: "right" },
+    },
+    // Abhak-Kästchen zum Ankreuzen im Lager. Als gezeichnetes Quadrat statt
+    // als Zeichen — die WinAnsi-Fonts von jsPDF haben kein Kästchen-Glyph
+    // (siehe pdfText()), und gezeichnet sitzt es sauber mittig in der Zeile.
+    didDrawCell: (data) => {
+      if (data.section !== "body" || data.column.index !== 0) return;
+      if (!checkboxRows.has(data.row.index)) return;
+      const size = 3.4;
+      doc.setDrawColor(90);
+      doc.setLineWidth(0.3);
+      doc.rect(
+        data.cell.x + (data.cell.width - size) / 2,
+        data.cell.y + (data.cell.height - size) / 2,
+        size,
+        size
+      );
     },
   });
 

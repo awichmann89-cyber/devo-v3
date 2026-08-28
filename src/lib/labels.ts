@@ -259,34 +259,53 @@ export function billingUnitShort(unit: BillingUnit): string {
 // bereits als number/string (nach serialize()) an.
 type DecimalLike = number | string | { toString(): string };
 
-/**
- * Kurzbeschreibung eines Kabels für Listen, Packliste und PDF:
- * „10 m · XLR 5pol male → XLR 5pol female".
- *
- * Länge und Stecker sind einzeln optional — fehlende Angaben fallen weg,
- * ohne jede Angabe kommt null zurück. Ist nur ein Steckerende gepflegt,
- * wird nur dieses ausgegeben (ohne Pfeil).
- */
-export function cableSpecLabel(cable: {
+type CableSpecInput = {
   lengthMeters?: DecimalLike | null;
   connectorA?: string | null;
   connectorB?: string | null;
-}): string | null {
-  const parts: string[] = [];
+};
 
+/**
+ * Länge und Steckerenden eines Kabels — einzeln, jeweils optional.
+ *
+ * Die Packliste setzt die Steckerenden als Kleingedrucktes unter die Position,
+ * statt die Zeile mit „· A → B" zu verlängern; alle anderen Ausgaben nehmen
+ * die zusammengesetzte Form aus cableSpecLabel().
+ *
+ * Ist nur ein Steckerende gepflegt, kommt nur dieses zurück (ohne Pfeil).
+ */
+export function cableSpecParts(cable: CableSpecInput): {
+  lengthLabel: string | null;
+  connectors: string | null;
+} {
+  let lengthLabel: string | null = null;
   if (cable.lengthMeters != null && cable.lengthMeters !== "") {
     const meters = Number(cable.lengthMeters);
     if (Number.isFinite(meters) && meters > 0) {
       // Nachkommastellen nur zeigen, wenn vorhanden (10 m statt 10,00 m)
-      parts.push(`${String(meters).replace(".", ",")} m`);
+      lengthLabel = `${String(meters).replace(".", ",")} m`;
     }
   }
 
   const a = cable.connectorA?.trim() || null;
   const b = cable.connectorB?.trim() || null;
-  if (a && b) parts.push(`${a} → ${b}`);
-  else if (a || b) parts.push((a ?? b) as string);
+  const connectors = a && b ? `${a} → ${b}` : (a ?? b);
 
+  return { lengthLabel, connectors };
+}
+
+/**
+ * Kurzbeschreibung eines Kabels für Listen, Packliste und PDF:
+ * „10 m · XLR 5pol male → XLR 5pol female".
+ *
+ * Länge und Stecker sind einzeln optional — fehlende Angaben fallen weg,
+ * ohne jede Angabe kommt null zurück.
+ */
+export function cableSpecLabel(cable: CableSpecInput): string | null {
+  const { lengthLabel, connectors } = cableSpecParts(cable);
+  const parts = [lengthLabel, connectors].filter(
+    (v): v is string => v !== null
+  );
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
