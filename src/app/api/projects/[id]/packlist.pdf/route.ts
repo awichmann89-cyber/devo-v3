@@ -85,7 +85,15 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   const MAX_INDENT_DEPTH = 4;
   const indent = (depth: number) =>
     3 + Math.min(depth, MAX_INDENT_DEPTH) * INDENT_STEP;
-  const pad = (depth: number, top = 1.5, bottom = 1.5) => ({
+  // Zeilenhöhe: Die Packliste ist ein Arbeitspapier fürs Lager und soll so
+  // viel wie möglich auf eine Seite bringen — die vertikalen Innenabstände
+  // sind deshalb bewusst knapp. Wer die Liste luftiger will, dreht hier.
+  const ROW_PAD_Y = 0.6; // Positionszeilen und Case-Inhalte
+  const SECTION_PAD_Y = 1.2; // Kategorie-Streifen
+  const SUB_PAD_Y = 0.7; // „Packeinheiten" / „Lose Geräte" / „Kabel"
+  const DESC_PAD_Y = 0.6; // Kleingedrucktes unter einer Position
+
+  const pad = (depth: number, top = ROW_PAD_Y, bottom = ROW_PAD_Y) => ({
     top,
     bottom,
     left: indent(depth),
@@ -95,7 +103,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // mit, sonst bricht „12×  (= 24)" um. Die Staffelung trägt die Bezeichnung.
   // Einzige Ausnahme: Case-Inhalte rücken einen Schritt ein, damit ihre
   // Stückzahlen nicht mit denen der Packeinheiten verwechselt werden.
-  const QTY_PAD = { top: 1.5, bottom: 1.5, left: 3, right: 3 };
+  const QTY_PAD = { top: ROW_PAD_Y, bottom: ROW_PAD_Y, left: 3, right: 3 };
   const QTY_PAD_CONTENT = { ...QTY_PAD, left: 6 };
 
   // Kategorie-Sektion: Die Ebene macht sich über Einrückung UND Farbe
@@ -108,8 +116,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     const textColor = depth >= 2 ? 50 : 255;
     const fontSize = depth === 0 ? 10 : depth === 1 ? 9 : 8.5;
     return [
-      { content: "", styles: { fillColor, cellPadding: pad(0, 2.5, 2.5) } },
-      { content: "", styles: { fillColor, cellPadding: pad(0, 2.5, 2.5) } },
+      { content: "", styles: { fillColor, cellPadding: pad(0, SECTION_PAD_Y, SECTION_PAD_Y) } },
+      { content: "", styles: { fillColor, cellPadding: pad(0, SECTION_PAD_Y, SECTION_PAD_Y) } },
       {
         content: label,
         colSpan: COL_COUNT - 2,
@@ -118,7 +126,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
           textColor,
           fontStyle: "bold",
           fontSize,
-          cellPadding: pad(depth, 2.5, 2.5),
+          cellPadding: pad(depth, SECTION_PAD_Y, SECTION_PAD_Y),
         },
       },
     ];
@@ -130,14 +138,14 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       content: "",
       styles: {
         fillColor: [235, 235, 235] as [number, number, number],
-        cellPadding: pad(0),
+        cellPadding: pad(0, SUB_PAD_Y, SUB_PAD_Y),
       },
     },
     {
       content: "",
       styles: {
         fillColor: [235, 235, 235] as [number, number, number],
-        cellPadding: pad(0),
+        cellPadding: pad(0, SUB_PAD_Y, SUB_PAD_Y),
       },
     },
     {
@@ -148,7 +156,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         textColor: 90,
         fontStyle: "bold",
         fontSize: 8,
-        cellPadding: pad(depth),
+        cellPadding: pad(depth, SUB_PAD_Y, SUB_PAD_Y),
       },
     },
   ];
@@ -159,15 +167,15 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
    * darüber bleibt die Position.
    */
   const descriptionRow = (text: string, depth: number): CellDef[] => [
-    { content: "", styles: { cellPadding: pad(0, 0, 1.2) } },
-    { content: "", styles: { cellPadding: pad(0, 0, 1.2) } },
+    { content: "", styles: { cellPadding: pad(0, 0, DESC_PAD_Y) } },
+    { content: "", styles: { cellPadding: pad(0, 0, DESC_PAD_Y) } },
     {
       content: text,
       colSpan: COL_COUNT - 2,
       styles: {
         textColor: 140,
         fontSize: 6.5,
-        cellPadding: { ...pad(depth, 0, 1.2), right: 20 },
+        cellPadding: { ...pad(depth, 0, DESC_PAD_Y), right: 20 },
       },
     },
   ];
@@ -357,7 +365,10 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     // oben daran denken.
     body: body.map((row) => row.map(sanitizeCell)),
     theme: "plain",
-    styles: { fontSize: 10, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 } },
+    styles: {
+      fontSize: 10,
+      cellPadding: { top: ROW_PAD_Y, bottom: ROW_PAD_Y, left: 3, right: 3 },
+    },
     headStyles: {
       fillColor: [40, 40, 40] as [number, number, number],
       textColor: 255,
@@ -376,7 +387,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     didDrawCell: (data) => {
       if (data.section !== "body" || data.column.index !== 0) return;
       if (!checkboxRows.has(data.row.index)) return;
-      const size = 3.4;
+      const size = 3;
       doc.setDrawColor(90);
       doc.setLineWidth(0.3);
       doc.rect(
@@ -391,6 +402,16 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   // @ts-expect-error: lastAutoTable
   const finalY: number = doc.lastAutoTable.finalY;
 
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Endet die Tabelle knapp über dem Seitenfuß, würde die Summenzeile in den
+  // Rand (oder auf die Seitenzahl) laufen — dann lieber eine Seite weiter.
+  let summaryY = finalY + 8;
+  if (summaryY > pageHeight - 18) {
+    doc.addPage();
+    summaryY = 20;
+  }
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
@@ -398,8 +419,22 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       `Summe: ${totals.packs} Packeinheiten | ${totals.devices} Geräte | ${totals.cables} Kabel | ${totals.weightKg.toFixed(1)} kg`
     ),
     14,
-    finalY + 8
+    summaryY
   );
+
+  // Seitenzahlen zum Schluss: erst jetzt steht die Gesamtzahl fest — auch die
+  // eventuell gerade erst angehängte Summen-Seite ist dann mitgezählt.
+  const pageCount = doc.getNumberOfPages();
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  for (let page = 1; page <= pageCount; page++) {
+    doc.setPage(page);
+    doc.text(`Seite ${page} von ${pageCount}`, pageWidth - 14, pageHeight - 8, {
+      align: "right",
+    });
+  }
+  doc.setTextColor(0);
 
   const blob = doc.output("arraybuffer");
   const filename = buildProjectPdfFilename(
