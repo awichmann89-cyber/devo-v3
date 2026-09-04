@@ -3,53 +3,106 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
-import { put, del } from "@vercel/blob";
+import { del, head } from "@vercel/blob";
+import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
+import {
+  MAX_UPLOAD_BYTES,
+  blobPathPrefix,
+  safeBlobName,
+} from "@/lib/project-files";
+
+const MAX_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
 
 /**
- * Lädt eine Datei zu einem Projekt hoch.
+ * Schritt 1 des Uploads: signiertes Token für einen Direkt-Upload des Browsers
+ * in den Blob-Store.
  *
- * Achtung: Server-Actions in Next.js haben standardmäßig ein Body-Limit von
- * ~1 MB. Für größere Dateien siehe `serverActions.bodySizeLimit` in
- * next.config.ts oder den Wechsel auf eine API-Route mit Streaming.
+ * Warum nicht einfach die Datei per Server-Action schicken? Vercel begrenzt den
+ * Request-Body einer Function hart auf 4,5 MB — unabhängig von
+ * `serverActions.bodySizeLimit`. Größere Dateien beantwortet die Plattform mit
+ * 413, und weil das keine gültige Server-Action-Antwort ist, sieht der Nutzer
+ * nur noch „An unexpected response was received from the server". Der Browser
+ * lädt deshalb direkt zum Blob-Store; die Datei läuft nie über unsere Function.
  */
-export async function uploadProjectFile(projectId: string, formData: FormData) {
-  const session = await requireRole(CAN_WRITE);
+export async function createProjectFileUploadToken(
+  projectId: string,
+  file: { name: string; size: number; contentType: string }
+) {
+  await requireRole(CAN_WRITE);
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    throw new Error("Keine Datei übermittelt");
-  }
-  if (file.size === 0) {
+  if (!Number.isFinite(file.size) || file.size <= 0) {
     throw new Error("Datei ist leer");
   }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`Datei ist größer als ${MAX_MB} MB`);
+  }
 
-  // Projekt prüfen — wirft 404 wenn nicht existent
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { id: true },
   });
   if (!project) throw new Error("Projekt nicht gefunden");
 
-  // Eindeutiger Pfad: projects/<projectId>/<random>-<filename>
-  // Vercel Blob hängt automatisch einen Zufalls-Suffix an — wir geben
-  // hier den Wunsch-Pathname an, der Resultat-Pathname kommt aus der Response.
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const pathname = `projects/${projectId}/${safeName}`;
+  const contentType = file.contentType || "application/octet-stream";
+  const pathname = `${blobPathPrefix(projectId)}${safeBlobName(file.name)}`;
 
-  const blob = await put(pathname, file, {
-    access: "public",
+  // Das Token trägt Pfad, Größenlimit und Content-Type signiert mit — der
+  // Browser kann damit ausschließlich diese eine Datei in dieses Projekt legen.
+  // Ohne `validUntil` wäre es nur 30 Sekunden gültig, das reicht für 50 MB an
+  // einer schlechten Leitung nicht; bei Multipart wird es je Teil erneut
+  // geprüft und muss über den ganzen Upload gültig bleiben.
+  const clientToken = await generateClientTokenFromReadWriteToken({
+    pathname,
     addRandomSuffix: true,
-    contentType: file.type || "application/octet-stream",
+    maximumSizeInBytes: MAX_UPLOAD_BYTES,
+    allowedContentTypes: [contentType],
+    validUntil: Date.now() + 60 * 60 * 1000,
   });
+
+  return { clientToken, pathname, contentType };
+}
+
+/**
+ * Schritt 2 des Uploads: den fertigen Blob in der DB verbuchen.
+ *
+ * Größe und Content-Type werden bewusst nicht vom Client übernommen, sondern
+ * per `head()` aus dem Store gelesen.
+ */
+export async function registerProjectFile(
+  projectId: string,
+  blob: { url: string; pathname: string; name: string }
+) {
+  const session = await requireRole(CAN_WRITE);
+
+  if (!blob.pathname.startsWith(blobPathPrefix(projectId))) {
+    throw new Error("Upload gehört nicht zu diesem Projekt");
+  }
+
+  let meta;
+  try {
+    meta = await head(blob.url);
+  } catch {
+    throw new Error("Upload im Speicher nicht gefunden");
+  }
+  if (meta.pathname !== blob.pathname) {
+    throw new Error("Upload gehört nicht zu diesem Projekt");
+  }
+  if (meta.size > MAX_UPLOAD_BYTES) {
+    await del(blob.url).catch(() => null);
+    throw new Error(`Datei ist größer als ${MAX_MB} MB`);
+  }
+
+  const name =
+    blob.name.trim().slice(0, 255) || meta.pathname.split("/").pop() || "Datei";
 
   await prisma.projectFile.create({
     data: {
       projectId,
-      name: file.name,
-      mimeType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
-      blobUrl: blob.url,
-      blobPathname: blob.pathname,
+      name,
+      mimeType: meta.contentType || "application/octet-stream",
+      sizeBytes: meta.size,
+      blobUrl: meta.url,
+      blobPathname: meta.pathname,
       uploadedById: session.user.id,
     },
     select: { id: true },
@@ -80,4 +133,13 @@ export async function deleteProjectFile(fileId: string) {
   await prisma.projectFile.delete({ where: { id: fileId } });
 
   revalidatePath(`/projects/${file.projectId}`);
+}
+
+/**
+ * Räumt einen Blob auf, dessen DB-Eintrag nicht zustande kam (z.B. weil der
+ * Nutzer die Rechte verloren hat). Ohne das bliebe Datenmüll im Store liegen.
+ */
+export async function discardOrphanedUpload(url: string) {
+  await requireRole(CAN_WRITE);
+  await del(url).catch(() => null);
 }

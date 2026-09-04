@@ -15,9 +15,28 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UploadCloud, Download, Trash2, Loader2, FileText, Image as ImageIcon, FileArchive, File as FileIcon, Paperclip } from "lucide-react";
 import { toast } from "sonner";
-import { uploadProjectFile, deleteProjectFile } from "./files-actions";
+import { put } from "@vercel/blob/client";
+import {
+  createProjectFileUploadToken,
+  registerProjectFile,
+  deleteProjectFile,
+  discardOrphanedUpload,
+} from "./files-actions";
+import {
+  MAX_UPLOAD_BYTES,
+  MULTIPART_THRESHOLD_BYTES,
+} from "@/lib/project-files";
 import { cn, formatDate } from "@/lib/utils";
 import { toastError } from "@/lib/toast";
+
+const MAX_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
+
+type Progress = {
+  name: string;
+  percentage: number;
+  index: number;
+  total: number;
+};
 
 type FileVM = {
   id: string;
@@ -39,20 +58,57 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [progress, setProgress] = useState<Progress | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileVM | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function uploadOne(file: File) {
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("Datei ist größer als 50 MB", { description: file.name });
+  async function uploadOne(file: File, index: number, total: number) {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Datei ist größer als ${MAX_MB} MB`, {
+        description: file.name,
+      });
       return;
     }
-    const formData = new FormData();
-    formData.append("file", file);
+    setProgress({ name: file.name, percentage: 0, index, total });
+
+    // Der Blob liegt nach dem Upload im Store, sichtbar wird er aber erst mit
+    // dem DB-Eintrag. Scheitert Schritt 2, muss er wieder weg.
+    let orphanUrl: string | null = null;
     try {
-      await uploadProjectFile(projectId, formData);
+      const { clientToken, pathname, contentType } =
+        await createProjectFileUploadToken(projectId, {
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        });
+
+      // Direkt in den Blob-Store, nicht über eine Server-Action: Vercel
+      // begrenzt den Body einer Function hart auf 4,5 MB.
+      const blob = await put(pathname, file, {
+        access: "public",
+        token: clientToken,
+        contentType,
+        multipart: file.size > MULTIPART_THRESHOLD_BYTES,
+        onUploadProgress: ({ percentage }) =>
+          setProgress({ name: file.name, percentage, index, total }),
+      });
+      orphanUrl = blob.url;
+
+      await registerProjectFile(projectId, {
+        url: blob.url,
+        pathname: blob.pathname,
+        name: file.name,
+      });
+      orphanUrl = null;
       toast.success("Datei hochgeladen", { description: file.name });
     } catch (e) {
+      if (orphanUrl) {
+        try {
+          await discardOrphanedUpload(orphanUrl);
+        } catch {
+          // Aufräumen ist best effort — der eigentliche Fehler zählt.
+        }
+      }
       toastError(e, "Hochladen");
     }
   }
@@ -63,11 +119,12 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
     setUploading(true);
     try {
       // Sequentiell, damit Toasts und Reihenfolge gewahrt bleiben
-      for (const f of arr) {
-        await uploadOne(f);
+      for (let i = 0; i < arr.length; i++) {
+        await uploadOne(arr[i], i, arr.length);
       }
     } finally {
       setUploading(false);
+      setProgress(null);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -139,14 +196,28 @@ export function FilesSection({ projectId, files, canWrite }: Props) {
               )}
               <div className="text-sm font-medium">
                 {uploading
-                  ? "Wird hochgeladen…"
+                  ? progress
+                    ? `Wird hochgeladen… ${Math.round(progress.percentage)} %`
+                    : "Wird hochgeladen…"
                   : dragActive
                     ? "Datei hier ablegen"
                     : "Dateien hierher ziehen oder klicken"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Maximal 50 MB pro Datei
+                {uploading && progress
+                  ? progress.total > 1
+                    ? `${progress.name} (${progress.index + 1}/${progress.total})`
+                    : progress.name
+                  : `Maximal ${MAX_MB} MB pro Datei`}
               </div>
+              {uploading && progress && (
+                <div className="h-1 w-full max-w-xs overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${Math.round(progress.percentage)}%` }}
+                  />
+                </div>
+              )}
               <input
                 ref={inputRef}
                 type="file"

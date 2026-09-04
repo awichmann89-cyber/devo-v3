@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
+    // Achtung: Auf Vercel ist der Request-Body einer Function hart auf 4,5 MB
+    // begrenzt — dieser Wert hebt das NICHT auf. Größere Dateien müssen
+    // deshalb per Client-Upload direkt in den Blob-Store gehen (siehe
+    // src/app/(app)/projects/[id]/files-actions.ts). Der Wert bleibt für
+    // lokale/selbst gehostete Betriebe und kleinere Uploads stehen.
     serverActions: {
       bodySizeLimit: "50mb",
     },
