@@ -284,6 +284,7 @@ function QuoteSnapshotView({
           <CardContent>
             <div className="text-sm">
               {customer.name && <div className="font-medium">{customer.name}</div>}
+              {customer.nameLine2 && <div className="font-medium">{customer.nameLine2}</div>}
               {customer.contactPerson && <div>{customer.contactPerson}</div>}
               {customer.address && (
                 <div className="whitespace-pre-line text-muted-foreground">

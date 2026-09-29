@@ -322,6 +322,9 @@ model Customer {
   email         String?
   phone         String?
   address       String?
+  // Auswahlliste für die zweite Namenszeile im Empfängerblock (z.B. Abteilung,
+  // „c/o …"). Welche davon gedruckt wird, entscheidet Project.customerNameLine.
+  nameLines     String[] @default([])
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -334,6 +337,10 @@ model Project {
   name        String
   customerId  String?
   customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  // Zweite Namenszeile unter dem Kundennamen auf Angebot, Rechnung und
+  // Lieferschein. Als Text gespeichert (nicht als Verweis), damit Umbenennen
+  // oder Entfernen in der Kunden-Auswahlliste das Projekt nicht verändert.
+  customerNameLine String?
   description String?
   status      ProjectStatus @default(DRAFT)
   kind        ProjectKind   @default(DRYHIRE)

@@ -235,6 +235,7 @@ export async function buildQuotePdf(
   const recipientLines: string[] = [];
   if (snapCustomer) {
     if (snapCustomer.name) recipientLines.push(snapCustomer.name);
+    if (snapCustomer.nameLine2) recipientLines.push(snapCustomer.nameLine2);
     if (snapCustomer.contactPerson) recipientLines.push(snapCustomer.contactPerson);
     if (snapCustomer.address) {
       for (const l of snapCustomer.address.split(/\r?\n/)) {

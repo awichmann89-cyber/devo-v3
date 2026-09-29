@@ -30,6 +30,8 @@ export interface DocumentSnapshot {
   /** Empfänger-Anschrift wie zum Zeitpunkt der Ausgabe. */
   customer: {
     name: string;
+    /** Zweite Namenszeile aus dem Projekt. Fehlt bei Alt-Snapshots. */
+    nameLine2?: string | null;
     contactPerson: string | null;
     address: string | null;
   } | null;
@@ -361,6 +363,7 @@ export function buildSnapshotFromProject(
     customer: project.customer
       ? {
           name: project.customer.name,
+          nameLine2: project.customerNameLine,
           contactPerson: project.customer.contactPerson,
           address: project.customer.address,
         }

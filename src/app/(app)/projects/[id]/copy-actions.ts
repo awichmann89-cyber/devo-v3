@@ -78,6 +78,7 @@ export async function copyProject(
       data: {
         name,
         customerId: source.customerId,
+        customerNameLine: source.customerNameLine,
         description: source.description,
         status: "DRAFT",
         kind: source.kind,

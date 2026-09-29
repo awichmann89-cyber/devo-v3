@@ -118,8 +118,24 @@ export const customerSchema = z.object({
     }),
   phone: z.string().max(50).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
+  // Auswahlliste für die zweite Namenszeile — leere Einträge und Dubletten
+  // werden verworfen.
+  nameLines: z
+    .array(z.string().max(200))
+    .max(50)
+    .default([])
+    .transform((lines) =>
+      Array.from(new Set(lines.map((l) => l.trim()).filter(Boolean)))
+    ),
   notes: z.string().max(2000).optional().nullable(),
 });
+
+/** Einzelne zweite Namenszeile (für „+ Neue Zeile" direkt aus dem Projekt). */
+export const customerNameLineSchema = z
+  .string()
+  .trim()
+  .min(1, "Text erforderlich")
+  .max(200);
 
 export const billingPeriodSchema = z
   .object({
@@ -139,6 +155,7 @@ export const projectSchema = z
   .object({
     name: z.string().min(1, "Name erforderlich").max(200),
     customerId: z.string().optional().nullable(),
+    customerNameLine: z.string().max(200).optional().nullable(),
     description: z.string().max(2000).optional().nullable(),
     status: z.nativeEnum(ProjectStatus).default(ProjectStatus.DRAFT),
     kind: z.nativeEnum(ProjectKind).default(ProjectKind.DRYHIRE),
@@ -159,6 +176,7 @@ export const projectSchema = z
 export const projectUpdateCoreSchema = z.object({
   name: z.string().min(1, "Name erforderlich").max(200),
   customerId: z.string().optional().nullable(),
+  customerNameLine: z.string().max(200).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
   status: z.nativeEnum(ProjectStatus).default(ProjectStatus.DRAFT),
   kind: z.nativeEnum(ProjectKind).default(ProjectKind.DRYHIRE),

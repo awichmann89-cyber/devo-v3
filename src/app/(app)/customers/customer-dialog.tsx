@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Trash2 } from "lucide-react";
 import { createCustomer, updateCustomer } from "./actions";
 import { toast } from "sonner";
 import type { Customer } from "@prisma/client";
@@ -48,6 +48,7 @@ export function CustomerDialog({
     phone: customer?.phone ?? "",
     addressStreet: initialAddr.street,
     addressZipCity: initialAddr.zipCity,
+    nameLines: customer?.nameLines ?? [],
     notes: customer?.notes ?? "",
   });
   const [pending, startTransition] = useTransition();
@@ -64,6 +65,7 @@ export function CustomerDialog({
         phone: customer?.phone ?? "",
         addressStreet: a.street,
         addressZipCity: a.zipCity,
+        nameLines: customer?.nameLines ?? [],
         notes: customer?.notes ?? "",
       });
     }
@@ -83,6 +85,7 @@ export function CustomerDialog({
           email: form.email,
           phone: form.phone,
           address: joinAddress(form.addressStreet, form.addressZipCity),
+          nameLines: form.nameLines,
           notes: form.notes,
         };
         if (customer) {
@@ -127,6 +130,52 @@ export function CustomerDialog({
               required
               autoFocus
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Zweite Namenszeile (Auswahl)</Label>
+            <p className="text-xs text-muted-foreground">
+              Z.B. Abteilung oder „c/o …". Welche Zeile gedruckt wird, wählst du im
+              Projekt.
+            </p>
+            {form.nameLines.map((line, i) => (
+              <div key={i} className="flex gap-2">
+                <Input
+                  value={line}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      nameLines: form.nameLines.map((l, idx) =>
+                        idx === i ? e.target.value : l
+                      ),
+                    })
+                  }
+                  placeholder="z.B. Kulturamt"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      nameLines: form.nameLines.filter((_, idx) => idx !== i),
+                    })
+                  }
+                  title="Zeile entfernen"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setForm({ ...form, nameLines: [...form.nameLines, ""] })}
+            >
+              <Plus className="h-4 w-4" /> Zeile hinzufügen
+            </Button>
           </div>
 
           <div className="space-y-2">
