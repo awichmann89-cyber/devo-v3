@@ -65,6 +65,14 @@ export async function saveQuoteTexts(introText: string, outroText: string) {
   revalidatePath("/settings");
 }
 
+/** Analog zu saveQuoteTexts, für das Auftragsbestätigungs-PDF. */
+export async function saveOrderConfirmationTexts(introText: string, outroText: string) {
+  await requireRole(CAN_ADMIN);
+  await setSetting("orderConfirmationIntroText" as SettingKey, (introText ?? "").slice(0, 4000));
+  await setSetting("orderConfirmationOutroText" as SettingKey, (outroText ?? "").slice(0, 4000));
+  revalidatePath("/settings");
+}
+
 /**
  * Vorgefertigter Betreff/Text für den "Per E-Mail senden"-Dialog beim
  * Erstellen eines Angebots. Platzhalter {{kunde}}, {{nummer}}, {{projekt}}
@@ -74,6 +82,14 @@ export async function saveQuoteEmailTexts(subject: string, body: string) {
   await requireRole(CAN_ADMIN);
   await setSetting("quoteEmailSubject" as SettingKey, (subject ?? "").trim().slice(0, 200));
   await setSetting("quoteEmailBody" as SettingKey, (body ?? "").slice(0, 4000));
+  revalidatePath("/settings");
+}
+
+/** Analog zu saveQuoteEmailTexts, für den Versand von Auftragsbestätigungen. */
+export async function saveOrderConfirmationEmailTexts(subject: string, body: string) {
+  await requireRole(CAN_ADMIN);
+  await setSetting("orderConfirmationEmailSubject" as SettingKey, (subject ?? "").trim().slice(0, 200));
+  await setSetting("orderConfirmationEmailBody" as SettingKey, (body ?? "").slice(0, 4000));
   revalidatePath("/settings");
 }
 
@@ -150,5 +166,24 @@ export async function saveQuoteValidityDays(days: number) {
   await requireRole(CAN_ADMIN);
   const clamped = Math.max(0, Math.min(365, Math.floor(days) || 0));
   await setSetting("quoteValidityDays" as SettingKey, String(clamped));
+  revalidatePath("/settings");
+}
+
+/** Analog zu saveQuoteNumberSettings, für Auftragsbestätigungen. */
+export async function saveOrderConfirmationNumberSettings(
+  prefix: string,
+  padding: number,
+  nextSequence: number
+) {
+  await requireRole(CAN_ADMIN);
+  const p = (prefix ?? "").trim().toUpperCase().slice(0, 10);
+  if (p && !/^[A-Z0-9-]+$/.test(p)) {
+    throw new Error("Prefix darf nur Großbuchstaben, Zahlen und Bindestriche enthalten.");
+  }
+  const pad = Math.max(1, Math.min(8, Math.floor(padding) || 3));
+  const next = Math.max(1, Math.floor(nextSequence) || 1);
+  await setSetting("orderConfirmationNumberPrefix" as SettingKey, p);
+  await setSetting("orderConfirmationNumberPadding" as SettingKey, String(pad));
+  await setSetting("orderConfirmationNumberNextSequence" as SettingKey, String(next));
   revalidatePath("/settings");
 }

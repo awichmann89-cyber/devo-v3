@@ -14,6 +14,7 @@ import { nextSortOrderForGroup } from "@/lib/project-sort-order";
 import {
   recomputeInvoiceNextSequence,
   recomputeQuoteNextSequence,
+  recomputeOrderConfirmationNextSequence,
   recomputeReminderNextSequence,
 } from "@/lib/settings";
 
@@ -98,7 +99,9 @@ export async function deleteProject(id: string) {
   // explizit) räumen wir sie daher in derselben Transaktion mit ab. Mahnungen
   // hängen per Cascade an ihrer Rechnung bzw. tragen selbst die projectId;
   // PersonAssignments kaskadieren über die projectId automatisch.
-  const [deletedQuotes, deletedInvoices] = await prisma.$transaction([
+  const [deletedOrderConfirmations, deletedQuotes, deletedInvoices] = await prisma.$transaction([
+    // Vor den Angeboten, da Auftragsbestätigungen darauf verweisen können.
+    prisma.orderConfirmation.deleteMany({ where: { projectId: id } }),
     prisma.quote.deleteMany({ where: { projectId: id } }),
     prisma.invoice.deleteMany({ where: { projectId: id } }),
     prisma.timeEntry.deleteMany({ where: { projectId: id } }),
@@ -108,6 +111,7 @@ export async function deleteProject(id: string) {
   // Nummernkreise freigeben, falls ein gelöschtes Dokument die höchste
   // Nummer trug — analog zu deleteQuote/deleteInvoice.
   if (deletedQuotes.count > 0) await recomputeQuoteNextSequence();
+  if (deletedOrderConfirmations.count > 0) await recomputeOrderConfirmationNextSequence();
   if (deletedInvoices.count > 0) {
     await recomputeInvoiceNextSequence();
     await recomputeReminderNextSequence();

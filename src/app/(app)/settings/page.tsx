@@ -3,13 +3,13 @@ import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
-import { FolderTree, Receipt, FileText, Building2, CalendarClock, Mail } from "lucide-react";
+import { FolderTree, Receipt, FileText, FileCheck, Building2, CalendarClock, Mail } from "lucide-react";
 import { CategoriesTree } from "./categories-tree";
 import { InvoiceNumberForm } from "./invoice-number-form";
 import { ReminderNumberForm } from "./reminder-number-form";
 import { QuoteNumberForm } from "./quote-number-form";
 import { QuoteTextsForm } from "./quote-texts-form";
-import { QuoteEmailTextsForm, InvoiceEmailTextsForm } from "./email-texts-form";
+import { EmailTextsForm } from "./email-texts-form";
 import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
@@ -23,7 +23,7 @@ export default async function SettingsPage() {
   await requireRole(CAN_ADMIN);
 
   const year = new Date().getFullYear();
-  const [categories, settings, yearInvoices, yearReminders, yearQuotes, letterheads] = await Promise.all([
+  const [categories, settings, yearInvoices, yearReminders, yearQuotes, yearOrderConfirmations, letterheads] = await Promise.all([
     prisma.category.findMany({
       include: {
         _count: { select: { devices: true, packUnits: true, children: true } },
@@ -40,6 +40,10 @@ export default async function SettingsPage() {
       select: { number: true },
     }),
     prisma.quote.findMany({
+      where: { number: { startsWith: `${year}-` } },
+      select: { number: true },
+    }),
+    prisma.orderConfirmation.findMany({
       where: { number: { startsWith: `${year}-` } },
       select: { number: true },
     }),
@@ -66,6 +70,14 @@ export default async function SettingsPage() {
       if (n > currentYearMaxQuote) currentYearMaxQuote = n;
     }
   }
+  let currentYearMaxOrderConfirmation = 0;
+  for (const r of yearOrderConfirmations) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > currentYearMaxOrderConfirmation) currentYearMaxOrderConfirmation = n;
+    }
+  }
   let currentYearMaxReminder = 0;
   for (const r of yearReminders) {
     const m = r.number.match(/-(\d+)$/);
@@ -87,6 +99,9 @@ export default async function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="quotes">
             <FileText className="h-4 w-4" /> Angebote
+          </TabsTrigger>
+          <TabsTrigger value="orderConfirmations">
+            <FileCheck className="h-4 w-4" /> Auftragsbestätigungen
           </TabsTrigger>
           <TabsTrigger value="dayfactor">
             <CalendarClock className="h-4 w-4" /> Tage-Faktor
@@ -323,6 +338,50 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="orderConfirmations" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Nummern-Format
+                <InfoHint
+                  text={
+                    <>
+                      Format: <code>JAHR-PREFIX-SEQUENZ</code> (z.B.{" "}
+                      <code className="font-mono">2026-AB-001</code>). Eigener
+                      Nummernkreis, läuft pro Jahr fortlaufend.
+                    </>
+                  }
+                />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <QuoteNumberForm
+                variant="orderConfirmation"
+                initialPrefix={settings.orderConfirmationNumberPrefix}
+                initialPadding={Number(settings.orderConfirmationNumberPadding) || 3}
+                initialNextSequence={Number(settings.orderConfirmationNumberNextSequence) || 1}
+                currentYearMax={currentYearMaxOrderConfirmation}
+                year={year}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Texte im PDF
+                <InfoHint text="Standardtexte vor und nach der Positionstabelle. Pro Auftragsbestätigung kann zusätzlich ein individueller Hinweistext im Dialog eingegeben werden — der erscheint zwischen Tabelle und Schlusstext." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <QuoteTextsForm
+                variant="orderConfirmation"
+                initialIntro={settings.orderConfirmationIntroText}
+                initialOutro={settings.orderConfirmationOutroText}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="email" className="space-y-4">
           <Card>
             <CardHeader>
@@ -332,9 +391,25 @@ export default async function SettingsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <QuoteEmailTextsForm
+              <EmailTextsForm
+                kind="quote"
                 initialSubject={settings.quoteEmailSubject}
                 initialBody={settings.quoteEmailBody}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                E-Mail-Text: Auftragsbestätigung
+                <InfoHint text={'Betreff und Text, mit denen der "Per E-Mail senden"-Dialog beim Erstellen einer Auftragsbestätigung vorbefüllt wird. Vor dem Versand im Dialog noch editierbar.'} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EmailTextsForm
+                kind="orderConfirmation"
+                initialSubject={settings.orderConfirmationEmailSubject}
+                initialBody={settings.orderConfirmationEmailBody}
               />
             </CardContent>
           </Card>
@@ -346,7 +421,8 @@ export default async function SettingsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <InvoiceEmailTextsForm
+              <EmailTextsForm
+                kind="invoice"
                 initialSubject={settings.invoiceEmailSubject}
                 initialBody={settings.invoiceEmailBody}
               />
