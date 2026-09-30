@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -120,118 +121,121 @@ export function CustomerDialog({
             und Rechnungen.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Firmenname / Kundenname</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              autoFocus
-            />
-          </div>
+        {/* DialogBody scrollt, damit „Anlegen" bei vielen Namenszeilen sichtbar bleibt. */}
+        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
+          <DialogBody className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Firmenname / Kundenname</Label>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+                autoFocus
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label>Zweite Namenszeile (Auswahl)</Label>
-            <p className="text-xs text-muted-foreground">
-              Z.B. Abteilung oder „c/o …". Welche Zeile gedruckt wird, wählst du im
-              Projekt.
-            </p>
-            {form.nameLines.map((line, i) => (
-              <div key={i} className="flex gap-2">
+            <div className="space-y-2">
+              <Label>Zweite Namenszeile (Auswahl)</Label>
+              <p className="text-xs text-muted-foreground">
+                Z.B. Abteilung oder „c/o …". Welche Zeile gedruckt wird, wählst du im
+                Projekt.
+              </p>
+              {form.nameLines.map((line, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    value={line}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        nameLines: form.nameLines.map((l, idx) =>
+                          idx === i ? e.target.value : l
+                        ),
+                      })
+                    }
+                    placeholder="z.B. Kulturamt"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        nameLines: form.nameLines.filter((_, idx) => idx !== i),
+                      })
+                    }
+                    title="Zeile entfernen"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setForm({ ...form, nameLines: [...form.nameLines, ""] })}
+              >
+                <Plus className="h-4 w-4" /> Zeile hinzufügen
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contact">Ansprechpartner</Label>
+              <Input
+                id="contact"
+                value={form.contactPerson ?? ""}
+                onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  value={line}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      nameLines: form.nameLines.map((l, idx) =>
-                        idx === i ? e.target.value : l
-                      ),
-                    })
-                  }
-                  placeholder="z.B. Kulturamt"
+                  id="email"
+                  type="email"
+                  value={form.email ?? ""}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      nameLines: form.nameLines.filter((_, idx) => idx !== i),
-                    })
-                  }
-                  title="Zeile entfernen"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setForm({ ...form, nameLines: [...form.nameLines, ""] })}
-            >
-              <Plus className="h-4 w-4" /> Zeile hinzufügen
-            </Button>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefon</Label>
+                <Input
+                  id="phone"
+                  value={form.phone ?? ""}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="contact">Ansprechpartner</Label>
-            <Input
-              id="contact"
-              value={form.contactPerson ?? ""}
-              onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email ?? ""}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              <Label>Anschrift</Label>
+              <div className="space-y-2">
+                <Input
+                  value={form.addressStreet}
+                  onChange={(e) => setForm({ ...form, addressStreet: e.target.value })}
+                  placeholder="Straße, Hausnummer"
+                />
+                <Input
+                  value={form.addressZipCity}
+                  onChange={(e) => setForm({ ...form, addressZipCity: e.target.value })}
+                  placeholder="PLZ, Ort"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notizen (intern)</Label>
+              <Textarea
+                id="notes"
+                value={form.notes ?? ""}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={2}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefon</Label>
-              <Input
-                id="phone"
-                value={form.phone ?? ""}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Anschrift</Label>
-            <div className="space-y-2">
-              <Input
-                value={form.addressStreet}
-                onChange={(e) => setForm({ ...form, addressStreet: e.target.value })}
-                placeholder="Straße, Hausnummer"
-              />
-              <Input
-                value={form.addressZipCity}
-                onChange={(e) => setForm({ ...form, addressZipCity: e.target.value })}
-                placeholder="PLZ, Ort"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notizen (intern)</Label>
-            <Textarea
-              id="notes"
-              value={form.notes ?? ""}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              rows={2}
-            />
-          </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

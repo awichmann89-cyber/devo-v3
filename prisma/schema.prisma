@@ -30,6 +30,9 @@ model User {
   // E-Mail-Signatur (Tiptap-HTML, Formatierung/Farbe als Inline-Styles) —
   // wird beim Versand von Angebots-/Rechnungs-Mails unter den Text gesetzt.
   signatureHtml String?
+  // Id der zuletzt gesehenen Feature-Ankündigung (src/lib/announcements.ts).
+  // Neuere Einträge erscheinen beim nächsten Seitenaufruf als Dialog.
+  seenAnnouncementId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
