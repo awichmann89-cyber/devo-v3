@@ -76,6 +76,7 @@ export async function buildDeliveryNotePdf(
   const recipientLines: string[] = [];
   if (project.customer) {
     if (project.customer.name) recipientLines.push(project.customer.name);
+    if (project.customerNameLine) recipientLines.push(project.customerNameLine);
     if (project.customer.contactPerson) {
       recipientLines.push(project.customer.contactPerson);
     }

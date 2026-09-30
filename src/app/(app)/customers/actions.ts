@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
-import { customerSchema } from "@/lib/validators";
+import { customerSchema, customerNameLineSchema } from "@/lib/validators";
 
 function normalize(input: unknown) {
   const data = customerSchema.parse(input);
@@ -14,6 +14,7 @@ function normalize(input: unknown) {
     email: data.email?.trim() || null,
     phone: data.phone?.trim() || null,
     address: data.address?.trim() || null,
+    nameLines: data.nameLines,
     notes: data.notes?.trim() || null,
   };
 }
@@ -79,4 +80,31 @@ export async function deleteCustomer(id: string) {
   }
   await prisma.customer.delete({ where: { id } });
   revalidatePath("/customers");
+}
+
+/**
+ * Hängt eine zweite Namenszeile an die Auswahlliste des Kunden an — für
+ * „+ Neue Zeile…" im Projekt, ohne den Umweg über die Kundenverwaltung.
+ * Existiert die Zeile bereits, bleibt die Liste unverändert.
+ */
+export async function addCustomerNameLine(
+  customerId: string,
+  input: unknown
+): Promise<string[]> {
+  await requireRole(CAN_WRITE);
+  const line = customerNameLineSchema.parse(input);
+  const c = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { nameLines: true },
+  });
+  if (!c) throw new Error("Kunde nicht gefunden");
+  if (c.nameLines.includes(line)) return c.nameLines;
+  const updated = await prisma.customer.update({
+    where: { id: customerId },
+    data: { nameLines: { push: line } },
+    select: { nameLines: true },
+  });
+  revalidatePath("/customers");
+  revalidatePath("/projects");
+  return updated.nameLines;
 }

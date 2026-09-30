@@ -32,6 +32,7 @@ export async function createProject(input: unknown) {
     data: {
       ...rest,
       customerId: rest.customerId || null,
+      customerNameLine: (rest.customerId && rest.customerNameLine?.trim()) || null,
       maintainerId: rest.maintainerId || null,
       description: rest.description || null,
       notes: rest.notes || null,
@@ -69,6 +70,8 @@ export async function updateProject(id: string, input: unknown) {
     data: {
       name: data.name,
       customerId: data.customerId || null,
+      // Ohne Kunde gibt es keine zweite Namenszeile.
+      customerNameLine: (data.customerId && data.customerNameLine?.trim()) || null,
       maintainerId: data.maintainerId || null,
       description: data.description || null,
       status: data.status,

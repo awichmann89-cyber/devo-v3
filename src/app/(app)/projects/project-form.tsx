@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, Loader2, Plus, Trash2, X } from "lucide-react";
 import { createProject, updateProject } from "./actions";
 import { toast } from "sonner";
 import {
@@ -25,6 +25,7 @@ import {
 import { projectKindLabel, projectStatusLabel } from "@/lib/labels";
 import { useRouter } from "next/navigation";
 import { CustomerDialog } from "@/app/(app)/customers/customer-dialog";
+import { addCustomerNameLine } from "@/app/(app)/customers/actions";
 import { useAutoSave } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 import { toastError } from "@/lib/toast";
@@ -62,6 +63,7 @@ export function ProjectForm({
   const [form, setForm] = useState({
     name: project?.name ?? "",
     customerId: project?.customerId ?? "",
+    customerNameLine: project?.customerNameLine ?? "",
     description: project?.description ?? "",
     status: project?.status ?? ProjectStatus.DRAFT,
     kind: project?.kind ?? ProjectKind.DRYHIRE,
@@ -97,16 +99,24 @@ export function ProjectForm({
   const [pending, startTransition] = useTransition();
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [extraCustomers, setExtraCustomers] = useState<
-    Array<{ id: string; name: string; address: string | null }>
+    Array<{ id: string; name: string; address: string | null; nameLines: string[] }>
   >([]);
+  // Neue Zeile, die gerade über „+ Neue Zeile…" eingegeben wird (null = aus).
+  const [newNameLine, setNewNameLine] = useState<string | null>(null);
+  const [addingNameLine, startAddingNameLine] = useTransition();
 
   const allCustomers = useMemo(() => {
     const map = new Map<
       string,
-      { id: string; name: string; address: string | null }
+      { id: string; name: string; address: string | null; nameLines: string[] }
     >();
     for (const c of customers) {
-      map.set(c.id, { id: c.id, name: c.name, address: c.address });
+      map.set(c.id, {
+        id: c.id,
+        name: c.name,
+        address: c.address,
+        nameLines: c.nameLines,
+      });
     }
     for (const c of extraCustomers) map.set(c.id, c);
     return Array.from(map.values()).sort((a, b) =>
@@ -119,13 +129,42 @@ export function ProjectForm({
     [allCustomers, form.customerId]
   );
 
+  // Auswahl der zweiten Namenszeile: Liste des Kunden plus die aktuell im
+  // Projekt gespeicherte Zeile, falls sie beim Kunden inzwischen fehlt.
+  const nameLineOptions = useMemo(() => {
+    const lines = selectedCustomer?.nameLines ?? [];
+    return form.customerNameLine && !lines.includes(form.customerNameLine)
+      ? [form.customerNameLine, ...lines]
+      : lines;
+  }, [selectedCustomer, form.customerNameLine]);
+
   function handleCustomerCreated(customer: {
     id: string;
     name: string;
     address: string | null;
   }) {
-    setExtraCustomers((prev) => [...prev, customer]);
-    setForm((f) => ({ ...f, customerId: customer.id }));
+    setExtraCustomers((prev) => [...prev, { ...customer, nameLines: [] }]);
+    setForm((f) => ({ ...f, customerId: customer.id, customerNameLine: "" }));
+    setNewNameLine(null);
+  }
+
+  function saveNewNameLine() {
+    const customer = selectedCustomer;
+    const line = newNameLine?.trim();
+    if (!customer || !line) return;
+    startAddingNameLine(async () => {
+      try {
+        const nameLines = await addCustomerNameLine(customer.id, line);
+        setExtraCustomers((prev) => [
+          ...prev.filter((c) => c.id !== customer.id),
+          { ...customer, nameLines },
+        ]);
+        setForm((f) => ({ ...f, customerNameLine: line }));
+        setNewNameLine(null);
+      } catch (e) {
+        toastError(e, "Speichern");
+      }
+    });
   }
 
   const isEditMode = !!project;
@@ -133,6 +172,7 @@ export function ProjectForm({
     () => ({
       name: form.name,
       customerId: form.customerId || null,
+      customerNameLine: form.customerNameLine || null,
       description: form.description || null,
       status: form.status,
       kind: form.kind,
@@ -140,7 +180,7 @@ export function ProjectForm({
       notes: form.notes || null,
       maintainerId: form.maintainerId || null,
     }),
-    [form.name, form.customerId, form.description, form.status, form.kind, form.discountPercent, form.notes, form.maintainerId]
+    [form.name, form.customerId, form.customerNameLine, form.description, form.status, form.kind, form.discountPercent, form.notes, form.maintainerId]
   );
   const { status: autoSaveStatus, error: autoSaveError } = useAutoSave(
     autoSavePayload,
@@ -159,6 +199,7 @@ export function ProjectForm({
         const payload = {
           ...form,
           customerId: form.customerId || null,
+          customerNameLine: form.customerNameLine || null,
           maintainerId: form.maintainerId || null,
           discountPercent: Number(form.discountPercent),
           planningStart: new Date(form.planningStart),
@@ -244,7 +285,13 @@ export function ProjectForm({
               <Combobox
                 id="customer"
                 value={form.customerId}
-                onValueChange={(v) => setForm({ ...form, customerId: v })}
+                onValueChange={(v) => {
+                  // Die Namenszeilen gehören zum Kunden — bei Wechsel zurücksetzen.
+                  if (v !== form.customerId) {
+                    setForm({ ...form, customerId: v, customerNameLine: "" });
+                    setNewNameLine(null);
+                  }
+                }}
                 options={allCustomers.map((c) => ({ value: c.id, label: c.name }))}
                 placeholder="Kunde suchen…"
                 emptyLabel="— Kein Kunde —"
@@ -273,6 +320,83 @@ export function ProjectForm({
             </p>
           )}
         </div>
+
+        {selectedCustomer && (
+          <div className="space-y-2">
+            <Label htmlFor="customerNameLine">Zweite Namenszeile</Label>
+            {newNameLine === null ? (
+              <Select
+                value={form.customerNameLine || "none"}
+                onValueChange={(v) => {
+                  if (v === "__new__") {
+                    setNewNameLine("");
+                    return;
+                  }
+                  setForm({ ...form, customerNameLine: v === "none" ? "" : v });
+                }}
+              >
+                <SelectTrigger id="customerNameLine">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Keine —</SelectItem>
+                  {nameLineOptions.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__new__">+ Neue Zeile…</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  id="customerNameLine"
+                  value={newNameLine}
+                  onChange={(e) => setNewNameLine(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter darf das Projekt-Formular nicht absenden.
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveNewNameLine();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      setNewNameLine(null);
+                    }
+                  }}
+                  placeholder="z.B. Kulturamt"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={saveNewNameLine}
+                  disabled={addingNameLine || !newNameLine.trim()}
+                  title="Zeile beim Kunden speichern und auswählen"
+                >
+                  {addingNameLine ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setNewNameLine(null)}
+                  title="Abbrechen"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground pl-1">
+              Steht auf Angebot, Rechnung und Lieferschein unter dem Kundennamen.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="maintainer">Verantwortlich</Label>
