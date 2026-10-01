@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { companyFooterFor } from "@/lib/company-footer";
 import {
   buildSnapshotFromProject,
   isValidSnapshot,
@@ -53,6 +54,7 @@ export async function buildOrderConfirmationPdf(
       quoteIntroText: s.orderConfirmationIntroText,
       quoteOutroText: s.orderConfirmationOutroText,
       pdfAccentColor: s.pdfAccentColor,
+      companyFooter: companyFooterFor(s, "orderConfirmation"),
     });
   }
 

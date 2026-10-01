@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable, { RowInput } from "jspdf-autotable";
 import { deviceRowLabel, projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
+import { companyFooterFor, drawCompanyFooter } from "@/lib/company-footer";
 import { buildDocumentPdfFilename } from "@/lib/utils";
 import {
   getSettings,
@@ -109,6 +110,7 @@ export async function buildQuotePdf(
         quoteIntroText: liveSettings.quoteIntroText,
         quoteOutroText: liveSettings.quoteOutroText,
         pdfAccentColor: liveSettings.pdfAccentColor,
+        companyFooter: companyFooterFor(liveSettings, "quote"),
       });
 
   return {
@@ -1032,6 +1034,9 @@ export async function renderSalesDocumentPdf({
       align: "right",
     });
   }
+
+  // Firmendaten-Fußzeile (falls für diese Dokumentart eingeschaltet)
+  drawCompanyFooter(doc, snapshot.settings.companyFooter);
 
   // Letterhead-PDF darüberlegen (falls hinterlegt)
   const contentBytes = new Uint8Array(doc.output("arraybuffer"));

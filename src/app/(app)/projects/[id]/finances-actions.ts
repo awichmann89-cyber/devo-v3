@@ -6,6 +6,7 @@ import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { Prisma } from "@prisma/client";
 import { getSettings, buildInvoiceNumber, buildQuoteNumber, buildOrderConfirmationNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeOrderConfirmationNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
 import { buildSnapshotFromProject } from "@/lib/document-snapshot";
+import { companyFooterFor } from "@/lib/company-footer";
 import { buildQuotePdf } from "@/lib/quote-pdf";
 import { buildInvoicePdf } from "@/lib/invoice-pdf";
 import { buildOrderConfirmationPdf } from "@/lib/order-confirmation-pdf";
@@ -237,6 +238,7 @@ export async function createInvoice(
       quoteIntroText: null,
       quoteOutroText: null,
       pdfAccentColor: settings.pdfAccentColor,
+      companyFooter: companyFooterFor(settings, "invoice"),
     });
     snapshotJson = snap as unknown as Prisma.InputJsonValue;
     // Der Snapshot enthält immer den VOLLEN Auftrag. Vorkasse/Schlussrechnung
@@ -382,6 +384,7 @@ export async function createQuote(
     quoteIntroText: settings.quoteIntroText,
     quoteOutroText: settings.quoteOutroText,
     pdfAccentColor: settings.pdfAccentColor,
+    companyFooter: companyFooterFor(settings, "quote"),
   });
   const snapshotJson = snap as unknown as Prisma.InputJsonValue;
 
@@ -617,6 +620,7 @@ export async function createOrderConfirmation(
     quoteIntroText: settings.orderConfirmationIntroText,
     quoteOutroText: settings.orderConfirmationOutroText,
     pdfAccentColor: settings.pdfAccentColor,
+    companyFooter: companyFooterFor(settings, "orderConfirmation"),
   });
 
   const totalNetDec = new Prisma.Decimal(snap.totals.totalNet);
