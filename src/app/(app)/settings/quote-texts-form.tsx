@@ -7,15 +7,41 @@ import { Label } from "@/components/ui/label";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import { saveQuoteTexts } from "./settings-actions";
+import { saveQuoteTexts, saveOrderConfirmationTexts } from "./settings-actions";
 import { toastError } from "@/lib/toast";
 
+const VARIANTS = {
+  quote: {
+    save: saveQuoteTexts,
+    idPrefix: "quote",
+    successMessage: "Angebots-Texte gespeichert",
+    introHint:
+      "Wird im Angebots-PDF zwischen den Meta-Daten (Datum, Projekt) und der Positionstabelle ausgegeben.",
+    outroHint:
+      'Wird im Angebots-PDF nach der Tabelle ausgegeben (und nach einem optionalen Hinweistext aus dem Angebots-Dialog), gefolgt von „Mit freundlichen Grüßen" und der Signatur.',
+    outroPlaceholder: "Grundlage dieses Angebots sind unsere AGB …",
+  },
+  orderConfirmation: {
+    save: saveOrderConfirmationTexts,
+    idPrefix: "oc",
+    successMessage: "Texte gespeichert",
+    introHint:
+      "Wird im PDF der Auftragsbestätigung zwischen den Meta-Daten (Datum, Bezug, Projekt) und der Positionstabelle ausgegeben.",
+    outroHint:
+      'Wird nach der Tabelle ausgegeben (und nach einem optionalen Hinweistext aus dem Dialog), gefolgt von „Mit freundlichen Grüßen" und der Signatur.',
+    outroPlaceholder: "Grundlage dieses Auftrags sind unsere AGB …",
+  },
+} as const;
+
 interface Props {
+  /** Welches Dokument — Angebot (Default) oder Auftragsbestätigung. */
+  variant?: keyof typeof VARIANTS;
   initialIntro: string;
   initialOutro: string;
 }
 
-export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
+export function QuoteTextsForm({ variant = "quote", initialIntro, initialOutro }: Props) {
+  const v = VARIANTS[variant];
   const [intro, setIntro] = useState(initialIntro);
   const [outro, setOutro] = useState(initialOutro);
   const [pending, startTransition] = useTransition();
@@ -24,8 +50,8 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
     e.preventDefault();
     startTransition(async () => {
       try {
-        await saveQuoteTexts(intro, outro);
-        toast.success("Angebots-Texte gespeichert");
+        await v.save(intro, outro);
+        toast.success(v.successMessage);
       } catch (err) {
         toastError(err, "Speichern");
       }
@@ -36,11 +62,11 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
-          <Label htmlFor="quoteIntro">Text vor der Positionstabelle</Label>
-          <InfoHint text="Wird im Angebots-PDF zwischen den Meta-Daten (Datum, Projekt) und der Positionstabelle ausgegeben." />
+          <Label htmlFor={`${v.idPrefix}Intro`}>Text vor der Positionstabelle</Label>
+          <InfoHint text={v.introHint} />
         </div>
         <Textarea
-          id="quoteIntro"
+          id={`${v.idPrefix}Intro`}
           value={intro}
           onChange={(e) => setIntro(e.target.value)}
           rows={6}
@@ -50,15 +76,15 @@ export function QuoteTextsForm({ initialIntro, initialOutro }: Props) {
 
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
-          <Label htmlFor="quoteOutro">Text nach der Positionstabelle</Label>
-          <InfoHint text={'Wird im Angebots-PDF nach der Tabelle ausgegeben (und nach einem optionalen Hinweistext aus dem Angebots-Dialog), gefolgt von „Mit freundlichen Grüßen" und der Signatur.'} />
+          <Label htmlFor={`${v.idPrefix}Outro`}>Text nach der Positionstabelle</Label>
+          <InfoHint text={v.outroHint} />
         </div>
         <Textarea
-          id="quoteOutro"
+          id={`${v.idPrefix}Outro`}
           value={outro}
           onChange={(e) => setOutro(e.target.value)}
           rows={6}
-          placeholder="Grundlage dieses Angebots sind unsere AGB …"
+          placeholder={v.outroPlaceholder}
         />
       </div>
 

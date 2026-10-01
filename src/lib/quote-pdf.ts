@@ -24,7 +24,7 @@ const INDENT_1 = "    "; // Bereich
 const INDENT_2 = "        "; // Gruppe
 const INDENT_3 = "            "; // Item
 
-const QUOTE_PDF_INCLUDE = {
+export const QUOTE_PDF_INCLUDE = {
   project: {
     include: {
       customer: true,
@@ -106,6 +106,62 @@ export async function buildQuotePdf(
         pdfAccentColor: liveSettings.pdfAccentColor,
       });
 
+  return {
+    ...(await renderSalesDocumentPdf({
+      label: "Angebot",
+      number: quote.number,
+      metaLines: [
+        `Angebotsdatum: ${quote.date.toLocaleDateString("de-DE")}`,
+        `Gültig bis: ${quote.expiresAt.toLocaleDateString("de-DE")}`,
+      ],
+      snapshot,
+      notes: quote.notes,
+      acceptance: {
+        acceptedAt: quote.acceptedAt,
+        acceptedByName: quote.acceptedByName,
+        acceptToken: quote.acceptToken,
+        baseUrl,
+      },
+      footerNote: `Dieses Angebot ist gültig bis zum ${quote.expiresAt.toLocaleDateString("de-DE")}.`,
+    })),
+    quote,
+  };
+}
+
+export interface SalesDocumentPdfInput {
+  /** Dokumentart für Titel und Dateiname, z.B. „Angebot". */
+  label: string;
+  number: string;
+  /** Zeilen unter dem Titel (Datum, Gültigkeit, Bezug …). */
+  metaLines: string[];
+  snapshot: DocumentSnapshot;
+  /** Individueller Hinweistext aus dem Dialog, nach der Positionstabelle. */
+  notes: string | null;
+  /** Online-Annahme — nur beim Angebot; null = kein Button/Bestätigungsblock. */
+  acceptance: {
+    acceptedAt: Date | null;
+    acceptedByName: string | null;
+    acceptToken: string | null;
+    baseUrl: string;
+  } | null;
+  /** Kleiner Hinweis ganz unten, z.B. die Gültigkeit. */
+  footerNote: string | null;
+}
+
+/**
+ * Rendert ein Positions-Dokument (Angebot, Auftragsbestätigung) aus einem
+ * Snapshot: Empfänger, Titel, Meta-Zeilen, Einleitungstext, Positionstabelle,
+ * Summen, Schlusstext, Signatur und optional den Online-Annahme-Button.
+ */
+export async function renderSalesDocumentPdf({
+  label,
+  number,
+  metaLines,
+  snapshot,
+  notes,
+  acceptance,
+  footerNote,
+}: SalesDocumentPdfInput): Promise<{ bytes: Uint8Array; filename: string }> {
   // Aliasse aus dem Snapshot — der Render-Code unten wird damit lesbarer.
   const days = snapshot.days;
   const factor = snapshot.factor;
@@ -250,14 +306,14 @@ export async function buildQuotePdf(
 
   doc.setFontSize(14);
   doc.setFont(undefined as unknown as string, "bold");
-  doc.text(`Angebot ${quote.number}`, ADDR_X, 95);
+  doc.text(`${label} ${number}`, ADDR_X, 95);
   doc.setFont(undefined as unknown as string, "normal");
   doc.setFontSize(10);
   let metaY = 102;
-  doc.text(`Angebotsdatum: ${quote.date.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
-  metaY += 5;
-  doc.text(`Gültig bis: ${quote.expiresAt.toLocaleDateString("de-DE")}`, ADDR_X, metaY);
-  metaY += 5;
+  for (const line of metaLines) {
+    doc.text(line, ADDR_X, metaY);
+    metaY += 5;
+  }
   // Seitenbreite und rechter Rand — für den Auto-Umbruch der Projekt- und
   // Mietzeitraum-Zeile, falls Name bzw. Zeiträume nicht in eine Zeile passen.
   const PAGE_WIDTH = doc.internal.pageSize.getWidth();
@@ -792,7 +848,7 @@ export async function buildQuotePdf(
   doc.setTextColor(0);
   doc.setFont(undefined as unknown as string, "normal");
   const outroWidth = PAGE_WIDTH - ADDR_X - 14;
-  const noteText = quote.notes && quote.notes.trim() ? quote.notes.trim() : "";
+  const noteText = notes && notes.trim() ? notes.trim() : "";
   const noteLines = noteText
     ? (doc.splitTextToSize(noteText, outroWidth) as string[])
     : [];
@@ -839,9 +895,9 @@ export async function buildQuotePdf(
     snapMaintainer?.email ||
     "";
   const companyName = (snapCompanyName || "PubliXound").trim();
-  const acceptBlockHeight = quote.acceptedAt
+  const acceptBlockHeight = acceptance?.acceptedAt
     ? 8 // Bestätigungszeile
-    : quote.acceptToken
+    : acceptance?.acceptToken
       ? 12 + 10 // Button-Höhe + URL-Zeile darunter
       : 0;
   const SIGNATURE_BLOCK_HEIGHT =
@@ -849,7 +905,7 @@ export async function buildQuotePdf(
     10 + // Grußzeile
     (maintainerName ? 5 : 0) +
     (companyName ? 5 : 0) +
-    8 + // Abstand über Button/Bestätigung
+    (acceptance ? 8 : 0) + // Abstand über Button/Bestätigung
     acceptBlockHeight +
     12; // Footer-Hinweis + unterer Rand
   ensureSpace(SIGNATURE_BLOCK_HEIGHT);
@@ -875,16 +931,16 @@ export async function buildQuotePdf(
   // acceptToken vorhanden ist. Position: nach der Signatur, in Akzentfarbe.
   // Bei bereits angenommenen Quotes zeigen wir stattdessen einen dezenten
   // Hinweis mit Annahmedatum + Name.
-  outroY += 8;
-  if (quote.acceptedAt) {
+  if (acceptance) outroY += 8;
+  if (acceptance?.acceptedAt) {
     // Bestätigungs-Block: schon angenommen
     doc.setDrawColor(...ACCENT_RGB);
     doc.setLineWidth(0.4);
     doc.line(ADDR_X, outroY - 2, 196, outroY - 2);
     doc.setFontSize(9);
     doc.setTextColor(...ACCENT_RGB);
-    const acceptedDate = quote.acceptedAt.toLocaleDateString("de-DE");
-    const acceptedBy = quote.acceptedByName ?? "";
+    const acceptedDate = acceptance.acceptedAt.toLocaleDateString("de-DE");
+    const acceptedBy = acceptance.acceptedByName ?? "";
     doc.text(
       `Angenommen am ${acceptedDate}${acceptedBy ? ` von ${acceptedBy}` : ""}`,
       ADDR_X,
@@ -892,7 +948,7 @@ export async function buildQuotePdf(
     );
     doc.setTextColor(0);
     outroY += 8;
-  } else if (quote.acceptToken) {
+  } else if (acceptance?.acceptToken) {
     // Klickbarer Button zum Online-Annehmen.
     //
     // Wichtig: KEIN bold setzen — Inter ist nur in Regular geladen, bold würde
@@ -903,7 +959,7 @@ export async function buildQuotePdf(
     // Klickbarkeit via textWithLink statt rect + link — die Text-Annotation
     // ist robuster und immer mit dem sichtbaren Text deckungsgleich. Den
     // farbigen Hintergrund zeichnen wir trotzdem als visuelle Hervorhebung.
-    const acceptUrl = `${baseUrl}/angebot/${quote.acceptToken}`;
+    const acceptUrl = `${acceptance.baseUrl}/angebot/${acceptance.acceptToken}`;
     const BTN_X = ADDR_X;
     const BTN_Y = outroY;
     const BTN_W = 90;
@@ -937,13 +993,11 @@ export async function buildQuotePdf(
   endY = outroY;
 
   // Footer-Hinweis
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text(
-    `Dieses Angebot ist gültig bis zum ${quote.expiresAt.toLocaleDateString("de-DE")}.`,
-    14,
-    endY + 4
-  );
+  if (footerNote) {
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(footerNote, 14, endY + 4);
+  }
 
   // ===== Seitenzahl auf jeder Seite ("Seite 1 von 4") =====
   // Wird nach Abschluss des Render-Loops über ALLE Seiten gestempelt, damit
@@ -967,11 +1021,11 @@ export async function buildQuotePdf(
   const finalBytes = await applyLetterhead(contentBytes);
 
   const filename = buildDocumentPdfFilename(
-    "Angebot",
-    quote.number,
+    label,
+    number,
     snapCustomer?.name ?? null,
     projectName
   );
 
-  return { bytes: finalBytes, filename, quote };
+  return { bytes: finalBytes, filename };
 }

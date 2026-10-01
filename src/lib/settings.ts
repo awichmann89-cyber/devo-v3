@@ -10,6 +10,9 @@ export const SETTING_DEFAULTS = {
   quoteNumberPrefix: "AN",
   quoteNumberPadding: "3",
   quoteNumberNextSequence: "1",
+  orderConfirmationNumberPrefix: "AB",
+  orderConfirmationNumberPadding: "3",
+  orderConfirmationNumberNextSequence: "1",
   // Texte für das Angebots-PDF — können in den Einstellungen angepasst werden.
   // Der Intro-Text steht vor der Positionstabelle, der Outro-Text danach
   // (gefolgt von „Mit freundlichen Grüßen" und der Signatur).
@@ -17,6 +20,11 @@ export const SETTING_DEFAULTS = {
     "Sehr geehrte Damen und Herren,\n\nherzlichen Dank für Ihr Interesse an einer Zusammenarbeit. Nachfolgend erhalten Sie unser Angebot mit dem angefragten Leistungsumfang.",
   quoteOutroText:
     "Grundlage dieses Angebots sind unsere Allgemeinen Geschäftsbedingungen (AGB). Diese finden Sie unter www.publixound.de. Wir hoffen, ein Angebot in Ihrem Sinne erstellt zu haben und würden uns über eine Auftragserteilung und die damit einhergehende Zusammenarbeit sehr freuen.",
+  // Texte für das Auftragsbestätigungs-PDF — analog zu den Angebots-Texten.
+  orderConfirmationIntroText:
+    "Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag. Hiermit bestätigen wir Ihnen verbindlich die nachfolgend aufgeführten Leistungen.",
+  orderConfirmationOutroText:
+    "Grundlage dieses Auftrags sind unsere Allgemeinen Geschäftsbedingungen (AGB). Bitte prüfen Sie die Auftragsbestätigung und teilen Sie uns eventuelle Abweichungen umgehend mit. Wir freuen uns auf die Zusammenarbeit.",
   companyName: "",
   companyStreet: "",
   companyZipCity: "",
@@ -36,6 +44,9 @@ export const SETTING_DEFAULTS = {
   quoteEmailSubject: "Ihr Angebot {{nummer}} — {{projekt}}",
   quoteEmailBody:
     "Guten Tag {{kunde}},\n\nvielen Dank für Ihr Interesse. Anbei erhalten Sie unser Angebot {{nummer}} zum Projekt \"{{projekt}}\".\n\nBei Rückfragen stehen wir gerne zur Verfügung.",
+  orderConfirmationEmailSubject: "Ihre Auftragsbestätigung {{nummer}} — {{projekt}}",
+  orderConfirmationEmailBody:
+    "Guten Tag {{kunde}},\n\nvielen Dank für Ihren Auftrag. Anbei erhalten Sie unsere Auftragsbestätigung {{nummer}} zum Projekt \"{{projekt}}\".\n\nBei Rückfragen stehen wir gerne zur Verfügung.",
   invoiceEmailSubject: "Ihre Rechnung {{nummer}} — {{projekt}}",
   invoiceEmailBody:
     "Guten Tag {{kunde}},\n\nanbei erhalten Sie die Rechnung {{nummer}} zum Projekt \"{{projekt}}\".\n\nBei Rückfragen stehen wir gerne zur Verfügung.",
@@ -162,6 +173,25 @@ export async function recomputeQuoteNextSequence(): Promise<void> {
   await setSetting("quoteNumberNextSequence" as SettingKey, String(Math.max(maxSeq + 1, current)));
 }
 
+/** Analog zu recomputeInvoiceNextSequence, für Auftragsbestätigungen. */
+export async function recomputeOrderConfirmationNextSequence(): Promise<void> {
+  const year = new Date().getFullYear();
+  const rows = await prisma.orderConfirmation.findMany({
+    where: { number: { startsWith: `${year}-` } },
+    select: { number: true },
+  });
+  let maxSeq = 0;
+  for (const r of rows) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+  const current = Math.max(1, Number(await getSetting("orderConfirmationNumberNextSequence")) || 1);
+  await setSetting("orderConfirmationNumberNextSequence" as SettingKey, String(Math.max(maxSeq + 1, current)));
+}
+
 /** Liefert den Kalender-Token, erzeugt einen, falls noch keiner gespeichert ist. */
 export async function getOrCreateCalendarToken(): Promise<string> {
   const existing = await getSetting("calendarFeedToken");
@@ -185,6 +215,16 @@ export function buildInvoiceNumber(
 }
 
 export function buildQuoteNumber(
+  year: number,
+  sequence: number,
+  prefix: string,
+  padding: number
+): string {
+  const num = String(sequence).padStart(Math.max(1, padding), "0");
+  return prefix ? `${year}-${prefix}-${num}` : `${year}-${num}`;
+}
+
+export function buildOrderConfirmationNumber(
   year: number,
   sequence: number,
   prefix: string,

@@ -47,6 +47,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Mail,
+  FileCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -61,6 +62,9 @@ import {
   deleteQuote,
   sendQuoteEmail,
   sendInvoiceEmail,
+  createOrderConfirmation,
+  deleteOrderConfirmation,
+  sendOrderConfirmationEmail,
 } from "./finances-actions";
 import { toastError } from "@/lib/toast";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
@@ -133,6 +137,32 @@ export interface FinancesQuoteVM {
   emailSentTo: string | null;
 }
 
+export interface FinancesOrderConfirmationVM {
+  id: string;
+  number: string;
+  date: string;
+  totalNet: number;
+  totalGross: number | null;
+  /** Nummer des Angebots, auf das sich die Bestätigung bezieht. */
+  quoteNumber: string | null;
+  emailSentAt: string | null;
+  emailSentTo: string | null;
+}
+
+type SendDocKind = "quote" | "orderConfirmation" | "invoice";
+
+const DOC_LABEL: Record<SendDocKind, string> = {
+  quote: "Angebot",
+  orderConfirmation: "Auftragsbestätigung",
+  invoice: "Rechnung",
+};
+
+const DOC_PDF_PATH: Record<SendDocKind, string> = {
+  quote: "quotes",
+  orderConfirmation: "order-confirmations",
+  invoice: "invoices",
+};
+
 interface Props {
   projectId: string;
   projectName: string;
@@ -142,6 +172,7 @@ interface Props {
   servicesDiscountPercent: number;
   invoices: FinancesInvoiceVM[];
   quotes: FinancesQuoteVM[];
+  orderConfirmations: FinancesOrderConfirmationVM[];
   invoiceDueDays: number;
   quoteValidityDays: number;
   /** Interne Zusatzkosten (Zumietung + Extrakosten) für die Ergebnis-Ansicht. */
@@ -157,6 +188,8 @@ interface Props {
   currentUserEmail: string;
   quoteEmailSubjectTemplate: string;
   quoteEmailBodyTemplate: string;
+  orderConfirmationEmailSubjectTemplate: string;
+  orderConfirmationEmailBodyTemplate: string;
   invoiceEmailSubjectTemplate: string;
   invoiceEmailBodyTemplate: string;
 }
@@ -170,6 +203,7 @@ export function FinancesSection({
   servicesDiscountPercent,
   invoices,
   quotes,
+  orderConfirmations,
   invoiceDueDays,
   quoteValidityDays,
   subhireTotal,
@@ -181,6 +215,8 @@ export function FinancesSection({
   currentUserEmail,
   quoteEmailSubjectTemplate,
   quoteEmailBodyTemplate,
+  orderConfirmationEmailSubjectTemplate,
+  orderConfirmationEmailBodyTemplate,
   invoiceEmailSubjectTemplate,
   invoiceEmailBodyTemplate,
 }: Props) {
@@ -188,12 +224,14 @@ export function FinancesSection({
   const saveStatus = useTransitionSaveStatus(pending);
   const [invoiceDialog, setInvoiceDialog] = useState(false);
   const [quoteDialog, setQuoteDialog] = useState(false);
+  const [ocDialog, setOcDialog] = useState(false);
+  const [deleteOc, setDeleteOc] = useState<FinancesOrderConfirmationVM | null>(null);
   const [deleteInv, setDeleteInv] = useState<FinancesInvoiceVM | null>(null);
   const [deleteQ, setDeleteQ] = useState<FinancesQuoteVM | null>(null);
-  // Nach dem Erstellen eines Angebots/einer Rechnung: Wahl zwischen
-  // Herunterladen und Per-E-Mail-Senden (siehe SendOrDownloadDialog unten).
+  // Nach dem Erstellen eines Dokuments: Wahl zwischen Herunterladen und
+  // Per-E-Mail-Senden (siehe SendOrDownloadDialog unten).
   const [sendDoc, setSendDoc] = useState<
-    { kind: "quote" | "invoice"; id: string; number: string } | null
+    { kind: SendDocKind; id: string; number: string } | null
   >(null);
   const [expanded, setExpanded] = useState<Set<"MATERIAL" | "SERVICE">>(
     new Set(["MATERIAL", "SERVICE"])
@@ -312,6 +350,20 @@ export function FinancesSection({
         await deleteInvoice(id);
         toast.success("Rechnung gelöscht");
         setDeleteInv(null);
+      } catch (e) {
+        toastError(e, "Löschen");
+      }
+    });
+  }
+
+  function handleDeleteOrderConfirmation() {
+    if (!deleteOc) return;
+    const id = deleteOc.id;
+    startTransition(async () => {
+      try {
+        await deleteOrderConfirmation(id);
+        toast.success("Auftragsbestätigung gelöscht");
+        setDeleteOc(null);
       } catch (e) {
         toastError(e, "Löschen");
       }
@@ -471,6 +523,9 @@ export function FinancesSection({
         <AutoSaveIndicator status={saveStatus} className="mr-auto" />
         <Button variant="outline" onClick={() => setQuoteDialog(true)}>
           <FileText className="h-4 w-4" /> Angebot erstellen
+        </Button>
+        <Button variant="outline" onClick={() => setOcDialog(true)}>
+          <FileCheck className="h-4 w-4" /> Auftragsbestätigung erstellen
         </Button>
         <Button onClick={() => setInvoiceDialog(true)}>
           <Receipt className="h-4 w-4" /> Rechnung erstellen
@@ -656,6 +711,14 @@ export function FinancesSection({
         />
       )}
 
+      {orderConfirmations.length > 0 && (
+        <OrderConfirmationsCard
+          orderConfirmations={orderConfirmations}
+          projectId={projectId}
+          onDelete={(oc) => setDeleteOc(oc)}
+        />
+      )}
+
       {invoices.length > 0 && (
         <Card className="overflow-hidden">
           <CardHeader>
@@ -765,6 +828,18 @@ export function FinancesSection({
         onCreated={(id, number) => setSendDoc({ kind: "quote", id, number })}
       />
 
+      <OrderConfirmationDialog
+        open={ocDialog}
+        onOpenChange={setOcDialog}
+        projectId={projectId}
+        projectName={projectName}
+        defaultTotal={grandTotal}
+        quotes={quotes.filter((q) => !q.supersededByQuoteId)}
+        onCreated={(id, number) =>
+          setSendDoc({ kind: "orderConfirmation", id, number })
+        }
+      />
+
       <SendOrDownloadDialog
         open={sendDoc !== null}
         onOpenChange={(o) => !o && setSendDoc(null)}
@@ -777,12 +852,16 @@ export function FinancesSection({
         subjectTemplate={
           sendDoc?.kind === "invoice"
             ? invoiceEmailSubjectTemplate
-            : quoteEmailSubjectTemplate
+            : sendDoc?.kind === "orderConfirmation"
+              ? orderConfirmationEmailSubjectTemplate
+              : quoteEmailSubjectTemplate
         }
         bodyTemplate={
           sendDoc?.kind === "invoice"
             ? invoiceEmailBodyTemplate
-            : quoteEmailBodyTemplate
+            : sendDoc?.kind === "orderConfirmation"
+              ? orderConfirmationEmailBodyTemplate
+              : quoteEmailBodyTemplate
         }
         templateVars={{
           kunde: customerName ?? "",
@@ -808,6 +887,24 @@ export function FinancesSection({
         confirmLabel="Löschen"
         pending={pending}
         onConfirm={handleDeleteInvoice}
+      />
+
+      <ConfirmDialog
+        open={deleteOc !== null}
+        onOpenChange={(o) => !o && setDeleteOc(null)}
+        title="Auftragsbestätigung löschen?"
+        description={
+          deleteOc && (
+            <>
+              Auftragsbestätigung <strong>{deleteOc.number}</strong> über{" "}
+              <strong>{formatCurrency(deleteOc.totalGross ?? deleteOc.totalNet)}</strong> brutto wird gelöscht.
+              Die Nummer wird nicht wiederverwendet.
+            </>
+          )
+        }
+        confirmLabel="Löschen"
+        pending={pending}
+        onConfirm={handleDeleteOrderConfirmation}
       />
 
       <ConfirmDialog
@@ -1340,12 +1437,13 @@ function QuoteDialog({
 }
 
 /**
- * Wird direkt nach dem Erstellen eines Angebots/einer Rechnung geöffnet:
+ * Wird direkt nach dem Erstellen eines Angebots/einer Auftragsbestätigung/
+ * einer Rechnung geöffnet:
  * erste Wahl zwischen Herunterladen und Per-E-Mail-Senden. Bei Letzterem
  * klappt ein Formular auf, vorbefüllt aus den globalen Textvorlagen
  * (Platzhalter bereits ersetzt) — vor dem Versand noch editierbar. Kopie
  * geht immer automatisch an den angemeldeten Nutzer (siehe sendQuoteEmail/
- * sendInvoiceEmail).
+ * sendOrderConfirmationEmail/sendInvoiceEmail).
  */
 function SendOrDownloadDialog({
   open,
@@ -1362,7 +1460,7 @@ function SendOrDownloadDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  kind: "quote" | "invoice" | null;
+  kind: SendDocKind | null;
   documentId: string | null;
   documentNumber: string | null;
   projectId: string;
@@ -1391,8 +1489,8 @@ function SendOrDownloadDialog({
 
   if (!kind || !documentId || !documentNumber) return null;
 
-  const label = kind === "quote" ? "Angebot" : "Rechnung";
-  const pdfUrl = `/api/projects/${projectId}/${kind === "quote" ? "quotes" : "invoices"}/${documentId}/pdf?download=1`;
+  const label = DOC_LABEL[kind];
+  const pdfUrl = `/api/projects/${projectId}/${DOC_PDF_PATH[kind]}/${documentId}/pdf?download=1`;
 
   function handleDownload() {
     triggerDownload(pdfUrl);
@@ -1405,6 +1503,8 @@ function SendOrDownloadDialog({
       try {
         if (kind === "quote") {
           await sendQuoteEmail(documentId!, to, subject, body);
+        } else if (kind === "orderConfirmation") {
+          await sendOrderConfirmationEmail(documentId!, to, subject, body);
         } else {
           await sendInvoiceEmail(documentId!, to, subject, body);
         }
@@ -1630,6 +1730,211 @@ function QuotesCard({
                 </TableRow>
               );
             })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OrderConfirmationDialog({
+  open,
+  onOpenChange,
+  projectId,
+  projectName,
+  defaultTotal,
+  quotes,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  projectId: string;
+  projectName: string;
+  defaultTotal: number;
+  /** Aktive (nicht ersetzte) Angebote des Projekts als möglicher Bezug. */
+  quotes: FinancesQuoteVM[];
+  onCreated: (id: string, number: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [notes, setNotes] = useState("");
+  const [quoteId, setQuoteId] = useState("none");
+
+  // Beim Öffnen: angenommenes Angebot als Bezug vorschlagen, sonst das neueste.
+  useEffect(() => {
+    if (!open) return;
+    setNotes("");
+    const preferred = quotes.find((q) => q.acceptedAt) ?? quotes[0];
+    setQuoteId(preferred?.id ?? "none");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    startTransition(async () => {
+      try {
+        const oc = await createOrderConfirmation(
+          projectId,
+          quoteId === "none" ? null : quoteId,
+          notes
+        );
+        toast.success(`Auftragsbestätigung ${oc.number} angelegt`);
+        onCreated(oc.id, oc.number);
+        onOpenChange(false);
+      } catch (err) {
+        toastError(err, "Speichern");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>Auftragsbestätigung erstellen</DialogTitle>
+          <DialogDescription>
+            Für Projekt <strong>{projectName}</strong>. Positionen wie im Angebot,
+            Nummer wird automatisch fortlaufend vergeben.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Auftragssumme (netto)</span>
+              <span className="num-strong">{formatCurrency(defaultTotal)}</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="oc-quote">Bezug auf Angebot</Label>
+              <InfoHint text={'Erscheint im PDF als „Bezug: Angebot … vom …".'} />
+            </div>
+            <Select value={quoteId} onValueChange={setQuoteId}>
+              <SelectTrigger id="oc-quote">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Kein Bezug —</SelectItem>
+                {quotes.map((q) => (
+                  <SelectItem key={q.id} value={q.id}>
+                    {q.number} vom {formatDate(q.date)}
+                    {q.acceptedAt ? " (angenommen)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="oc-notes">Hinweis (optional)</Label>
+              <InfoHint text="Wird im PDF direkt nach der Positionstabelle ausgegeben, vor dem Schlusstext." />
+            </div>
+            <Textarea
+              id="oc-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Z.B. vereinbarte Aufbauzeiten, Ansprechpartner vor Ort…"
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={pending}
+            >
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Erstellen
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function OrderConfirmationsCard({
+  orderConfirmations,
+  projectId,
+  onDelete,
+}: {
+  orderConfirmations: FinancesOrderConfirmationVM[];
+  projectId: string;
+  onDelete: (oc: FinancesOrderConfirmationVM) => void;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>Erstellte Auftragsbestätigungen</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table density="dense">
+          <TableHeader>
+            <TableRow className="hover:bg-secondary">
+              <TableHead>Nummer</TableHead>
+              <TableHead className="w-[100px]">Datum</TableHead>
+              <TableHead className="w-[140px]">Bezug</TableHead>
+              <TableHead className="w-[110px] text-right">Netto</TableHead>
+              <TableHead className="w-[110px] text-right">Brutto</TableHead>
+              <TableHead className="w-[76px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {orderConfirmations.map((oc) => (
+              <TableRow key={oc.id}>
+                <TableCell className="font-mono">
+                  <span className="flex items-center gap-2">
+                    {oc.number}
+                    {oc.emailSentAt && (
+                      <Badge
+                        variant="secondary"
+                        size="sm"
+                        className="gap-1"
+                        title={`Per E-Mail versendet am ${formatDate(oc.emailSentAt)}${oc.emailSentTo ? ` an ${oc.emailSentTo}` : ""}`}
+                      >
+                        <Mail className="h-3 w-3" /> Versendet
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell>{formatDate(oc.date)}</TableCell>
+                <TableCell className="font-mono text-muted-foreground">
+                  {oc.quoteNumber ?? "—"}
+                </TableCell>
+                <TableCell className="text-right num text-sm text-muted-foreground">
+                  {formatCurrency(oc.totalNet)}
+                </TableCell>
+                <TableCell className="text-right num text-sm font-medium">
+                  {formatCurrency(oc.totalGross ?? oc.totalNet)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-1">
+                    <Button asChild variant="ghost" size="iconXs">
+                      <a
+                        href={`/api/projects/${projectId}/order-confirmations/${oc.id}/pdf?download=1`}
+                        download
+                        rel="noopener"
+                        title="PDF herunterladen"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="iconXs"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => onDelete(oc)}
+                      title="Auftragsbestätigung löschen"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </CardContent>

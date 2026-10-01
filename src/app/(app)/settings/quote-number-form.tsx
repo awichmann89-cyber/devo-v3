@@ -8,11 +8,35 @@ import { Label } from "@/components/ui/label";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import { saveQuoteNumberSettings } from "./settings-actions";
+import {
+  saveQuoteNumberSettings,
+  saveOrderConfirmationNumberSettings,
+} from "./settings-actions";
 import { buildQuoteNumber } from "@/lib/settings";
 import { toastError } from "@/lib/toast";
 
+const VARIANTS = {
+  quote: {
+    save: saveQuoteNumberSettings,
+    idPrefix: "q",
+    placeholder: "z.B. AN",
+    nextHint: "Sequenz, mit der das nächste Angebot erstellt wird.",
+    previewLabel: "Vorschau für das nächste Angebot",
+    successMessage: "Angebotsnummer-Einstellungen gespeichert",
+  },
+  orderConfirmation: {
+    save: saveOrderConfirmationNumberSettings,
+    idPrefix: "oc",
+    placeholder: "z.B. AB",
+    nextHint: "Sequenz, mit der die nächste Auftragsbestätigung erstellt wird.",
+    previewLabel: "Vorschau für die nächste Auftragsbestätigung",
+    successMessage: "Nummern-Einstellungen gespeichert",
+  },
+} as const;
+
 interface Props {
+  /** Welcher Nummernkreis — Angebot (Default) oder Auftragsbestätigung. */
+  variant?: keyof typeof VARIANTS;
   initialPrefix: string;
   initialPadding: number;
   initialNextSequence: number;
@@ -21,6 +45,7 @@ interface Props {
 }
 
 export function QuoteNumberForm({
+  variant = "quote",
   initialPrefix,
   initialPadding,
   initialNextSequence,
@@ -31,6 +56,7 @@ export function QuoteNumberForm({
   const [padding, setPadding] = useState(initialPadding);
   const [nextSeq, setNextSeq] = useState(initialNextSequence);
   const [pending, startTransition] = useTransition();
+  const v = VARIANTS[variant];
 
   const effectiveNext = Math.max(nextSeq, currentYearMax + 1);
   const preview = buildQuoteNumber(
@@ -44,8 +70,8 @@ export function QuoteNumberForm({
     e.preventDefault();
     startTransition(async () => {
       try {
-        await saveQuoteNumberSettings(prefix, padding, nextSeq);
-        toast.success("Angebotsnummer-Einstellungen gespeichert");
+        await v.save(prefix, padding, nextSeq);
+        toast.success(v.successMessage);
       } catch (err) {
         toastError(err, "Speichern");
       }
@@ -59,24 +85,24 @@ export function QuoteNumberForm({
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="qprefix">Prefix (optional)</Label>
+            <Label htmlFor={`${v.idPrefix}prefix`}>Prefix (optional)</Label>
             <InfoHint text="Großbuchstaben, Zahlen, Bindestriche." />
           </div>
           <Input
-            id="qprefix"
+            id={`${v.idPrefix}prefix`}
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
-            placeholder="z.B. AN"
+            placeholder={v.placeholder}
             maxLength={10}
           />
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="qpadding">Stellen für Sequenz</Label>
+            <Label htmlFor={`${v.idPrefix}padding`}>Stellen für Sequenz</Label>
             <InfoHint text="3 → 001, 4 → 0001." />
           </div>
           <QuantityInput
-            id="qpadding"
+            id={`${v.idPrefix}padding`}
             min={1}
             max={8}
             value={padding}
@@ -85,11 +111,11 @@ export function QuoteNumberForm({
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="qnextSeq">Nächste Nummer</Label>
-            <InfoHint text="Sequenz, mit der das nächste Angebot erstellt wird." />
+            <Label htmlFor={`${v.idPrefix}nextSeq`}>Nächste Nummer</Label>
+            <InfoHint text={v.nextHint} />
           </div>
           <QuantityInput
-            id="qnextSeq"
+            id={`${v.idPrefix}nextSeq`}
             min={1}
             value={nextSeq}
             onChange={(v) => setNextSeq(v)}
@@ -108,7 +134,7 @@ export function QuoteNumberForm({
 
       <div className="rounded-md border bg-muted/30 p-3 text-sm">
         <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-          Vorschau für das nächste Angebot
+          {v.previewLabel}
         </div>
         <div className="font-mono text-base font-medium">{preview}</div>
         {currentYearMax > 0 && (

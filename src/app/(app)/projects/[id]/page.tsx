@@ -57,6 +57,10 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         },
         invoices: { orderBy: { date: "desc" } },
         quotes: { orderBy: { date: "desc" } },
+        orderConfirmations: {
+          orderBy: { date: "desc" },
+          include: { quote: { select: { number: true } } },
+        },
         services: {
           include: {
             serviceItem: true,
@@ -1077,6 +1081,16 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               emailSentAt: q.emailSentAt ? q.emailSentAt.toISOString() : null,
               emailSentTo: q.emailSentTo,
             }))}
+            orderConfirmations={project.orderConfirmations.map((oc) => ({
+              id: oc.id,
+              number: oc.number,
+              date: oc.date.toISOString(),
+              totalNet: Number(oc.totalNet),
+              totalGross: oc.totalGross !== null ? Number(oc.totalGross) : null,
+              quoteNumber: oc.quote?.number ?? null,
+              emailSentAt: oc.emailSentAt ? oc.emailSentAt.toISOString() : null,
+              emailSentTo: oc.emailSentTo,
+            }))}
             invoiceDueDays={Number(appSettings.invoiceDueDays) || 7}
             quoteValidityDays={Number(appSettings.quoteValidityDays) || 14}
             subhireTotal={subhireTotal}
@@ -1088,6 +1102,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             currentUserEmail={session?.user.email ?? ""}
             quoteEmailSubjectTemplate={appSettings.quoteEmailSubject}
             quoteEmailBodyTemplate={appSettings.quoteEmailBody}
+            orderConfirmationEmailSubjectTemplate={appSettings.orderConfirmationEmailSubject}
+            orderConfirmationEmailBodyTemplate={appSettings.orderConfirmationEmailBody}
             invoiceEmailSubjectTemplate={appSettings.invoiceEmailSubject}
             invoiceEmailBodyTemplate={appSettings.invoiceEmailBody}
           />

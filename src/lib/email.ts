@@ -371,7 +371,7 @@ export async function sendInvoiceOverdueEmail(
 }
 
 export interface SendDocumentEmailParams {
-  kind: "quote" | "invoice";
+  kind: "quote" | "invoice" | "orderConfirmation";
   documentNumber: string;
   to: string;
   /**
@@ -391,7 +391,7 @@ export interface SendDocumentEmailParams {
 }
 
 /**
- * Verschickt ein Angebots-/Rechnungs-PDF als E-Mail-Anhang an den Kunden,
+ * Verschickt ein Angebots-/Auftragsbestätigungs-/Rechnungs-PDF als E-Mail-Anhang an den Kunden,
  * mit BCC-Kopie an den sendenden Nutzer und dessen Adresse als Reply-To
  * (Antworten landen so beim zuständigen Nutzer, nicht bei der Service-
  * Absenderadresse). Anders als die reinen Benachrichtigungs-Mails oben wird
@@ -403,7 +403,12 @@ export async function sendDocumentEmail(
   params: SendDocumentEmailParams,
 ): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  const label = params.kind === "quote" ? "Angebot" : "Rechnung";
+  const label =
+    params.kind === "quote"
+      ? "Angebot"
+      : params.kind === "orderConfirmation"
+        ? "Auftragsbestätigung"
+        : "Rechnung";
   if (!apiKey) {
     console.warn(
       `[email] RESEND_API_KEY nicht gesetzt — Versand von ${label} ${params.documentNumber} übersprungen.`,

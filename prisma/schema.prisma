@@ -387,6 +387,7 @@ model Project {
   invoices           Invoice[]
   // Erzeugte Angebote
   quotes             Quote[]
+  orderConfirmations OrderConfirmation[]
   // Token für die Public-Scan-Seite (/scan/[token]) zum Abhaken beim Packen.
   // Lazy generiert, beim Klick auf "Token neu generieren" zurückgesetzt.
   packToken          String?                  @unique
@@ -710,6 +711,7 @@ model Quote {
   supersededByQuoteId String?
   supersededByQuote   Quote?  @relation("QuoteSupersession", fields: [supersededByQuoteId], references: [id], onDelete: SetNull)
   supersededQuotes    Quote[] @relation("QuoteSupersession")
+  orderConfirmations  OrderConfirmation[]
 
   // Zeitpunkt/Empfänger des letzten Versands per E-Mail aus der App heraus
   // (nicht zu verwechseln mit acceptedByEmail — das ist die Adresse, die der
@@ -723,6 +725,36 @@ model Quote {
   @@index([date])
   @@index([expiresAt])
   @@index([supersededByQuoteId])
+}
+
+// Auftragsbestätigung an einem Projekt — eigener Nummernkreis, Aufbau wie das
+// Angebot (Positionen aus dem Snapshot), aber ohne Gültigkeit und ohne
+// Online-Annahme. Mehrere pro Projekt möglich (z.B. nach Auftragsänderung).
+model OrderConfirmation {
+  id         String   @id @default(cuid())
+  number     String   @unique
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  // Angebot, auf das sich die Bestätigung bezieht („Bezug: Angebot …" im PDF).
+  // Beim Löschen des Angebots bleibt die Bestätigung erhalten.
+  quoteId    String?
+  quote      Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  date       DateTime @default(now())
+  totalNet   Decimal  @db.Decimal(10, 2)
+  totalGross Decimal? @db.Decimal(10, 2)
+  vatPercent Decimal  @default(0) @db.Decimal(5, 2)
+  // Freitext-Hinweis aus dem Dialog, im PDF nach der Positionstabelle.
+  notes      String?
+  // Render-Daten zum Zeitpunkt der Erstellung — siehe Invoice.snapshot.
+  snapshot   Json?
+  // Zeitpunkt/Empfänger des letzten Versands per E-Mail aus der App heraus.
+  emailSentAt DateTime?
+  emailSentTo String?
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([date])
+  @@index([quoteId])
 }
 
 // Art einer Service-/Personalposition (rein zur Gruppierung)

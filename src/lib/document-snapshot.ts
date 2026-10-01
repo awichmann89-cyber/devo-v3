@@ -106,7 +106,8 @@ export interface DocumentSnapshot {
     companyName: string;
     companyStreet: string;
     companyZipCity: string;
-    /** Nur für Angebote relevant — bei Rechnungen leer. */
+    /** Einleitungs-/Schlusstext für Angebot bzw. Auftragsbestätigung (je nach
+     *  Dokument aus den passenden Einstellungen) — bei Rechnungen leer. */
     quoteIntroText: string;
     quoteOutroText: string;
     /** Akzentfarbe als Hex-String, z.B. "#1e3a8a". Für Gruppen-Header & Trennstrich. */

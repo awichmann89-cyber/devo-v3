@@ -5,7 +5,9 @@
  *
  * Neues Feature ankündigen: Eintrag OBEN einfügen. Die `id` muss mit dem Datum
  * beginnen (YYYY-MM-DD-…), weil die Reihenfolge per Stringvergleich bestimmt
- * wird. Kurz halten — ein Satz Einleitung, höchstens drei Schritte.
+ * wird. Mehrere am selben Tag: Buchstabe ans Datum hängen (2026-09-30b-…),
+ * NICHT an den Rest der Id. Kurz halten — ein Satz Einleitung, höchstens drei
+ * Schritte.
  */
 export interface Announcement {
   id: string;
@@ -15,6 +17,17 @@ export interface Announcement {
 }
 
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: "2026-09-30b-auftragsbestaetigung",
+    title: "Auftragsbestätigungen",
+    intro:
+      "Im Finanzen-Tab eines Projekts kannst du jetzt neben Angeboten und Rechnungen auch Auftragsbestätigungen erstellen.",
+    steps: [
+      "Im Projekt unter „Finanzen“ auf „Auftragsbestätigung erstellen“ klicken und das Angebot wählen, auf das sie sich bezieht.",
+      "Danach herunterladen oder direkt per E-Mail an den Kunden senden.",
+      "Nummernformat, PDF-Texte und E-Mail-Vorlage findest du in den Einstellungen unter „Auftragsbestätigungen“ bzw. „E-Mail“.",
+    ],
+  },
   {
     id: "2026-09-30-zweite-namenszeile",
     title: "Zweite Namenszeile für Kunden",

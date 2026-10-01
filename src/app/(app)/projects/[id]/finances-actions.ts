@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { Prisma } from "@prisma/client";
-import { getSettings, buildInvoiceNumber, buildQuoteNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
+import { getSettings, buildInvoiceNumber, buildQuoteNumber, buildOrderConfirmationNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeOrderConfirmationNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
 import { buildSnapshotFromProject } from "@/lib/document-snapshot";
 import { buildQuotePdf } from "@/lib/quote-pdf";
 import { buildInvoicePdf } from "@/lib/invoice-pdf";
+import { buildOrderConfirmationPdf } from "@/lib/order-confirmation-pdf";
 import { sendDocumentEmail, getBaseUrl } from "@/lib/email";
 
 /**
@@ -556,5 +557,144 @@ export async function sendInvoiceEmail(
   });
   revalidatePath(`/projects/${built.invoice.projectId}`);
   revalidatePath("/finances/invoices");
+  return { sentAt, sentTo: trimmedTo };
+}
+
+/**
+ * Legt eine Auftragsbestätigung an. Eigener Nummernkreis, Positionen und
+ * Summen werden wie beim Angebot als Snapshot eingefroren. `quoteId` ist das
+ * Angebot, auf das sich die Bestätigung bezieht (optional).
+ */
+export async function createOrderConfirmation(
+  projectId: string,
+  quoteId: string | null,
+  notes?: string | null
+): Promise<{ id: string; number: string }> {
+  await requireRole(CAN_WRITE);
+
+  const year = new Date().getFullYear();
+  const settings = await getSettings();
+  const prefix = settings.orderConfirmationNumberPrefix.trim();
+  const padding = Math.max(1, Math.min(8, Number(settings.orderConfirmationNumberPadding) || 3));
+  const minSequence = Math.max(1, Number(settings.orderConfirmationNumberNextSequence) || 1);
+  const vatPercent = Math.max(0, Math.min(100, Number(settings.vatPercent) || 0));
+
+  if (quoteId) {
+    const q = await prisma.quote.findUnique({
+      where: { id: quoteId },
+      select: { projectId: true },
+    });
+    if (!q || q.projectId !== projectId) throw new Error("Angebot nicht gefunden");
+  }
+
+  const yearDocs = await prisma.orderConfirmation.findMany({
+    where: { number: { startsWith: `${year}-` } },
+    select: { number: true },
+  });
+  let maxSeq = 0;
+  for (const r of yearDocs) {
+    const m = r.number.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+  const number = buildOrderConfirmationNumber(
+    year,
+    Math.max(maxSeq + 1, minSequence),
+    prefix,
+    padding
+  );
+
+  const project = await loadProjectForSnapshot(projectId);
+  if (!project) throw new Error("Projekt nicht gefunden");
+  const snap = buildSnapshotFromProject(project, {
+    vatPercent: settings.vatPercent,
+    companyName: settings.companyName,
+    companyStreet: settings.companyStreet,
+    companyZipCity: settings.companyZipCity,
+    dayFactorMap: settings.dayFactorMap,
+    quoteIntroText: settings.orderConfirmationIntroText,
+    quoteOutroText: settings.orderConfirmationOutroText,
+    pdfAccentColor: settings.pdfAccentColor,
+  });
+
+  const totalNetDec = new Prisma.Decimal(snap.totals.totalNet);
+  const totalGrossDec = totalNetDec.mul(new Prisma.Decimal(1 + vatPercent / 100));
+
+  const oc = await prisma.orderConfirmation.create({
+    data: {
+      projectId,
+      quoteId,
+      number,
+      date: new Date(),
+      totalNet: totalNetDec,
+      totalGross: totalGrossDec,
+      vatPercent: new Prisma.Decimal(vatPercent),
+      notes: notes?.trim() || null,
+      snapshot: snap as unknown as Prisma.InputJsonValue,
+    },
+    select: { id: true, number: true },
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+  return oc;
+}
+
+export async function deleteOrderConfirmation(orderConfirmationId: string) {
+  await requireRole(CAN_WRITE);
+  const oc = await prisma.orderConfirmation.delete({
+    where: { id: orderConfirmationId },
+    select: { projectId: true },
+  });
+  // Nummer freigeben, falls die gelöschte die höchste war
+  await recomputeOrderConfirmationNextSequence();
+  revalidatePath(`/projects/${oc.projectId}`);
+  revalidatePath("/settings");
+}
+
+/**
+ * Verschickt eine Auftragsbestätigung als PDF-Anhang per E-Mail. Siehe
+ * sendQuoteEmail für Details zum Verhalten bei Fehlschlag.
+ */
+export async function sendOrderConfirmationEmail(
+  orderConfirmationId: string,
+  to: string,
+  subject: string,
+  body: string
+): Promise<{ sentAt: Date; sentTo: string }> {
+  const session = await requireRole(CAN_WRITE);
+  const trimmedTo = to.trim();
+  if (!trimmedTo) throw new Error("Bitte eine Empfänger-Adresse angeben");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, signatureHtml: true },
+  });
+  if (!user) throw new Error("Nutzer nicht gefunden");
+
+  const built = await buildOrderConfirmationPdf(orderConfirmationId);
+  if (!built) throw new Error("Auftragsbestätigung nicht gefunden");
+
+  const ok = await sendDocumentEmail({
+    kind: "orderConfirmation",
+    documentNumber: built.orderConfirmation.number,
+    to: trimmedTo,
+    senderEmail: user.email,
+    subject,
+    bodyText: body,
+    signatureHtml: user.signatureHtml,
+    attachment: { filename: built.filename, bytes: built.bytes },
+  });
+  if (!ok) {
+    throw new Error("E-Mail-Versand fehlgeschlagen. Bitte später erneut versuchen.");
+  }
+
+  const sentAt = new Date();
+  await prisma.orderConfirmation.update({
+    where: { id: orderConfirmationId },
+    data: { emailSentAt: sentAt, emailSentTo: trimmedTo },
+  });
+  revalidatePath(`/projects/${built.orderConfirmation.projectId}`);
   return { sentAt, sentTo: trimmedTo };
 }
