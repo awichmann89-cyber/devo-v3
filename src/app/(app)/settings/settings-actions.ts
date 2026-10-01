@@ -3,19 +3,69 @@
 import { revalidatePath } from "next/cache";
 import { requireRole, CAN_ADMIN } from "@/lib/auth-helpers";
 import { setSetting, SettingKey } from "@/lib/settings";
+import {
+  COMPANY_FOOTER_TOGGLE_KEY,
+  type CompanyFooterDocument,
+} from "@/lib/company-footer";
 
-export async function saveCompanyAddress(
-  name: string,
-  street: string,
-  zipCity: string,
-  vatPercent: number
+export interface CompanyDataInput {
+  name: string;
+  street: string;
+  zipCity: string;
+  vatPercent: number;
+  phone: string;
+  email: string;
+  website: string;
+  management: string;
+  register: string;
+  taxNumber: string;
+  vatId: string;
+  bankAccountHolder: string;
+  bankName: string;
+  bankIban: string;
+  bankBic: string;
+}
+
+export async function saveCompanyData(data: CompanyDataInput) {
+  await requireRole(CAN_ADMIN);
+  const text = (v: string | undefined, max = 200) => (v ?? "").trim().slice(0, max);
+  const iban = (data.bankIban ?? "").replace(/\s+/g, "").toUpperCase().slice(0, 34);
+  if (iban && !/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(iban)) {
+    throw new Error("IBAN ungültig — erwartet z.B. DE12 3456 7890 1234 5678 90.");
+  }
+  const bic = (data.bankBic ?? "").replace(/\s+/g, "").toUpperCase().slice(0, 11);
+  const values: Partial<Record<SettingKey, string>> = {
+    companyName: text(data.name),
+    companyStreet: text(data.street),
+    companyZipCity: text(data.zipCity),
+    companyPhone: text(data.phone, 50),
+    companyEmail: text(data.email),
+    companyWebsite: text(data.website),
+    companyManagement: text(data.management),
+    companyRegister: text(data.register),
+    companyTaxNumber: text(data.taxNumber, 50),
+    companyVatId: text(data.vatId, 50),
+    bankAccountHolder: text(data.bankAccountHolder),
+    bankName: text(data.bankName),
+    bankIban: iban,
+    bankBic: bic,
+    vatPercent: String(Math.max(0, Math.min(100, Number(data.vatPercent) || 0))),
+  };
+  for (const [key, value] of Object.entries(values)) {
+    await setSetting(key as SettingKey, value ?? "");
+  }
+  revalidatePath("/settings");
+}
+
+/** Schalter „Firmendaten in der Fußzeile drucken" pro Dokumentart. */
+export async function saveCompanyFooterToggle(
+  document: CompanyFooterDocument,
+  enabled: boolean
 ) {
   await requireRole(CAN_ADMIN);
-  await setSetting("companyName" as SettingKey, (name ?? "").trim().slice(0, 200));
-  await setSetting("companyStreet" as SettingKey, (street ?? "").trim().slice(0, 200));
-  await setSetting("companyZipCity" as SettingKey, (zipCity ?? "").trim().slice(0, 200));
-  const vat = Math.max(0, Math.min(100, Number(vatPercent) || 0));
-  await setSetting("vatPercent" as SettingKey, String(vat));
+  const key = COMPANY_FOOTER_TOGGLE_KEY[document];
+  if (!key) throw new Error("Unbekannte Dokumentart");
+  await setSetting(key, enabled ? "1" : "0");
   revalidatePath("/settings");
 }
 

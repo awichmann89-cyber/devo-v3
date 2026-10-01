@@ -112,6 +112,9 @@ export interface DocumentSnapshot {
     quoteOutroText: string;
     /** Akzentfarbe als Hex-String, z.B. "#1e3a8a". Für Gruppen-Header & Trennstrich. */
     pdfAccentColor: string;
+    /** Spalten der Firmendaten-Fußzeile (Bank, Steuernummer …). Leer bzw.
+     *  bei Alt-Snapshots fehlend = keine Fußzeile drucken. */
+    companyFooter?: string[][];
   };
 
   /** Zur Anzeige berechnete Summen — informativ, wird beim Rendern neu berechnet. */
@@ -146,6 +149,8 @@ export interface SettingsForSnapshot {
   quoteIntroText?: string | null;
   quoteOutroText?: string | null;
   pdfAccentColor?: string | null;
+  /** Fußzeilen-Spalten aus `companyFooterFor` — null = keine Fußzeile. */
+  companyFooter?: string[][] | null;
 }
 
 /**
@@ -398,6 +403,7 @@ export function buildSnapshotFromProject(
       quoteIntroText: (settings.quoteIntroText ?? "").trim(),
       quoteOutroText: (settings.quoteOutroText ?? "").trim(),
       pdfAccentColor: (settings.pdfAccentColor ?? "").trim() || "#1e3a8a",
+      companyFooter: settings.companyFooter ?? [],
     },
     totals: {
       totalNet: round2(totalNet),

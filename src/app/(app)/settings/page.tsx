@@ -13,9 +13,11 @@ import { EmailTextsForm } from "./email-texts-form";
 import { DayFactorForm } from "./day-factor-form";
 import { parseDayFactorMap } from "@/lib/settings";
 import { LetterheadForm } from "./letterhead-form";
-import { CompanyAddressForm } from "./company-address-form";
+import { CompanyDataForm } from "./company-data-form";
+import { CompanyFooterToggle } from "./company-footer-toggle";
 import { PdfAccentColorForm } from "./pdf-accent-color-form";
 import { getSettings } from "@/lib/settings";
+import { formatIban } from "@/lib/company-footer";
 import { DaysSettingForm } from "./days-setting-form";
 import { saveInvoiceDueDays, saveQuoteValidityDays } from "./settings-actions";
 
@@ -110,7 +112,7 @@ export default async function SettingsPage() {
             <FileText className="h-4 w-4" /> Briefpapier
           </TabsTrigger>
           <TabsTrigger value="company">
-            <Building2 className="h-4 w-4" /> Firmenadresse
+            <Building2 className="h-4 w-4" /> Firmendaten
           </TabsTrigger>
           <TabsTrigger value="email">
             <Mail className="h-4 w-4" /> E-Mail
@@ -143,28 +145,41 @@ export default async function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Firmenadresse (Versender)
+                Firmendaten
                 <InfoHint
                   text={
                     <>
-                      Wird auf Rechnungen und Angeboten oben im Anschriftenfeld
-                      als Versenderzeile nach Briefnorm angezeigt (z.B.{" "}
-                      <em>Musterfirma GmbH · Musterstr. 1 · 12345 Berlin</em>).
+                      Name und Anschrift erscheinen auf Rechnungen und Angeboten
+                      oben im Anschriftenfeld als Versenderzeile nach Briefnorm
+                      (z.B. <em>Musterfirma GmbH · Musterstr. 1 · 12345 Berlin</em>).
+                      Kontakt, Bankverbindung und Steuerangaben können optional
+                      als Fußzeile gedruckt werden.
                     </>
                   }
                 />
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CompanyAddressForm
-                initialName={settings.companyName}
-                initialStreet={settings.companyStreet}
-                initialZipCity={settings.companyZipCity}
-                initialVatPercent={
-                  Number.isFinite(Number(settings.vatPercent))
+              <CompanyDataForm
+                initial={{
+                  name: settings.companyName,
+                  street: settings.companyStreet,
+                  zipCity: settings.companyZipCity,
+                  vatPercent: Number.isFinite(Number(settings.vatPercent))
                     ? Number(settings.vatPercent)
-                    : 19
-                }
+                    : 19,
+                  phone: settings.companyPhone,
+                  email: settings.companyEmail,
+                  website: settings.companyWebsite,
+                  management: settings.companyManagement,
+                  register: settings.companyRegister,
+                  taxNumber: settings.companyTaxNumber,
+                  vatId: settings.companyVatId,
+                  bankAccountHolder: settings.bankAccountHolder,
+                  bankName: settings.bankName,
+                  bankIban: formatIban(settings.bankIban),
+                  bankBic: settings.bankBic,
+                }}
               />
             </CardContent>
           </Card>
@@ -267,6 +282,20 @@ export default async function SettingsPage() {
               />
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Fußzeile mit Firmendaten
+                <InfoHint text="Druckt die unter Firmendaten hinterlegten Angaben (Anschrift, Kontakt, Bankverbindung, Steuernummer) unten auf jede Seite." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CompanyFooterToggle
+                document="invoice"
+                initialEnabled={settings.invoiceShowCompanyFooter === "1"}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="dayfactor">
@@ -340,6 +369,20 @@ export default async function SettingsPage() {
               />
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Fußzeile mit Firmendaten
+                <InfoHint text="Druckt die unter Firmendaten hinterlegten Angaben (Anschrift, Kontakt, Bankverbindung, Steuernummer) unten auf jede Seite." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CompanyFooterToggle
+                document="quote"
+                initialEnabled={settings.quoteShowCompanyFooter === "1"}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="orderConfirmations" className="space-y-4">
@@ -381,6 +424,20 @@ export default async function SettingsPage() {
                 variant="orderConfirmation"
                 initialIntro={settings.orderConfirmationIntroText}
                 initialOutro={settings.orderConfirmationOutroText}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Fußzeile mit Firmendaten
+                <InfoHint text="Druckt die unter Firmendaten hinterlegten Angaben (Anschrift, Kontakt, Bankverbindung, Steuernummer) unten auf jede Seite." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CompanyFooterToggle
+                document="orderConfirmation"
+                initialEnabled={settings.orderConfirmationShowCompanyFooter === "1"}
               />
             </CardContent>
           </Card>
