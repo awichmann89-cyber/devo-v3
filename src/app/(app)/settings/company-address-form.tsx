@@ -78,7 +78,7 @@ export function CompanyAddressForm({
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <Label htmlFor="vatPercent">Mehrwertsteuersatz (%)</Label>
-          <InfoHint text="Wird auf Rechnungen als MwSt. aus dem Nettobetrag berechnet. Deutschland Regel: 19 %." />
+          <InfoHint text="Wird auf Rechnungen als MwSt. aus dem Nettobetrag berechnet. Deutschland Regel: 19 %. Bei 0 % gilt die Kleinunternehmerregelung: Angebote, Auftragsbestätigungen und Rechnungen erhalten den Hinweis nach § 19 UStG statt einer MwSt.-Zeile." />
         </div>
         <QuantityInput
           id="vatPercent"

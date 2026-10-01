@@ -5,7 +5,12 @@ import autoTable, { RowInput } from "jspdf-autotable";
 import { deviceRowLabel, projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
-import { getSettings, parseHexColor } from "@/lib/settings";
+import {
+  getSettings,
+  isSmallBusiness,
+  parseHexColor,
+  SMALL_BUSINESS_NOTE,
+} from "@/lib/settings";
 import { setupGeistFont } from "@/lib/pdf-fonts";
 import { drawLabeledWrappedText } from "@/lib/pdf-text";
 import {
@@ -262,6 +267,8 @@ export async function renderSalesDocumentPdf({
   const vatPercent = snapVatPercent;
   const vatAmount = (totalNet * vatPercent) / 100;
   const totalGross = totalNet + vatAmount;
+  const smallBusiness = isSmallBusiness(vatPercent);
+  const totalLabel = smallBusiness ? "Gesamtbetrag" : "Gesamt netto";
 
   // ===== PDF erstellen =====
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -758,7 +765,7 @@ export async function renderSalesDocumentPdf({
   const totalsBody: RowInput[] = [];
   if (discountLines.length > 0) {
     totalsBody.push([
-      { content: "Gesamt netto", styles: { halign: "right" } },
+      { content: smallBusiness ? "Summe" : "Gesamt netto", styles: { halign: "right" } },
       {
         content: fmt(materialBereichGross + servicesBereichGross),
         styles: { halign: "right" },
@@ -787,7 +794,7 @@ export async function renderSalesDocumentPdf({
   }
   totalsBody.push([
     {
-      content: "Gesamt netto",
+      content: totalLabel,
       styles: { halign: "right", fontStyle: "bold" },
     },
     { content: fmt(totalNet), styles: { halign: "right", fontStyle: "bold" } },
@@ -808,6 +815,16 @@ export async function renderSalesDocumentPdf({
       {
         content: fmt(totalGross),
         styles: { halign: "right", fontStyle: "bold", fontSize: 11 },
+      },
+    ]);
+  }
+
+  if (smallBusiness) {
+    totalsBody.push([
+      {
+        content: SMALL_BUSINESS_NOTE,
+        colSpan: 2,
+        styles: { halign: "right", fontSize: 9, textColor: 80 },
       },
     ]);
   }

@@ -7,6 +7,7 @@ import { isValidSnapshot, type DocumentSnapshot } from "@/lib/document-snapshot"
 import { AcceptanceForm } from "./acceptance-form";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { deviceRowLabel } from "@/lib/labels";
+import { isSmallBusiness, SMALL_BUSINESS_NOTE } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -391,7 +392,16 @@ function QuoteSnapshotView({
               muted
             />
           )}
-          <Row label="Gesamt netto" value={formatCurrency(totalNet)} bold />
+          {isSmallBusiness(snapshot.settings.vatPercent) ? (
+            <>
+              <Row label="Gesamtbetrag" value={formatCurrency(totalNet)} bold large />
+              <p className="text-right text-xs text-muted-foreground">
+                {SMALL_BUSINESS_NOTE}
+              </p>
+            </>
+          ) : (
+            <Row label="Gesamt netto" value={formatCurrency(totalNet)} bold />
+          )}
           {snapshot.settings.vatPercent > 0 && (
             <>
               <Row
