@@ -78,6 +78,17 @@ export function parseHexColor(hex: string | null | undefined): [number, number, 
   return fallback;
 }
 
+/**
+ * Steuersatz 0 % bedeutet Kleinunternehmerregelung: Angebote, Auftrags-
+ * bestätigungen und Rechnungen weisen dann keine MwSt. aus, sondern tragen
+ * den Pflichthinweis nach § 19 UStG.
+ */
+export const SMALL_BUSINESS_NOTE = "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.";
+
+export function isSmallBusiness(vatPercent: number): boolean {
+  return !(vatPercent > 0);
+}
+
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 
 export async function getSetting(key: SettingKey): Promise<string> {

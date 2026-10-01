@@ -160,7 +160,11 @@ export default async function SettingsPage() {
                 initialName={settings.companyName}
                 initialStreet={settings.companyStreet}
                 initialZipCity={settings.companyZipCity}
-                initialVatPercent={Number(settings.vatPercent) || 19}
+                initialVatPercent={
+                  Number.isFinite(Number(settings.vatPercent))
+                    ? Number(settings.vatPercent)
+                    : 19
+                }
               />
             </CardContent>
           </Card>

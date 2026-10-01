@@ -5,7 +5,12 @@ import autoTable, { RowInput } from "jspdf-autotable";
 import { deviceRowLabel, projectKindLabel } from "@/lib/labels";
 import { applyLetterhead } from "@/lib/letterhead";
 import { buildDocumentPdfFilename } from "@/lib/utils";
-import { getSettings, parseHexColor } from "@/lib/settings";
+import {
+  getSettings,
+  isSmallBusiness,
+  parseHexColor,
+  SMALL_BUSINESS_NOTE,
+} from "@/lib/settings";
 import { setupGeistFont } from "@/lib/pdf-fonts";
 import { drawLabeledWrappedText } from "@/lib/pdf-text";
 import {
@@ -191,6 +196,8 @@ export async function buildInvoicePdf(
   const vatPercent = snapVatPercent;
   const vatAmount = (totalNet * vatPercent) / 100;
   const totalGross = totalNet + vatAmount;
+  const smallBusiness = isSmallBusiness(vatPercent);
+  const totalLabel = smallBusiness ? "Gesamtbetrag" : "Gesamt netto";
 
   // ===== PDF erstellen =====
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -735,7 +742,7 @@ export async function buildInvoicePdf(
   const totalsBody: RowInput[] = [];
   if (discountLines.length > 0) {
     totalsBody.push([
-      { content: "Gesamt netto", styles: { halign: "right" } },
+      { content: smallBusiness ? "Summe" : "Gesamt netto", styles: { halign: "right" } },
       {
         content: fmt(materialBereichGross + servicesBereichGross),
         styles: { halign: "right" },
@@ -769,12 +776,14 @@ export async function buildInvoicePdf(
     const partVat = round2((partNet * vatPercent) / 100);
     const partGross = round2(partNet + partVat);
     totalsBody.push([
-      { content: "Gesamt netto (Auftrag)", styles: { halign: "right" } },
+      { content: `${totalLabel} (Auftrag)`, styles: { halign: "right" } },
       { content: fmt(totalNet), styles: { halign: "right" } },
     ]);
     totalsBody.push([
       {
-        content: `Anzahlung ${prepaymentPercent}% netto`,
+        content: smallBusiness
+          ? `Anzahlung ${prepaymentPercent}%`
+          : `Anzahlung ${prepaymentPercent}% netto`,
         styles: { halign: "right", fontStyle: "bold" },
       },
       { content: fmt(partNet), styles: { halign: "right", fontStyle: "bold" } },
@@ -799,7 +808,7 @@ export async function buildInvoicePdf(
     // ----- Schlussrechnung: voller Auftrag abzgl. Vorkasse-Rechnungen -----
     totalsBody.push([
       {
-        content: "Gesamt netto",
+        content: totalLabel,
         styles: { halign: "right", fontStyle: "bold" },
       },
       { content: fmt(totalNet), styles: { halign: "right", fontStyle: "bold" } },
@@ -840,7 +849,7 @@ export async function buildInvoicePdf(
     // ----- Normale Vollrechnung -----
     totalsBody.push([
       {
-        content: "Gesamt netto",
+        content: totalLabel,
         styles: { halign: "right", fontStyle: "bold" },
       },
       { content: fmt(totalNet), styles: { halign: "right", fontStyle: "bold" } },
@@ -864,6 +873,16 @@ export async function buildInvoicePdf(
         },
       ]);
     }
+  }
+
+  if (smallBusiness) {
+    totalsBody.push([
+      {
+        content: SMALL_BUSINESS_NOTE,
+        colSpan: 2,
+        styles: { halign: "right", fontSize: 9, textColor: 80 },
+      },
+    ]);
   }
 
   // A4 ist 297 mm hoch. Briefpapier-Footer braucht ca. 55 mm unten.
