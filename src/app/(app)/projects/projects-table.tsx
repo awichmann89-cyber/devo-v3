@@ -38,7 +38,8 @@ interface ProjectRow {
 }
 
 import {
-  FILTER_STATUS_ORDER as STATUS_ORDER,
+  FILTER_STATUS_VERSION,
+  restoreSavedStatuses,
   FILTER_DEFAULT_STATUSES as DEFAULT_STATUSES,
   FilterSearch,
   DateRangeControls,
@@ -85,14 +86,11 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
           from?: string;
           to?: string;
           statuses?: string[];
+          v?: number;
           search?: string;
         };
-        if (Array.isArray(saved.statuses)) {
-          const valid = saved.statuses.filter((s): s is ProjectStatus =>
-            (STATUS_ORDER as string[]).includes(s),
-          );
-          if (valid.length > 0) setStatusFilter(new Set(valid));
-        }
+        const valid = restoreSavedStatuses(saved.statuses, saved.v);
+        if (valid.length > 0) setStatusFilter(new Set(valid));
         if (typeof saved.search === "string") setSearch(saved.search);
         // Zeitraum nur übernehmen, wenn die URL keinen expliziten trägt.
         if (!params.get("from") && !params.get("to") && saved.from && saved.to) {
@@ -116,7 +114,13 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
     try {
       localStorage.setItem(
         storageKey,
-        JSON.stringify({ from, to, statuses: Array.from(statusFilter), search }),
+        JSON.stringify({
+          v: FILTER_STATUS_VERSION,
+          from,
+          to,
+          statuses: Array.from(statusFilter),
+          search,
+        }),
       );
     } catch {
       // localStorage nicht verfügbar — Filter gelten nur für die Session
@@ -251,7 +255,17 @@ export function ProjectsTable({ projects, initialFrom, initialTo, userId, action
                 {p.maintainer ? p.maintainer.name || p.maintainer.email : "—"}
               </TableCell>
               <TableCell>
-                {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}
+                {/* Verkaufsprojekte haben keinen Zeitraum — ihr Planungsdatum
+                    ist das Erstellungsdatum. */}
+                {p.kind === "VERKAUF" ? (
+                  <span className="text-muted-foreground">
+                    Verkauf · erstellt {formatDate(p.planningStart)}
+                  </span>
+                ) : (
+                  <>
+                    {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}
+                  </>
+                )}
               </TableCell>
               <TableCell>
                 {p.billingPeriods.length === 0 ? (

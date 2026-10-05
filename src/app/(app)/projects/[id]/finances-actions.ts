@@ -13,6 +13,46 @@ import { buildOrderConfirmationPdf } from "@/lib/order-confirmation-pdf";
 import { sendDocumentEmail, getBaseUrl } from "@/lib/email";
 
 /**
+ * Setzt das Projekt auf „Abgerechnet", sobald eine reguläre Rechnung versendet
+ * ist. Vorkasse-Rechnungen und Mahnungen zählen nicht — bei Vorkasse steht die
+ * Veranstaltung i.d.R. noch aus. Nur aus DRAFT/CONFIRMED/ACTIVE: abgeschlossene
+ * oder stornierte Projekte bleiben, wie sie sind.
+ */
+async function markProjectInvoiced(invoice: {
+  projectId: string;
+  kind: "INVOICE" | "REMINDER";
+  isPrepayment: boolean;
+}) {
+  if (invoice.kind !== "INVOICE" || invoice.isPrepayment) return;
+  await prisma.project.updateMany({
+    where: {
+      id: invoice.projectId,
+      status: { in: ["DRAFT", "CONFIRMED", "ACTIVE"] },
+    },
+    data: { status: "INVOICED" },
+  });
+  revalidatePath("/projects");
+}
+
+/**
+ * Markiert eine Rechnung als versendet bzw. nimmt das zurück — für Rechnungen,
+ * die per Post oder aus dem eigenen Mailprogramm rausgehen. Das Markieren setzt
+ * das Projekt (bei regulären Rechnungen) auf „Abgerechnet"; das Zurücknehmen
+ * ändert den Projekt-Status nicht (manuell änderbar).
+ */
+export async function setInvoiceSent(invoiceId: string, sent: boolean) {
+  await requireRole(CAN_WRITE);
+  const inv = await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { sentAt: sent ? new Date() : null },
+    select: { projectId: true, kind: true, isPrepayment: true },
+  });
+  if (sent) await markProjectInvoiced(inv);
+  revalidatePath(`/projects/${inv.projectId}`);
+  revalidatePath("/finances/invoices");
+}
+
+/**
  * Lädt das Projekt mit allen für den Snapshot benötigten Relationen.
  * Wird vor createInvoice / createQuote aufgerufen, damit der ausgegebene
  * Stand des Dokuments unveränderlich konserviert werden kann.
@@ -554,10 +594,12 @@ export async function sendInvoiceEmail(
   }
 
   const sentAt = new Date();
-  await prisma.invoice.update({
+  const inv = await prisma.invoice.update({
     where: { id: invoiceId },
-    data: { emailSentAt: sentAt, emailSentTo: trimmedTo },
+    data: { emailSentAt: sentAt, emailSentTo: trimmedTo, sentAt },
+    select: { projectId: true, kind: true, isPrepayment: true },
   });
+  await markProjectInvoiced(inv);
   revalidatePath(`/projects/${built.invoice.projectId}`);
   revalidatePath("/finances/invoices");
   return { sentAt, sentTo: trimmedTo };

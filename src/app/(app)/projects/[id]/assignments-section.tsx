@@ -42,6 +42,8 @@ import {
   Folder,
   FolderOpen,
   Download,
+  CalendarRange,
+  X,
 } from "lucide-react";
 import {
   addAssignment,
@@ -99,7 +101,7 @@ import {
   deleteGroupComment,
   type GroupItemKind,
 } from "./group-items-actions";
-import type { ProjectAdHocItem, ProjectGroupComment } from "@prisma/client";
+import type { ProjectAdHocItem, ProjectGroupComment, ProjectStatus } from "@prisma/client";
 import { Plus, HandCoins } from "lucide-react";
 import {
   SubhireDialog,
@@ -124,6 +126,7 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableRow, DragHandleCell } from "@/components/ui/sortable-row";
 import { toastError } from "@/lib/toast";
+import { BookingTimeline } from "./booking-timeline";
 
 type DeviceLite = Device & { category: Category | null };
 type CableLite = Cable & { category: Category | null };
@@ -140,6 +143,7 @@ type BlockingPack = {
 type OtherProject = {
   projectId: string;
   projectName: string;
+  status: ProjectStatus;
   planningStart: Date;
   planningEnd: Date;
   bookedQuantity: number;
@@ -157,7 +161,7 @@ type StockInfo = {
 type CableConflictInfo = {
   stock: number;
   packAllocation: number;
-  foreignBookings: { projectName: string; quantity: number }[];
+  foreignBookings: { projectName: string; status: ProjectStatus; quantity: number }[];
   foreignTotal: number;
 };
 
@@ -364,6 +368,25 @@ export function AssignmentsSection({
     });
   }
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  // Ausgewählte Geräte-/Kabel-Zeile (sortId) — deren Belegungs-Zeitstrahl
+  // erscheint in der Belegungs-Card unter der Material-Card.
+  const [selectedRow, setSelectedRow] = useState<string | null>(null);
+  function toggleRow(sortId: string) {
+    setSelectedRow((prev) => (prev === sortId ? null : sortId));
+  }
+  /**
+   * Klick auf eine Geräte-/Kabel-Zeile wählt sie für den Zeitstrahl aus —
+   * außer der Klick galt einem Bedienelement (Mengen-Stepper, Gruppen-Select,
+   * Buttons, Drag-Handle) oder kam aus einem Portal (Select-Dropdown).
+   */
+  function rowClickHandler(sortId: string) {
+    return (e: React.MouseEvent<HTMLTableRowElement>) => {
+      const target = e.target as HTMLElement;
+      if (!e.currentTarget.contains(target)) return;
+      if (target.closest("button, a, input, select, textarea, [role=button], [role=combobox]")) return;
+      toggleRow(sortId);
+    };
+  }
   const [search, setSearch] = useState("");
   const [conflictPrompt, setConflictPrompt] = useState<ConflictPrompt | null>(null);
 
@@ -977,18 +1000,34 @@ export function AssignmentsSection({
     // Durch Zumietung nicht gedeckter Rest-Engpass — nur dieser bleibt rot.
     const uncoveredOver = Math.max(0, shortfall - subhiredQty);
     const showOverWarning = isOver && uncoveredOver > 0;
+    // Entsteht der Engpass nur durch Entwurfsprojekte, ist er bloß möglich
+    // (gelb). Rot erst, wenn er auch ohne Entwürfe besteht.
+    const draftDemand = (conflict?.otherProjects ?? [])
+      .filter((op) => op.status === "DRAFT")
+      .reduce((s, op) => s + op.effectiveQuantity, 0);
+    const firmOver = Math.max(0, shortfall - draftDemand - subhiredQty);
+    const overSeverity: OverSeverity | null = !showOverWarning
+      ? null
+      : firmOver > 0
+        ? "error"
+        : "warning";
     const rate = Number(a.device.dailyRate);
     const lineTotal = rate * a.quantity * factorFor(a.groupId);
     return (
       <Fragment key={sortId}>
         <SortableRow
           id={sortId}
+          onClick={isSale ? undefined : rowClickHandler(sortId)}
+          title={isSale ? undefined : "Klicken für Belegungs-Zeitstrahl"}
+          aria-selected={selectedRow === sortId}
           className={cn(
+            !isSale && "cursor-pointer",
+            selectedRow === sortId && SELECTED_ROW_CLASS,
             // Zugemietet → blau (dominiert die Warnung optisch).
             hasSubhire &&
               "bg-subhire-subtle hover:bg-subhire-subtle",
             !hasSubhire &&
-              showOverWarning &&
+              overSeverity === "error" &&
               "bg-destructive-subtle/70 hover:bg-destructive-subtle"
           )}
         >
@@ -1007,7 +1046,7 @@ export function AssignmentsSection({
                 make && make.toLowerCase() !== a.device.name.toLowerCase();
               return (
                 <>
-                  <div className={cn("font-medium truncate", showOverWarning && "text-destructive")}>
+                  <div className={cn("font-medium truncate", overSeverity && OVER_TEXT_CLASS[overSeverity])}>
                     {a.device.name}
                   </div>
                   {showMake && (
@@ -1035,7 +1074,7 @@ export function AssignmentsSection({
               value={a.quantity}
               onChange={(v) => handleQtyChange(a.id, v)}
               disabled={pending}
-              invalid={showOverWarning}
+              invalid={overSeverity === "error"}
             />
           </TableCell>
           {!isSale && (
@@ -1117,15 +1156,19 @@ export function AssignmentsSection({
           // Rest-Engpass nach Abzug der Zumietung.
           const overBy = uncoveredOver;
           const foreignNames = conflict.otherProjects
-            .map((op) => op.projectName)
+            .map((op) => draftSuffix(op.projectName, op.status))
             .join(", ");
+          const severity = overSeverity ?? "error";
           return (
-            <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-              <TableCell colSpan={isSale ? 6 : 8} className="py-1.5 text-xs text-destructive">
+            <TableRow className={OVER_MESSAGE_ROW_CLASS[severity]}>
+              <TableCell colSpan={isSale ? 6 : 8} className={cn("py-1.5 text-xs", OVER_TEXT_CLASS[severity])}>
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <span>
-                    <span className="font-semibold">{overBy} zu viel:</span>{" "}
+                    <span className="font-semibold">
+                      {severity === "warning" && "Mögliche Überschneidung, "}
+                      {overBy} zu viel{severity === "warning" && ", falls Entwürfe bestätigt werden"}:
+                    </span>{" "}
                     <span className="font-medium">{booked}</span> gebucht
                     {ownExtra > 0 && ownPacks.length > 0 && (
                       <>
@@ -1233,18 +1276,33 @@ export function AssignmentsSection({
     const stock = conf?.stock ?? ca.cable.stockQuantity;
     const isOver = totalDemand > stock;
     const overBy = totalDemand - stock;
+    // Nur durch Entwurfsprojekte überbucht → gelb statt rot.
+    const draftForeign = (conf?.foreignBookings ?? [])
+      .filter((f) => f.status === "DRAFT")
+      .reduce((s, f) => s + f.quantity, 0);
+    // Verkaufsprojekte blockieren kein Material → keine Konfliktanzeige.
+    const overSeverity: OverSeverity | null = !isOver || isSale
+      ? null
+      : totalDemand - draftForeign > stock
+        ? "error"
+        : "warning";
     return (
       <Fragment key={sortId}>
         <SortableRow
           id={sortId}
+          onClick={isSale ? undefined : rowClickHandler(sortId)}
+          title={isSale ? undefined : "Klicken für Belegungs-Zeitstrahl"}
+          aria-selected={selectedRow === sortId}
           className={cn(
-            isOver &&
+            !isSale && "cursor-pointer",
+            selectedRow === sortId && SELECTED_ROW_CLASS,
+            overSeverity === "error" &&
               "bg-destructive-subtle/70 hover:bg-destructive-subtle"
           )}
         >
           <DragHandleCell />
           <TableCell>
-            <div className={cn("font-medium", isOver && "text-destructive")}>
+            <div className={cn("font-medium", overSeverity && OVER_TEXT_CLASS[overSeverity])}>
               {ca.cable.name}
             </div>
             {/* Typ + Länge + Steckerenden — sonst ist nicht erkennbar,
@@ -1262,7 +1320,7 @@ export function AssignmentsSection({
               value={ca.quantity}
               onChange={(v) => handleCableQtyChange(ca.id, v)}
               disabled={pending}
-              invalid={isOver}
+              invalid={overSeverity === "error"}
             />
           </TableCell>
           {!isSale && (
@@ -1307,13 +1365,16 @@ export function AssignmentsSection({
             </div>
           </TableCell>
         </SortableRow>
-        {isOver && (
-          <TableRow className="bg-destructive/10 hover:bg-destructive/10">
-            <TableCell colSpan={isSale ? 6 : 8} className="py-1.5 text-xs text-destructive">
+        {overSeverity && (
+          <TableRow className={OVER_MESSAGE_ROW_CLASS[overSeverity]}>
+            <TableCell colSpan={isSale ? 6 : 8} className={cn("py-1.5 text-xs", OVER_TEXT_CLASS[overSeverity])}>
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                 <span>
-                  <span className="font-semibold">{overBy} zu viel:</span>{" "}
+                  <span className="font-semibold">
+                    {overSeverity === "warning" && "Mögliche Überschneidung, "}
+                    {overBy} zu viel{overSeverity === "warning" && ", falls Entwürfe bestätigt werden"}:
+                  </span>{" "}
                   <span className="font-medium">{ca.quantity}</span> gebucht
                   {conf && conf.packAllocation > 0 && (
                     <>
@@ -1326,7 +1387,7 @@ export function AssignmentsSection({
                     <>
                       {" "}
                       + <span className="font-medium">{conf.foreignTotal}</span>{" "}
-                      in {conf.foreignBookings.map((f) => f.projectName).join(", ")}
+                      in {conf.foreignBookings.map((f) => draftSuffix(f.projectName, f.status)).join(", ")}
                     </>
                   )}
                   , Bestand: <span className="font-medium">{stock}</span>
@@ -1383,12 +1444,15 @@ export function AssignmentsSection({
           enabled={hasPrintableItems}
         />
       </div>
-      {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
-          52px-Headers + Abstände) und clippt intern. So kann die Seite nicht
-          so weit scrollen, dass die Katalog-Suche hinter dem App-Header
-          verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
-          jeweils in ihrer eigenen Spalte. */}
-      <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      {/* Auf Desktop teilen sich Material- und Belegungs-Card fest die
+          Viewport-Höhe (abzüglich des 52px-Headers + Abstände) und clippen
+          intern. So kann die Seite nicht so weit scrollen, dass die
+          Katalog-Suche hinter dem App-Header verschwindet — stattdessen
+          scrollen Katalog, "zugewiesen"-Tabelle und Zeitstrahl jeweils in sich.
+          Die Belegungs-Card nimmt nur so viel Höhe wie nötig (max. 45 %), die
+          Material-Card den Rest. */}
+      <div className="flex flex-col gap-4 lg:h-[calc(100vh-80px)]">
+      <Card className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:material-split"
@@ -1790,6 +1854,61 @@ export function AssignmentsSection({
       </CardContent>
       </Card>
 
+      {/* Belegungs-Zeitstrahl der ausgewählten Geräte-/Kabel-Zeile — nicht bei
+          Verkaufsprojekten, die haben keinen Zeitraum. */}
+      {!isSale && (() => {
+        const [kind, id] = selectedRow?.split(":") ?? [];
+        const device =
+          kind === "DEVICE" ? project.assignments.find((a) => a.id === id) : undefined;
+        const cable =
+          kind === "CABLE" ? cableAssignments.find((ca) => ca.id === id) : undefined;
+        const name = device?.device.name ?? cable?.cable.name;
+        return (
+          <Card className="flex flex-col lg:max-h-[45%] lg:shrink-0 lg:overflow-hidden">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-4">
+              <div className={cn("flex shrink-0 items-center gap-2", name && "mb-1")}>
+                <CardTitle className="flex min-w-0 items-center gap-2">
+                  <CalendarRange className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Belegung{name && <> · {name}</>}</span>
+                </CardTitle>
+                <InfoHint text="Gebuchtes Gerät oder Kabel in der Liste oben anklicken, um zu sehen, welche Projekte es im Zeitraum belegen und wie viel noch frei ist." />
+                {name && (
+                  <Button
+                    variant="ghost"
+                    size="iconXs"
+                    className="ml-auto"
+                    title="Auswahl aufheben"
+                    onClick={() => setSelectedRow(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <div className="min-h-0 overflow-y-auto">
+              {device ? (
+                <BookingTimeline
+                  key={`DEVICE:${device.deviceId}`}
+                  kind="DEVICE"
+                  projectId={project.id}
+                  itemId={device.deviceId}
+                  refreshKey={device.quantity}
+                />
+              ) : cable ? (
+                <BookingTimeline
+                  key={`CABLE:${cable.cableId}`}
+                  kind="CABLE"
+                  projectId={project.id}
+                  itemId={cable.cableId}
+                  refreshKey={cable.quantity}
+                />
+              ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+      </div>
+
       {/* Gruppe-Dialog */}
       <Dialog
         open={groupDialog !== null}
@@ -2102,4 +2221,30 @@ export function AssignmentsSection({
       />
     </>
   );
+}
+
+/** Markierung der für den Zeitstrahl ausgewählten Material-Zeile. Der
+ *  Hintergrund wird von Zumiet-/Warn-Tönung überschrieben, der Balken bleibt. */
+const SELECTED_ROW_CLASS =
+  "bg-primary/[0.06] hover:bg-primary/[0.08] shadow-[inset_3px_0_0_0_hsl(var(--primary))]";
+
+/**
+ * Schwere einer Überbuchung: "error" = auch ohne Entwurfsprojekte zu viel
+ * (rot), "warning" = nur durch Entwürfe, also bloß möglich (gelb).
+ */
+type OverSeverity = "error" | "warning";
+
+const OVER_TEXT_CLASS: Record<OverSeverity, string> = {
+  error: "text-destructive",
+  warning: "text-warning",
+};
+
+const OVER_MESSAGE_ROW_CLASS: Record<OverSeverity, string> = {
+  error: "bg-destructive/10 hover:bg-destructive/10",
+  warning: "bg-warning/10 hover:bg-warning/10",
+};
+
+/** Projektname in Konfliktmeldungen, Entwürfe als solche markiert. */
+function draftSuffix(name: string, status: ProjectStatus): string {
+  return status === "DRAFT" ? `${name} (Entwurf)` : name;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   FilterResetButton,
@@ -54,6 +54,7 @@ import {
   Truck,
   Caravan,
   Package,
+  X,
 } from "lucide-react";
 import {
   DndContext,
@@ -307,6 +308,22 @@ export function ServicesSection({
   } | null>(null);
   // Einsatzplan ein-/ausklappen
   const [planOpen, setPlanOpen] = useState(true);
+  // Ausgewählte Position — deren Besetzung (Personen/Fahrzeuge) erscheint in
+  // der Card unter der Hauptcard (analog zur Belegung im Material-Tab).
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  /**
+   * Klick auf eine Position wählt sie aus — außer der Klick galt einem
+   * Bedienelement (Menge, Satz, Buttons, Gruppen-Select, Drag-Handle) oder kam
+   * aus einem Portal (Select-Dropdown).
+   */
+  function serviceRowClickHandler(serviceId: string) {
+    return (e: React.MouseEvent<HTMLTableRowElement>) => {
+      const target = e.target as HTMLElement;
+      if (!e.currentTarget.contains(target)) return;
+      if (target.closest("button, a, input, select, textarea, [role=button], [role=combobox]")) return;
+      setSelectedServiceId((prev) => (prev === serviceId ? null : serviceId));
+    };
+  }
 
   // Zeiträume für den Einsatz-Dialog: Auswahl der Gruppe, sonst alle.
   const dialogPeriods = useMemo(() => {
@@ -741,17 +758,13 @@ export function ServicesSection({
     0
   );
 
-  /** Rendert eine Einsatz-Subzeile unter ihrer Service-Zeile (nicht sortierbar). */
+  /** Rendert einen Personal-Einsatz in der Besetzungs-Card. */
   function renderAssignmentRow(ps: ProjectServiceVM, a: PersonAssignmentVM) {
     const isFreelancer = a.employmentType === "FREELANCER";
     return (
-      <TableRow
-        key={`assignment:${a.id}`}
-        className="bg-muted/20 hover:bg-muted/30"
-      >
-        <TableCell />
+      <TableRow key={`assignment:${a.id}`}>
         <TableCell>
-          <div className="flex items-center gap-2 pl-6 text-sm">
+          <div className="flex items-center gap-2 text-sm">
             <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate">{a.personName}</span>
             <Badge variant={employmentTypeVariant(a.employmentType)}>
@@ -759,12 +772,12 @@ export function ServicesSection({
             </Badge>
           </div>
           {a.notes && (
-            <div className="pl-11 text-xs text-muted-foreground line-clamp-1">
+            <div className="pl-5 text-xs text-muted-foreground line-clamp-1">
               {a.notes}
             </div>
           )}
         </TableCell>
-        <TableCell colSpan={2}>
+        <TableCell>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>{assignmentTimeLabel(a)}</span>
             {a.loggedMinutes > 0 && (
@@ -885,16 +898,15 @@ export function ServicesSection({
     );
   }
 
-  /** Rendert eine Fuhrpark-Subzeile unter ihrer Transport-Zeile. */
+  /** Rendert einen Fuhrpark-Einsatz in der Besetzungs-Card. */
   function renderVehicleAssignmentRow(
     ps: ProjectServiceVM,
     a: VehicleAssignmentVM
   ) {
     return (
-      <TableRow key={`vehicle:${a.id}`} className="bg-muted/20 hover:bg-muted/30">
-        <TableCell />
+      <TableRow key={`vehicle:${a.id}`}>
         <TableCell>
-          <div className="flex items-center gap-2 pl-6 text-sm">
+          <div className="flex items-center gap-2 text-sm">
             <Caravan className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate">{a.vehicleName}</span>
             <Badge variant={vehicleKindVariant(a.vehicleKind)}>
@@ -907,12 +919,12 @@ export function ServicesSection({
             )}
           </div>
           {a.notes && (
-            <div className="pl-11 text-xs text-muted-foreground line-clamp-1">
+            <div className="pl-5 text-xs text-muted-foreground line-clamp-1">
               {a.notes}
             </div>
           )}
         </TableCell>
-        <TableCell colSpan={2}>
+        <TableCell>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>{vehicleTimeLabel(a)}</span>
             {a.driverName && (
@@ -988,14 +1000,23 @@ export function ServicesSection({
     const KindIcon = kindIcon(ps.serviceItem.kind);
     const unstaffed = isUnstaffed(ps);
     const withoutVehicle = isUnassignedTransport(ps);
-    // Fragment: Service-Zeile + Einsatz-Subzeilen. Die Subzeilen sind NICHT im
-    // SortableContext registriert — sie folgen ihrer Parent-Zeile in
-    // DOM-Reihenfolge, bewegen sich beim Drag aber erst nach dem Drop mit.
+    // Besetzung als Kurzinfo unter dem Namen — die Details (Zeiten, Sätze,
+    // Bearbeiten) stehen in der Besetzungs-Card unter der Hauptcard.
+    const staffing = [
+      ...ps.personAssignments.map((a) => a.personName),
+      ...ps.vehicleAssignments.map((a) => a.vehicleName),
+    ];
+    const selected = selectedServiceId === ps.id;
     return (
-      <Fragment key={sortId}>
       <SortableRow
+        key={sortId}
         id={sortId}
+        onClick={serviceRowClickHandler(ps.id)}
+        title="Klicken für die Besetzung"
+        aria-selected={selected}
         className={cn(
+          "cursor-pointer",
+          selected && SELECTED_ROW_CLASS,
           (unstaffed || withoutVehicle) &&
             "bg-warning-subtle hover:bg-warning-subtle"
         )}
@@ -1027,6 +1048,11 @@ export function ServicesSection({
               </Badge>
             )}
           </div>
+          {staffing.length > 0 && (
+            <div className="truncate pl-6 text-[11px] text-muted-foreground">
+              {staffing.join(", ")}
+            </div>
+          )}
         </TableCell>
         <TableCell>
           <Badge variant={kindBadgeVariant(ps.serviceItem.kind)}>
@@ -1146,9 +1172,6 @@ export function ServicesSection({
           </div>
         </TableCell>
       </SortableRow>
-      {ps.personAssignments.map((a) => renderAssignmentRow(ps, a))}
-      {ps.vehicleAssignments.map((a) => renderVehicleAssignmentRow(ps, a))}
-      </Fragment>
     );
   }
 
@@ -1280,12 +1303,15 @@ export function ServicesSection({
         </Card>
       )}
 
-      {/* Auf Desktop wird die Card auf Viewport-Höhe begrenzt (abzüglich des
-          52px-Headers + Abstände) und clippt intern. So kann die Seite nicht
-          so weit scrollen, dass die Katalog-Suche hinter dem App-Header
-          verschwindet — stattdessen scrollen Katalog und "zugewiesen"-Tabelle
-          jeweils in ihrer eigenen Spalte. */}
-      <Card className="flex flex-col lg:max-h-[calc(100vh-80px)] lg:overflow-hidden">
+      {/* Auf Desktop teilen sich Haupt- und Besetzungs-Card fest die
+          Viewport-Höhe (abzüglich des 52px-Headers + Abstände) und clippen
+          intern — analog zum Material-Tab. So kann die Seite nicht so weit
+          scrollen, dass die Katalog-Suche hinter dem App-Header verschwindet;
+          stattdessen scrollen Katalog, Positionen und Besetzung jeweils in
+          sich. Die Besetzungs-Card nimmt nur so viel Höhe wie nötig (max.
+          45 %), die Hauptcard den Rest. */}
+      <div className="flex flex-col gap-4 lg:h-[calc(100vh-80px)]">
+      <Card className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       <CardContent className="flex min-h-0 flex-1 flex-col p-4">
       <HorizontalSplit
         storageKey="devo:services-split"
@@ -1626,6 +1652,98 @@ export function ServicesSection({
       </CardContent>
       </Card>
 
+      {/* Besetzung der ausgewählten Position */}
+      {(() => {
+        const ps = projectServices.find((x) => x.id === selectedServiceId);
+        const isTransport = ps?.serviceItem.kind === "TRANSPORT";
+        const count = ps ? ps.personAssignments.length + ps.vehicleAssignments.length : 0;
+        return (
+          <Card className="flex flex-col lg:max-h-[45%] lg:shrink-0 lg:overflow-hidden">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-4">
+              <div className={cn("flex shrink-0 items-center gap-2", ps && "mb-2")}>
+                <CardTitle className="flex min-w-0 items-center gap-2">
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span className="truncate">
+                    Besetzung{ps && <> · {ps.serviceItem.name}</>}
+                  </span>
+                </CardTitle>
+                <InfoHint text="Position in der Liste oben anklicken, um zu sehen, welche Personen bzw. Fahrzeuge eingeplant sind — mit Zeiten, Sätzen und Konflikten." />
+                {ps && (
+                  <div className="ml-auto flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        isTransport
+                          ? setVehicleDialog({
+                              projectServiceId: ps.id,
+                              serviceName: ps.serviceItem.name,
+                              groupId: ps.groupId,
+                              assignment: null,
+                            })
+                          : setAssignDialog({
+                              projectServiceId: ps.id,
+                              serviceName: ps.serviceItem.name,
+                              groupId: ps.groupId,
+                              assignment: null,
+                            })
+                      }
+                    >
+                      {isTransport ? (
+                        <>
+                          <Caravan className="h-4 w-4" /> Fahrzeug einplanen
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4" /> Person einplanen
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="iconXs"
+                      title="Auswahl aufheben"
+                      onClick={() => setSelectedServiceId(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {ps && (
+                <div className="min-h-0 overflow-y-auto">
+                  {count === 0 ? (
+                    <p className="py-2 text-xs text-muted-foreground">
+                      {isTransport
+                        ? "Noch kein Fahrzeug oder Anhänger eingeplant."
+                        : "Noch niemand eingeplant."}
+                    </p>
+                  ) : (
+                    <Table density="dense">
+                      <TableHeader>
+                        <TableRow className="hover:bg-secondary">
+                          <TableHead>{isTransport ? "Einheit" : "Person"}</TableHead>
+                          <TableHead>Zeit</TableHead>
+                          <TableHead className="w-[140px] text-right">Satz</TableHead>
+                          <TableHead className="w-[110px] text-right">Kosten</TableHead>
+                          <TableHead className="w-[100px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ps.personAssignments.map((a) => renderAssignmentRow(ps, a))}
+                        {ps.vehicleAssignments.map((a) => renderVehicleAssignmentRow(ps, a))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+      </div>
+
       {/* Gruppe löschen — der Bestätigungsdialog fehlte bisher, sodass der
           Löschen-Button in der Gruppen-Kopfzeile wirkungslos war. */}
       <ConfirmDialog
@@ -1842,3 +1960,8 @@ export function ServicesSection({
     </>
   );
 }
+
+/** Markierung der für die Besetzung ausgewählten Position (wie im Material-Tab).
+ *  Der Hintergrund wird von der Unbesetzt-Tönung überschrieben, der Balken bleibt. */
+const SELECTED_ROW_CLASS =
+  "bg-primary/[0.06] hover:bg-primary/[0.08] shadow-[inset_3px_0_0_0_hsl(var(--primary))]";

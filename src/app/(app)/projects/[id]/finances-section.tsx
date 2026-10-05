@@ -48,6 +48,7 @@ import {
   CheckCircle2,
   Mail,
   FileCheck,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -62,6 +63,7 @@ import {
   deleteQuote,
   sendQuoteEmail,
   sendInvoiceEmail,
+  setInvoiceSent,
   createOrderConfirmation,
   deleteOrderConfirmation,
   sendOrderConfirmationEmail,
@@ -118,6 +120,8 @@ export interface FinancesInvoiceVM {
   /** Letzter Versand per E-Mail aus der App — ISO-String, sonst null. */
   emailSentAt: string | null;
   emailSentTo: string | null;
+  /** Versendet, egal auf welchem Weg (App-E-Mail oder manuell markiert). */
+  sentAt: string | null;
 }
 
 export interface FinancesQuoteVM {
@@ -336,6 +340,22 @@ export function FinancesSection({
     startTransition(async () => {
       try {
         await updateProjectDiscount(projectId, v);
+      } catch (e) {
+        toastError(e, "Speichern");
+      }
+    });
+  }
+
+  function handleToggleSent(inv: FinancesInvoiceVM) {
+    const sent = !inv.sentAt;
+    startTransition(async () => {
+      try {
+        await setInvoiceSent(inv.id, sent);
+        toast.success(
+          sent
+            ? `Rechnung ${inv.number} als versendet markiert`
+            : `Markierung „versendet“ für ${inv.number} zurückgenommen`
+        );
       } catch (e) {
         toastError(e, "Speichern");
       }
@@ -733,7 +753,7 @@ export function FinancesSection({
                   <TableHead className="w-[100px]">Fällig bis</TableHead>
                   <TableHead className="w-[110px] text-right">Netto</TableHead>
                   <TableHead className="w-[110px] text-right">Brutto</TableHead>
-                  <TableHead className="w-[76px]"></TableHead>
+                  <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -752,12 +772,16 @@ export function FinancesSection({
                             Schlussrechnung
                           </Badge>
                         )}
-                        {inv.emailSentAt && (
+                        {inv.sentAt && (
                           <Badge
                             variant="secondary"
                             size="sm"
                             className="gap-1"
-                            title={`Per E-Mail versendet am ${formatDate(inv.emailSentAt)}${inv.emailSentTo ? ` an ${inv.emailSentTo}` : ""}`}
+                            title={
+                              inv.emailSentAt && inv.emailSentAt === inv.sentAt
+                                ? `Per E-Mail versendet am ${formatDate(inv.emailSentAt)}${inv.emailSentTo ? ` an ${inv.emailSentTo}` : ""}`
+                                : `Als versendet markiert am ${formatDate(inv.sentAt)}`
+                            }
                           >
                             <Mail className="h-3 w-3" /> Versendet
                           </Badge>
@@ -774,6 +798,22 @@ export function FinancesSection({
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
+                        {/* Für Rechnungen per Post / eigenem Mailprogramm:
+                            setzt das Projekt auf „Abgerechnet". */}
+                        <Button
+                          variant="ghost"
+                          size="iconXs"
+                          className={cn(inv.sentAt && "text-primary")}
+                          onClick={() => handleToggleSent(inv)}
+                          disabled={pending}
+                          title={
+                            inv.sentAt
+                              ? "Markierung „versendet“ zurücknehmen"
+                              : "Als versendet markieren (z.B. per Post verschickt)"
+                          }
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                        </Button>
                         <Button asChild variant="ghost" size="iconXs" >
                           <a
                             href={`/api/projects/${projectId}/invoices/${inv.id}/pdf?download=1`}

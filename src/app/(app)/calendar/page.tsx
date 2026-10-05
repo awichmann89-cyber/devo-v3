@@ -39,6 +39,8 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
     where: {
       planningStart: { lte: gridEnd },
       planningEnd: { gte: gridStart },
+      // Verkaufsprojekte haben keinen Zeitraum — nichts zu planen.
+      kind: { not: "VERKAUF" },
     },
     include: {
       _count: { select: { assignments: true } },

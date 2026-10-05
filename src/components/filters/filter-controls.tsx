@@ -26,6 +26,7 @@ export const FILTER_STATUS_ORDER: ProjectStatus[] = [
   "DRAFT",
   "CONFIRMED",
   "ACTIVE",
+  "INVOICED",
   "COMPLETED",
   "CANCELLED",
 ];
@@ -35,8 +36,37 @@ export const FILTER_DEFAULT_STATUSES: ProjectStatus[] = [
   "DRAFT",
   "CONFIRMED",
   "ACTIVE",
+  "INVOICED",
   "COMPLETED",
 ];
+
+/**
+ * Version der gespeicherten Status-Filter (localStorage). Version 2 kennt
+ * „Abgerechnet" (INVOICED). Ältere Stände haben den Status nie gesehen — wer
+ * dort Aktiv oder Abgeschlossen gewählt hatte, bekommt Abgerechnet dazu, sonst
+ * würden Projekte nach dem Rechnungsversand scheinbar aus der Liste fallen.
+ */
+export const FILTER_STATUS_VERSION = 2;
+
+/** Gespeicherte Status-Auswahl einlesen (ungültige Werte fallen raus). */
+export function restoreSavedStatuses(
+  saved: unknown,
+  version: unknown
+): ProjectStatus[] {
+  if (!Array.isArray(saved)) return [];
+  const valid = saved.filter((s): s is ProjectStatus =>
+    (FILTER_STATUS_ORDER as string[]).includes(s)
+  );
+  const isOld = typeof version !== "number" || version < 2;
+  if (
+    isOld &&
+    !valid.includes("INVOICED") &&
+    (valid.includes("ACTIVE") || valid.includes("COMPLETED"))
+  ) {
+    valid.push("INVOICED");
+  }
+  return valid;
+}
 
 /** Gemeinsame Basis aller Chip-Buttons in der Filterleiste (30px = Button `sm`). */
 const CHIP_BASE =

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { ProjectStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -204,11 +205,16 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     }),
   ]);
 
-  const overlap = await getOverlappingAssignments(
-    project.assignments.map((a) => a.deviceId),
-    project.planningStart,
-    project.planningEnd
-  );
+  // Verkaufsprojekte haben keinen Zeitraum und blockieren kein Material —
+  // also auch keine Konflikt-Auswertung für ihre eigenen Buchungen.
+  const overlap =
+    project.kind === "VERKAUF"
+      ? []
+      : await getOverlappingAssignments(
+          project.assignments.map((a) => a.deviceId),
+          project.planningStart,
+          project.planningEnd
+        );
 
   type BlockingPack = {
     code: string;
@@ -220,6 +226,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   type OtherProject = {
     projectId: string;
     projectName: string;
+    /** DRAFT-Projekte machen eine Überschneidung nur „möglich" (gelb statt rot). */
+    status: ProjectStatus;
     planningStart: Date;
     planningEnd: Date;
     bookedQuantity: number;
@@ -293,6 +301,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       entry.otherProjects.push({
         projectId: agg.project.id,
         projectName: agg.project.name,
+        status: agg.project.status,
         planningStart: agg.project.planningStart,
         planningEnd: agg.project.planningEnd,
         bookedQuantity: agg.quantitySum,
@@ -309,7 +318,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   type CableConflictInfo = {
     stock: number;
     packAllocation: number;
-    foreignBookings: { projectName: string; quantity: number }[];
+    foreignBookings: { projectName: string; status: ProjectStatus; quantity: number }[];
     foreignTotal: number;
   };
   // packAllocation für ALLE Kabel (auch nicht-gebuchte — Katalog zeigt sie)
@@ -323,7 +332,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
         packUnit: { select: { stockQuantity: true } },
       },
     }),
-    bookedCableIds.length === 0
+    bookedCableIds.length === 0 || project.kind === "VERKAUF"
       ? Promise.resolve([])
       : prisma.projectCableAssignment.findMany({
           where: {
@@ -331,6 +340,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             projectId: { not: project.id },
             project: {
               status: { not: "CANCELLED" },
+              kind: { not: "VERKAUF" },
               planningStart: { lte: project.planningEnd },
               planningEnd: { gte: project.planningStart },
             },
@@ -338,7 +348,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           select: {
             cableId: true,
             quantity: true,
-            project: { select: { name: true } },
+            project: { select: { name: true, status: true } },
           },
         }),
   ]);
@@ -363,6 +373,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     entry.foreignTotal += fb.quantity;
     entry.foreignBookings.push({
       projectName: fb.project.name,
+      status: fb.project.status,
       quantity: fb.quantity,
     });
   }
@@ -698,6 +709,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 name={project.name}
                 planningStart={project.planningStart.toISOString()}
                 planningEnd={project.planningEnd.toISOString()}
+                isSale={project.kind === "VERKAUF"}
               />
             )}
             <DeleteProjectButton id={project.id} name={project.name} />
@@ -706,6 +718,15 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       />
 
       <StatTileGrid>
+        {isSale ? (
+          <StatTile
+            label="Verkauf"
+            size="sm"
+            value={`erstellt am ${formatDate(project.createdAt)}`}
+            hint="ohne Zeitraum · blockt kein Material"
+          />
+        ) : (
+        <>
         <StatTile
           label="Planung"
           size="sm"
@@ -731,6 +752,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             </>
           }
         />
+        </>
+        )}
         <StatTile
           label="Gewicht"
           value={`${totalWeightKg.toFixed(1)} kg`}
@@ -753,10 +776,12 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Details</span>
           </TabsTrigger>
-          <TabsTrigger value="periods">
-            <CalendarRange className="h-4 w-4" />
-            <span className="hidden sm:inline">Zeiträume</span>
-          </TabsTrigger>
+          {!isSale && (
+            <TabsTrigger value="periods">
+              <CalendarRange className="h-4 w-4" />
+              <span className="hidden sm:inline">Zeiträume</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="notes">
             <StickyNote className="h-4 w-4" />
             <span className="hidden sm:inline">Notizen</span>
@@ -797,6 +822,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           </Card>
         </TabsContent>
 
+        {!isSale && (
         <TabsContent value="periods">
           <PeriodsSection
             projectId={project.id}
@@ -810,6 +836,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
             }))}
           />
         </TabsContent>
+        )}
 
         <TabsContent value="notes">
           <NotesSection
@@ -1066,6 +1093,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 inv.prepaymentPercent !== null ? Number(inv.prepaymentPercent) : null,
               isFinal: inv.deductions !== null && inv.deductions !== undefined,
               emailSentAt: inv.emailSentAt ? inv.emailSentAt.toISOString() : null,
+              sentAt: inv.sentAt ? inv.sentAt.toISOString() : null,
               emailSentTo: inv.emailSentTo,
             }))}
             quotes={project.quotes.map((q) => ({

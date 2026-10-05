@@ -125,7 +125,9 @@ export function PendingTable({ rows }: { rows: PendingRow[] }) {
                   </Link>
                 </TableCell>
                 <TableCell>
-                  {formatDate(p.planningStart)} – {formatDate(p.planningEnd)}
+                  {p.kind === "VERKAUF"
+                    ? `Verkauf · erstellt ${formatDate(p.planningStart)}`
+                    : `${formatDate(p.planningStart)} – ${formatDate(p.planningEnd)}`}
                 </TableCell>
                 <TableCell className="num text-right">
                   <span className={overdueClass}>

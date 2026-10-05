@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, CheckCircle2, Download, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Loader2, Mail, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import {
@@ -64,6 +64,10 @@ export interface InvoiceVM {
   totalNet: number;
   totalGross: number | null;
   paidAt: string | null;
+  /** Versendet, egal auf welchem Weg (App-E-Mail oder manuell markiert). */
+  sentAt: string | null;
+  emailSentAt: string | null;
+  emailSentTo: string | null;
   projectId: string;
   projectName: string;
   customerName: string | null;
@@ -272,7 +276,25 @@ export function InvoicesTable({ rows: invoices }: { rows: InvoiceVM[] }) {
               const isOverdue = status === "overdue";
               return (
                 <TableRow key={inv.id} className={cn(isOverdue && "bg-destructive-subtle/60")}>
-                  <TableCell className="num">{inv.number}</TableCell>
+                  <TableCell className="num">
+                    <span className="flex items-center gap-2">
+                      {inv.number}
+                      {inv.sentAt && (
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="gap-1"
+                          title={
+                            inv.emailSentAt && inv.emailSentAt === inv.sentAt
+                              ? `Per E-Mail versendet am ${formatDate(inv.emailSentAt)}${inv.emailSentTo ? ` an ${inv.emailSentTo}` : ""}`
+                              : `Als versendet markiert am ${formatDate(inv.sentAt)}`
+                          }
+                        >
+                          <Mail className="h-3 w-3" /> Versendet
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     {inv.kind === "REMINDER" ? (
                       <Badge variant="warning" size="sm">

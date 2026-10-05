@@ -1,6 +1,18 @@
 import { prisma } from "@/lib/prisma";
-import { ProjectStatus } from "@prisma/client";
+import { ProjectKind, ProjectStatus } from "@prisma/client";
 import { buildPackList } from "@/lib/packlist";
+
+/**
+ * Projekt-Status, deren Material-Buchungen den Bestand blockieren. Abgerechnete
+ * Projekte zählen mit — die Rechnung kann vor der Veranstaltung rausgehen.
+ * Verkaufsprojekte blockieren nie (kein Zeitraum), siehe `kind`-Filter unten.
+ */
+const BLOCKING_STATUSES: ProjectStatus[] = [
+  ProjectStatus.DRAFT,
+  ProjectStatus.CONFIRMED,
+  ProjectStatus.ACTIVE,
+  ProjectStatus.INVOICED,
+];
 
 /**
  * Prüft, ob die gegebenen Geräte im Zeitraum schon (über-) gebucht sind.
@@ -17,18 +29,13 @@ export async function findConflicts(
 ) {
   if (deviceIds.length === 0) return [];
 
-  const blockingStatuses: ProjectStatus[] = [
-    ProjectStatus.DRAFT,
-    ProjectStatus.CONFIRMED,
-    ProjectStatus.ACTIVE,
-  ];
-
   return prisma.projectAssignment.findMany({
     where: {
       deviceId: { in: deviceIds },
       projectId: excludeProjectId ? { not: excludeProjectId } : undefined,
       project: {
-        status: { in: blockingStatuses },
+        status: { in: BLOCKING_STATUSES },
+        kind: { not: ProjectKind.VERKAUF },
         planningStart: { lte: end },
         planningEnd: { gte: start },
       },
@@ -58,17 +65,12 @@ export async function getOverlappingAssignments(
 ) {
   if (deviceIds.length === 0) return [];
 
-  const blockingStatuses: ProjectStatus[] = [
-    ProjectStatus.DRAFT,
-    ProjectStatus.CONFIRMED,
-    ProjectStatus.ACTIVE,
-  ];
-
   const direct = await prisma.projectAssignment.findMany({
     where: {
       deviceId: { in: deviceIds },
       project: {
-        status: { in: blockingStatuses },
+        status: { in: BLOCKING_STATUSES },
+        kind: { not: ProjectKind.VERKAUF },
         planningStart: { lte: end },
         planningEnd: { gte: start },
       },
@@ -217,7 +219,7 @@ export async function getOverlappingAssignments(
 
   const reservedAssignmentIds = new Set<string>();
   function statusRank(status: ProjectStatus): number {
-    if (status === ProjectStatus.ACTIVE) return 0;
+    if (status === ProjectStatus.ACTIVE || status === ProjectStatus.INVOICED) return 0;
     if (status === ProjectStatus.CONFIRMED) return 1;
     return 2; // DRAFT
   }
