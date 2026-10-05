@@ -21,7 +21,12 @@ import {
 export async function createProject(input: unknown) {
   const session = await requireRole(CAN_WRITE);
   const data = projectSchema.parse(input);
-  const { billingPeriods, ...rest } = data;
+  const { billingPeriods, planningStart, planningEnd, ...rest } = data;
+  // Verkaufsprojekte haben keine Zeiträume: Planungszeitraum = Erstellungs-
+  // zeitpunkt (so sortiert die Projektliste sie nach Erstellungsdatum ein),
+  // keine Berechnungszeiträume.
+  const isSale = rest.kind === "VERKAUF";
+  const now = new Date();
 
   // Defensive: User aus dem Session-Token kann veraltet sein.
   const userExists = await prisma.user.findUnique({
@@ -32,6 +37,8 @@ export async function createProject(input: unknown) {
   const created = await prisma.project.create({
     data: {
       ...rest,
+      planningStart: isSale ? now : planningStart!,
+      planningEnd: isSale ? now : planningEnd!,
       customerId: rest.customerId || null,
       customerNameLine: (rest.customerId && rest.customerNameLine?.trim()) || null,
       maintainerId: rest.maintainerId || null,
@@ -39,7 +46,7 @@ export async function createProject(input: unknown) {
       notes: rest.notes || null,
       createdById: userExists ? session.user.id : null,
       billingPeriods: {
-        create: billingPeriods.map((p) => ({
+        create: (isSale ? [] : billingPeriods).map((p) => ({
           start: p.start,
           end: p.end,
           notes: p.notes || null,
@@ -63,8 +70,38 @@ export async function updateProject(id: string, input: unknown) {
   // Reservierungslogik weiß, welches Projekt bei Material-Konflikten Vorrang hat.
   const existing = await prisma.project.findUnique({
     where: { id },
-    select: { confirmedAt: true },
+    select: { confirmedAt: true, kind: true, createdAt: true },
   });
+
+  // Kategorie-Wechsel von/zu Verkauf: Verkaufsprojekte haben keine Zeiträume.
+  // → Verkauf: Planungszeitraum auf das Erstellungsdatum, Berechnungszeiträume
+  //   weg (Gruppen/Einsätze verlieren nur die Verknüpfung, onDelete SetNull).
+  // ← Verkauf: heutiger Tag als Startwert für Planungs- und Berechnungszeitraum,
+  //   anpassbar im Tab „Zeiträume".
+  const toSale = data.kind === "VERKAUF" && existing && existing.kind !== "VERKAUF";
+  const fromSale = data.kind !== "VERKAUF" && existing?.kind === "VERKAUF";
+  if (toSale) {
+    await prisma.$transaction([
+      prisma.billingPeriod.deleteMany({ where: { projectId: id } }),
+      prisma.project.update({
+        where: { id },
+        data: { planningStart: existing.createdAt, planningEnd: existing.createdAt },
+      }),
+    ]);
+  } else if (fromSale) {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(23, 59, 0, 0);
+    await prisma.$transaction([
+      prisma.billingPeriod.deleteMany({ where: { projectId: id } }),
+      prisma.billingPeriod.create({ data: { projectId: id, start, end } }),
+      prisma.project.update({
+        where: { id },
+        data: { planningStart: start, planningEnd: end },
+      }),
+    ]);
+  }
 
   await prisma.project.update({
     where: { id },
@@ -140,7 +177,8 @@ export async function addAssignment(
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) throw new Error("Projekt nicht gefunden");
 
-  if (!force) {
+  // Verkaufsprojekte blockieren kein Material — also auch keine Konfliktprüfung.
+  if (!force && project.kind !== "VERKAUF") {
     const conflicts = await findConflicts(
       [data.deviceId],
       project.planningStart,

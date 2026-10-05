@@ -18,6 +18,28 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: "2026-10-05b-besetzung",
+    title: "Besetzung im Tab „Personal & Transport“",
+    intro:
+      "Wer für eine Position eingeplant ist, siehst du jetzt in einer eigenen Card „Besetzung“ unter der Positionsliste – wie die Belegung im Material-Tab.",
+    steps: [
+      "Im Projekt unter „Personal & Transport“ eine Position anklicken – darunter erscheinen die eingeplanten Personen bzw. Fahrzeuge mit Zeiten, Sätzen und Konflikten.",
+      "Über „Person einplanen“ bzw. „Fahrzeug einplanen“ in der Card direkt nachbesetzen; Bearbeiten, Entfernen und „Rechnung erhalten“ funktionieren wie bisher.",
+      "In der Positionsliste stehen die eingeplanten Namen klein unter jeder Position, „Unbesetzt“ und „Ohne Fahrzeug“ bleiben als Hinweis.",
+    ],
+  },
+  {
+    id: "2026-10-05-belegungszeitstrahl",
+    title: "Belegungszeitstrahl im Material-Tab",
+    intro:
+      "Im Material-Tab eines Projekts siehst du jetzt auf einen Blick, welche anderen Projekte ein gebuchtes Gerät oder Kabel im selben Zeitraum belegen und wie viel noch frei ist.",
+    steps: [
+      "Im Projekt unter „Material“ eine gebuchte Geräte- oder Kabelzeile anklicken – der Zeitstrahl erscheint in der Card „Belegung“ darunter.",
+      "Die Zeile „Frei“ zeigt pro Tag den freien Bestand: grün = frei, gelb = ausgebucht oder nur durch Entwürfe überbucht, rot = fest überbucht.",
+      "Darunter steht je Projekt ein Balken mit der gebuchten Stückzahl; ein Klick auf den Projektnamen öffnet das Projekt.",
+    ],
+  },
+  {
     id: "2026-09-30b-auftragsbestaetigung",
     title: "Auftragsbestätigungen",
     intro:

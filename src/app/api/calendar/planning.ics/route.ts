@@ -21,6 +21,8 @@ export async function GET(req: Request) {
   // Stornierte Projekte bleiben im Feed sichtbar — der Status wird über das
   // Emoji im Betreff transportiert.
   const projects = await prisma.project.findMany({
+    // Verkaufsprojekte haben keinen Zeitraum — kein Kalendereintrag.
+    where: { kind: { not: "VERKAUF" } },
     include: {
       customer: { select: { name: true } },
       projectNotes: { orderBy: { updatedAt: "desc" } },

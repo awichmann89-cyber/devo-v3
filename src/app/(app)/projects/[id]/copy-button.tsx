@@ -21,9 +21,11 @@ interface Props {
   name: string;
   planningStart: string; // ISO
   planningEnd: string;   // ISO
+  /** Verkaufsprojekt: kein Zeitraum, die Kopie bekommt nur einen Namen. */
+  isSale?: boolean;
 }
 
-export function CopyProjectButton({ id, name, planningStart, planningEnd }: Props) {
+export function CopyProjectButton({ id, name, planningStart, planningEnd, isSale }: Props) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -46,6 +48,19 @@ export function CopyProjectButton({ id, name, planningStart, planningEnd }: Prop
     e.preventDefault();
     if (!newName.trim()) {
       toast.error("Name darf nicht leer sein");
+      return;
+    }
+    if (isSale) {
+      startTransition(async () => {
+        try {
+          await copyProject(id, { name: newName.trim() });
+        } catch (e) {
+          if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
+          toast.error("Kopieren fehlgeschlagen", {
+            description: e instanceof Error ? e.message : "",
+          });
+        }
+      });
       return;
     }
     const start = new Date(newStart);
@@ -93,10 +108,20 @@ export function CopyProjectButton({ id, name, planningStart, planningEnd }: Prop
               <Copy className="h-5 w-5" /> Projekt kopieren
             </DialogTitle>
             <DialogDescription>
-              Material-Buchungen, Personal &amp; Transport, Gruppen, Notizen und
-              Berechnungszeiträume werden übernommen — Berechnungszeiträume
-              werden um die gleiche Differenz verschoben wie der Planungsstart.
-              Rechnungen, Angebote und Pack-Scans werden nicht mitkopiert.
+              {isSale ? (
+                <>
+                  Material-Buchungen, Personal &amp; Transport, Gruppen und
+                  Notizen werden übernommen. Rechnungen, Angebote und Pack-Scans
+                  werden nicht mitkopiert.
+                </>
+              ) : (
+                <>
+                  Material-Buchungen, Personal &amp; Transport, Gruppen, Notizen und
+                  Berechnungszeiträume werden übernommen — Berechnungszeiträume
+                  werden um die gleiche Differenz verschoben wie der Planungsstart.
+                  Rechnungen, Angebote und Pack-Scans werden nicht mitkopiert.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-3">
@@ -111,6 +136,7 @@ export function CopyProjectButton({ id, name, planningStart, planningEnd }: Prop
                 maxLength={200}
               />
             </div>
+            {!isSale && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="copy-start">Planungsstart</Label>
@@ -133,6 +159,7 @@ export function CopyProjectButton({ id, name, planningStart, planningEnd }: Prop
                 />
               </div>
             </div>
+            )}
             <DialogFooter>
               <Button
                 type="button"

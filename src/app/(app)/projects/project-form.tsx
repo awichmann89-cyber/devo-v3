@@ -168,6 +168,7 @@ export function ProjectForm({
   }
 
   const isEditMode = !!project;
+  const isSale = form.kind === ProjectKind.VERKAUF;
   const autoSavePayload = useMemo(
     () => ({
       name: form.name,
@@ -196,19 +197,23 @@ export function ProjectForm({
     e.preventDefault();
     startTransition(async () => {
       try {
+        // Verkaufsprojekte haben keine Zeiträume — der Server setzt den
+        // Planungszeitraum auf das Erstellungsdatum.
         const payload = {
           ...form,
           customerId: form.customerId || null,
           customerNameLine: form.customerNameLine || null,
           maintainerId: form.maintainerId || null,
           discountPercent: Number(form.discountPercent),
-          planningStart: new Date(form.planningStart),
-          planningEnd: new Date(form.planningEnd),
-          billingPeriods: periods.map((p) => ({
-            start: new Date(p.start),
-            end: new Date(p.end),
-            notes: p.notes || null,
-          })),
+          planningStart: isSale ? undefined : new Date(form.planningStart),
+          planningEnd: isSale ? undefined : new Date(form.planningEnd),
+          billingPeriods: isSale
+            ? []
+            : periods.map((p) => ({
+                start: new Date(p.start),
+                end: new Date(p.end),
+                notes: p.notes || null,
+              })),
         };
         if (project) {
           await updateProject(project.id, payload);
@@ -421,7 +426,7 @@ export function ProjectForm({
         </div>
       </section>
 
-      {!project && (
+      {!project && !isSale && (
       <section className="space-y-4">
         <SectionHeader
           title="Zeiträume"

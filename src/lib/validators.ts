@@ -159,18 +159,33 @@ export const projectSchema = z
     description: z.string().max(2000).optional().nullable(),
     status: z.nativeEnum(ProjectStatus).default(ProjectStatus.DRAFT),
     kind: z.nativeEnum(ProjectKind).default(ProjectKind.DRYHIRE),
-    planningStart: z.coerce.date(),
-    planningEnd: z.coerce.date(),
-    billingPeriods: z
-      .array(billingPeriodSchema)
-      .min(1, "Mindestens ein Berechnungszeitraum erforderlich"),
+    // Verkaufsprojekte haben keine Zeiträume — dann dürfen beide fehlen, der
+    // Server setzt den Planungszeitraum auf das Erstellungsdatum.
+    planningStart: z.coerce.date().optional(),
+    planningEnd: z.coerce.date().optional(),
+    billingPeriods: z.array(billingPeriodSchema).default([]),
     discountPercent: z.coerce.number().min(0).max(100).default(0),
     notes: z.string().max(2000).optional().nullable(),
     maintainerId: z.string().optional().nullable(),
   })
-  .refine((d) => d.planningEnd >= d.planningStart, {
-    path: ["planningEnd"],
-    message: "Planungs-Ende muss nach Start liegen",
+  .superRefine((d, ctx) => {
+    if (d.kind === ProjectKind.VERKAUF) return;
+    if (!d.planningStart) {
+      ctx.addIssue({ code: "custom", path: ["planningStart"], message: "Planungs-Start erforderlich" });
+    }
+    if (!d.planningEnd) {
+      ctx.addIssue({ code: "custom", path: ["planningEnd"], message: "Planungs-Ende erforderlich" });
+    }
+    if (d.planningStart && d.planningEnd && d.planningEnd < d.planningStart) {
+      ctx.addIssue({ code: "custom", path: ["planningEnd"], message: "Planungs-Ende muss nach Start liegen" });
+    }
+    if (d.billingPeriods.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["billingPeriods"],
+        message: "Mindestens ein Berechnungszeitraum erforderlich",
+      });
+    }
   });
 
 export const projectUpdateCoreSchema = z.object({

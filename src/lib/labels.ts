@@ -24,6 +24,7 @@ export function projectStatusLabel(status: ProjectStatus): string {
     DRAFT: "Entwurf",
     CONFIRMED: "Bestätigt",
     ACTIVE: "Aktiv",
+    INVOICED: "Abgerechnet",
     COMPLETED: "Abgeschlossen",
     CANCELLED: "Storniert",
   }[status];
@@ -34,6 +35,7 @@ export function projectStatusVariant(status: ProjectStatus): BadgeVariant {
     DRAFT: "outline" as const,
     CONFIRMED: "secondary" as const,
     ACTIVE: "default" as const,
+    INVOICED: "warning" as const,
     COMPLETED: "success" as const,
     CANCELLED: "destructive" as const,
   }[status];
@@ -45,6 +47,7 @@ export function projectStatusEmoji(status: ProjectStatus): string {
     DRAFT: "📝",
     CONFIRMED: "✅",
     ACTIVE: "🟢",
+    INVOICED: "🧾",
     COMPLETED: "🏁",
     CANCELLED: "❌",
   }[status];
@@ -59,6 +62,7 @@ export function projectStatusRowClass(status: ProjectStatus): string {
     DRAFT: "border-l-[3px] border-l-transparent",
     CONFIRMED: "border-l-[3px] border-l-info",
     ACTIVE: "border-l-[3px] border-l-primary",
+    INVOICED: "border-l-[3px] border-l-warning",
     COMPLETED: "border-l-[3px] border-l-success",
     CANCELLED: "border-l-[3px] border-l-destructive",
   }[status];

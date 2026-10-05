@@ -75,6 +75,8 @@ function projectChipClass(status: ProjectStatus): string {
   switch (status) {
     case "ACTIVE":
       return "bg-info hover:bg-info text-white";
+    case "INVOICED":
+      return "bg-warning hover:bg-warning text-white";
     case "CONFIRMED":
       return "bg-success hover:bg-success text-white";
     case "DRAFT":
@@ -181,7 +183,8 @@ export function Timeline({
           return (
             p.status === "DRAFT" ||
             p.status === "CONFIRMED" ||
-            p.status === "ACTIVE"
+            p.status === "ACTIVE" ||
+            p.status === "INVOICED"
           );
         }
         return p.status === statusFilter;

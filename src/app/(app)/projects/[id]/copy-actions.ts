@@ -25,8 +25,9 @@ export async function copyProject(
   sourceId: string,
   input: {
     name: string;
-    planningStart: Date;
-    planningEnd: Date;
+    /** Entfällt bei Verkaufsprojekten (die haben keinen Zeitraum). */
+    planningStart?: Date;
+    planningEnd?: Date;
   }
 ): Promise<{ id: string }> {
   await requireRole(CAN_WRITE);
@@ -56,14 +57,23 @@ export async function copyProject(
 
   const name = input.name.trim();
   if (!name) throw new Error("Name darf nicht leer sein");
-  if (input.planningEnd < input.planningStart) {
+  // Verkaufsprojekte haben keinen Zeitraum: Planungszeitraum = Erstellungs-
+  // zeitpunkt der Kopie, keine Berechnungszeiträume.
+  const isSale = source.kind === "VERKAUF";
+  const now = new Date();
+  const planningStart = isSale ? now : input.planningStart;
+  const planningEnd = isSale ? now : input.planningEnd;
+  if (!planningStart || !planningEnd) {
+    throw new Error("Planungszeitraum erforderlich");
+  }
+  if (planningEnd < planningStart) {
     throw new Error("Planungs-Ende muss nach Start liegen");
   }
 
   // Tages-Differenz Source → Ziel, um BillingPeriods proportional zu verschieben
   const dayMs = 24 * 60 * 60 * 1000;
   const sourceStartMs = source.planningStart.getTime();
-  const targetStartMs = input.planningStart.getTime();
+  const targetStartMs = planningStart.getTime();
   const offsetDays = Math.round((targetStartMs - sourceStartMs) / dayMs);
 
   const shifted = (d: Date): Date => {
@@ -82,8 +92,8 @@ export async function copyProject(
         description: source.description,
         status: "DRAFT",
         kind: source.kind,
-        planningStart: input.planningStart,
-        planningEnd: input.planningEnd,
+        planningStart,
+        planningEnd,
         discountPercent: source.discountPercent,
         materialDiscountPercent: source.materialDiscountPercent,
         servicesDiscountPercent: source.servicesDiscountPercent,
@@ -184,7 +194,7 @@ export async function copyProject(
     }
 
     // 7) Berechnungszeiträume — proportional verschoben
-    for (const bp of source.billingPeriods) {
+    for (const bp of isSale ? [] : source.billingPeriods) {
       await tx.billingPeriod.create({
         data: {
           projectId: newProject.id,

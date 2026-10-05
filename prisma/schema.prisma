@@ -302,6 +302,8 @@ enum ProjectStatus {
   DRAFT
   CONFIRMED
   ACTIVE
+  // Abgerechnet: (Schluss-)Rechnung versendet, Zahlung steht noch aus.
+  INVOICED
   COMPLETED
   CANCELLED
 }
@@ -659,6 +661,9 @@ model Invoice {
   // Zeitpunkt/Empfänger des letzten Versands per E-Mail aus der App heraus.
   emailSentAt       DateTime?
   emailSentTo       String?
+  // Versendet — egal auf welchem Weg (App-E-Mail, Post, eigenes Mailprogramm).
+  // Setzt das Projekt bei Schlussrechnungen auf INVOICED.
+  sentAt            DateTime?
   createdAt         DateTime    @default(now())
 
   @@index([projectId])
