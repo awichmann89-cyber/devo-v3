@@ -29,7 +29,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
       "Planungs- und Berechnungszeiträume setzt du jetzt mit wenigen Klicks direkt im Kalender – den Berechnungstag schlägt Cratel automatisch vor.",
     steps: [
       {
-        text: "Planungszeitraum: Feld anklicken, dann Start- und End-Tag nacheinander anklicken. Monat und Jahr stellst du oben direkt um, die Uhrzeiten sind vorbelegt und halbstündig wählbar.",
+        text: "Planungszeitraum: Feld anklicken, dann Start- und End-Tag nacheinander anklicken. Monat und Jahr stellst du oben direkt um. Die Uhrzeiten sind vorbelegt und halbstündig wählbar – mit „Fertig“ schließen.",
         image: "/announcements/2026-10-06b-zeitraeume-1.png",
         alt: "Kalender mit zwei Monaten, Start- und End-Tag markiert, darunter Start- und End-Uhrzeit",
       },

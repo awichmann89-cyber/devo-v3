@@ -116,10 +116,10 @@ export function DateRangeField({
       setFrom(day);
       return;
     }
+    // Popover bleibt offen, damit man danach noch die Uhrzeiten einstellen kann.
     commit(from, day);
     setFrom(null);
     setHover(null);
-    setOpen(false);
   }
 
   function onTimeChange(which: "start" | "end", v: string) {
@@ -171,7 +171,11 @@ export function DateRangeField({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-3" align="start">
         <p className="mb-2 text-xs text-muted-foreground">
-          {from ? "Ende wählen" : "Start wählen"}
+          {from
+            ? "Ende wählen"
+            : start && end
+              ? "Uhrzeiten einstellen – oder neuen Start wählen"
+              : "Start wählen"}
         </p>
         <DayPicker
           locale={de}
@@ -252,6 +256,11 @@ export function DateRangeField({
               onChange={(v) => onTimeChange("end", v)}
             />
           </div>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <Button type="button" size="sm" onClick={() => setOpen(false)} disabled={!!from}>
+            Fertig
+          </Button>
         </div>
       </PopoverContent>
     </Popover>
