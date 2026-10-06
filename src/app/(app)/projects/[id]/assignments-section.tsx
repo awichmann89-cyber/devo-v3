@@ -161,7 +161,14 @@ type StockInfo = {
 type CableConflictInfo = {
   stock: number;
   packAllocation: number;
-  foreignBookings: { projectName: string; status: ProjectStatus; quantity: number }[];
+  foreignBookings: {
+    projectId: string;
+    projectName: string;
+    status: ProjectStatus;
+    planningStart: Date;
+    planningEnd: Date;
+    quantity: number;
+  }[];
   foreignTotal: number;
 };
 
@@ -1148,46 +1155,39 @@ export function AssignmentsSection({
           </TableCell>
         </SortableRow>
         {showOverWarning && (() => {
-          const stock = a.device.stockQuantity;
           const booked = conflict.ownBookedQuantity || a.quantity;
           const ownEff = conflict.ownEffectiveQuantity || booked;
-          const ownExtra = ownEff - booked;
-          const ownPacks = conflict.ownBlockingPackUnits;
-          // Rest-Engpass nach Abzug der Zumietung.
-          const overBy = uncoveredOver;
-          const foreignNames = conflict.otherProjects
-            .map((op) => draftSuffix(op.projectName, op.status))
-            .join(", ");
-          const severity = overSeverity ?? "error";
+          const ownPack = conflict.ownBlockingPackUnits[0];
+          const parts: DemandPart[] = [
+            {
+              label: "hier",
+              quantity: ownEff,
+              detail:
+                ownEff > booked && ownPack
+                  ? `${booked} gebucht, aufgerundet auf volle Cases „${ownPack.name}“ à ${ownPack.perUnit}`
+                  : undefined,
+            },
+            ...conflict.otherProjects.map((op) => ({
+              label: op.projectName,
+              quantity: op.effectiveQuantity,
+              draft: op.status === "DRAFT",
+              detail: [
+                periodShort(op.planningStart, op.planningEnd),
+                op.effectiveQuantity > op.bookedQuantity && "inkl. Case-Aufrundung",
+              ]
+                .filter(Boolean)
+                .join(", "),
+            })),
+          ];
           return (
-            <TableRow className={OVER_MESSAGE_ROW_CLASS[severity]}>
-              <TableCell colSpan={isSale ? 6 : 8} className={cn("py-1.5 text-xs", OVER_TEXT_CLASS[severity])}>
-                <div className="flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    <span className="font-semibold">
-                      {severity === "warning" && "Mögliche Überschneidung, "}
-                      {overBy} zu viel{severity === "warning" && ", falls Entwürfe bestätigt werden"}:
-                    </span>{" "}
-                    <span className="font-medium">{booked}</span> gebucht
-                    {ownExtra > 0 && ownPacks.length > 0 && (
-                      <>
-                        {" "}
-                        → <span className="font-medium">{ownEff}</span> belegt
-                        durch Case „{ownPacks[0].name}" ({ownPacks[0].perUnit}/Case)
-                      </>
-                    )}
-                    {foreignNames && (
-                      <>
-                        {" "}
-                        + bereits in <span className="font-medium">{foreignNames}</span>
-                      </>
-                    )}
-                    , Bestand: <span className="font-medium">{stock}</span>
-                  </span>
-                </div>
-              </TableCell>
-            </TableRow>
+            <OverbookingNotice
+              severity={overSeverity ?? "error"}
+              missing={uncoveredOver}
+              stock={a.device.stockQuantity}
+              subhired={subhiredQty}
+              parts={parts}
+              colSpan={isSale ? 6 : 8}
+            />
           );
         })()}
       </Fragment>
@@ -1366,35 +1366,20 @@ export function AssignmentsSection({
           </TableCell>
         </SortableRow>
         {overSeverity && (
-          <TableRow className={OVER_MESSAGE_ROW_CLASS[overSeverity]}>
-            <TableCell colSpan={isSale ? 6 : 8} className={cn("py-1.5 text-xs", OVER_TEXT_CLASS[overSeverity])}>
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                <span>
-                  <span className="font-semibold">
-                    {overSeverity === "warning" && "Mögliche Überschneidung, "}
-                    {overBy} zu viel{overSeverity === "warning" && ", falls Entwürfe bestätigt werden"}:
-                  </span>{" "}
-                  <span className="font-medium">{ca.quantity}</span> gebucht
-                  {conf && conf.packAllocation > 0 && (
-                    <>
-                      {" "}
-                      + <span className="font-medium">{conf.packAllocation}</span>{" "}
-                      in Packeinheiten
-                    </>
-                  )}
-                  {conf && conf.foreignBookings.length > 0 && (
-                    <>
-                      {" "}
-                      + <span className="font-medium">{conf.foreignTotal}</span>{" "}
-                      in {conf.foreignBookings.map((f) => draftSuffix(f.projectName, f.status)).join(", ")}
-                    </>
-                  )}
-                  , Bestand: <span className="font-medium">{stock}</span>
-                </span>
-              </div>
-            </TableCell>
-          </TableRow>
+          <OverbookingNotice
+            severity={overSeverity}
+            missing={overBy}
+            stock={stock}
+            subhired={0}
+            parts={[
+              { label: "hier", quantity: ca.quantity },
+              ...(conf && conf.packAllocation > 0
+                ? [{ label: "in Cases", quantity: conf.packAllocation }]
+                : []),
+              ...groupForeignCables(conf?.foreignBookings ?? []),
+            ]}
+            colSpan={isSale ? 6 : 8}
+          />
         )}
       </Fragment>
     );
@@ -2244,7 +2229,97 @@ const OVER_MESSAGE_ROW_CLASS: Record<OverSeverity, string> = {
   warning: "bg-warning/10 hover:bg-warning/10",
 };
 
-/** Projektname in Konfliktmeldungen, Entwürfe als solche markiert. */
-function draftSuffix(name: string, status: ProjectStatus): string {
-  return status === "DRAFT" ? `${name} (Entwurf)` : name;
+/** Ein Posten im gleichzeitigen Bedarf einer Überbuchung. */
+type DemandPart = {
+  label: string;
+  quantity: number;
+  /** Tooltip, z.B. Zeitraum oder Case-Aufrundung. */
+  detail?: string;
+  draft?: boolean;
+};
+
+/** Kurzer Zeitraum ohne Jahr: „12.10.“ bzw. „12.10.–14.10.“. */
+function periodShort(start: Date, end: Date): string {
+  const s = formatDate(start).slice(0, 6);
+  const e = formatDate(end).slice(0, 6);
+  return s === e ? s : `${s}–${e}`;
+}
+
+/** Kabel-Fremdbuchungen pro Projekt zusammenfassen (mehrere Gruppen = mehrere Zeilen). */
+function groupForeignCables(
+  bookings: CableConflictInfo["foreignBookings"]
+): DemandPart[] {
+  const byProject = new Map<string, DemandPart>();
+  for (const b of bookings) {
+    const existing = byProject.get(b.projectId);
+    if (existing) {
+      existing.quantity += b.quantity;
+    } else {
+      byProject.set(b.projectId, {
+        label: b.projectName,
+        quantity: b.quantity,
+        draft: b.status === "DRAFT",
+        detail: periodShort(b.planningStart, b.planningEnd),
+      });
+    }
+  }
+  return [...byProject.values()];
+}
+
+/**
+ * Einzeiliger Überbuchungs-Hinweis unter einer Material-Zeile: wie viel fehlt,
+ * dann Lager vs. gleichzeitiger Bedarf pro Projekt. Zeitraum und
+ * Case-Aufrundung stehen im Tooltip des jeweiligen Postens.
+ */
+function OverbookingNotice({
+  severity,
+  missing,
+  stock,
+  subhired,
+  parts,
+  colSpan,
+}: {
+  severity: OverSeverity;
+  missing: number;
+  stock: number;
+  subhired: number;
+  parts: DemandPart[];
+  colSpan: number;
+}) {
+  const total = parts.reduce((s, p) => s + p.quantity, 0);
+  return (
+    <TableRow className={OVER_MESSAGE_ROW_CLASS[severity]}>
+      <TableCell colSpan={colSpan} className="py-1.5 text-xs">
+        <div className="flex items-start gap-1.5">
+          <AlertTriangle
+            className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", OVER_TEXT_CLASS[severity])}
+          />
+          <p>
+            <span className={cn("font-semibold", OVER_TEXT_CLASS[severity])}>
+              {missing} Stk. fehlen
+              {severity === "warning" && ", falls Entwürfe bestätigt werden"}
+            </span>
+            <span className="text-muted-foreground">
+              {" — "}
+              {subhired > 0 ? `Lager ${stock} + ${subhired} zugemietet` : `Lager ${stock}`},
+              verplant {total}:{" "}
+              {parts.map((p, i) => (
+                <Fragment key={i}>
+                  {i > 0 && " · "}
+                  <span
+                    className={cn("whitespace-nowrap", p.detail && "cursor-help underline decoration-dotted underline-offset-2")}
+                    title={p.detail}
+                  >
+                    <span className="font-medium text-foreground">{p.quantity}</span>{" "}
+                    {p.label}
+                    {p.draft && " (Entwurf)"}
+                  </span>
+                </Fragment>
+              ))}
+            </span>
+          </p>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
 }

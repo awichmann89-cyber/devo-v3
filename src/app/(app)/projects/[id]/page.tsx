@@ -322,7 +322,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   type CableConflictInfo = {
     stock: number;
     packAllocation: number;
-    foreignBookings: { projectName: string; status: ProjectStatus; quantity: number }[];
+    foreignBookings: {
+      projectId: string;
+      projectName: string;
+      status: ProjectStatus;
+      planningStart: Date;
+      planningEnd: Date;
+      quantity: number;
+    }[];
     foreignTotal: number;
   };
   // packAllocation für ALLE Kabel (auch nicht-gebuchte — Katalog zeigt sie)
@@ -352,7 +359,15 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           select: {
             cableId: true,
             quantity: true,
-            project: { select: { name: true, status: true } },
+            project: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                planningStart: true,
+                planningEnd: true,
+              },
+            },
           },
         }),
   ]);
@@ -376,8 +391,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     if (!entry) continue;
     entry.foreignTotal += fb.quantity;
     entry.foreignBookings.push({
+      projectId: fb.project.id,
       projectName: fb.project.name,
       status: fb.project.status,
+      planningStart: fb.project.planningStart,
+      planningEnd: fb.project.planningEnd,
       quantity: fb.quantity,
     });
   }
