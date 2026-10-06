@@ -8,6 +8,7 @@ import { AcceptanceForm } from "./acceptance-form";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { deviceRowLabel } from "@/lib/labels";
 import { isSmallBusiness, SMALL_BUSINESS_NOTE } from "@/lib/settings";
+import { formatDiscountPercent } from "@/lib/fixed-price";
 
 export const dynamic = "force-dynamic";
 
@@ -387,7 +388,7 @@ function QuoteSnapshotView({
         <CardContent className="py-4 space-y-1.5 text-sm">
           {projectDiscount > 0 && (
             <Row
-              label={`Projekt-Rabatt ${snapshot.project.discountPercent}%`}
+              label={`Projekt-Rabatt ${formatDiscountPercent(snapshot.project.discountPercent)}%`}
               value={`-${formatCurrency(projectDiscount)}`}
               muted
             />

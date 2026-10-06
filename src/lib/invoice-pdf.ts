@@ -19,6 +19,7 @@ import {
   isValidSnapshot,
   type DocumentSnapshot,
 } from "@/lib/document-snapshot";
+import { formatDiscountPercent } from "@/lib/fixed-price";
 
 // Beträge im deutschen Format mit Tausender-Trennzeichen, z.B. „1.234,56 €".
 const fmt = (n: number) =>
@@ -736,7 +737,7 @@ export async function buildInvoicePdf(
   ];
   if (projectDiscount > 0) {
     discountLines.push({
-      label: `Projekt-Rabatt ${snapProjectDiscountPercent}%`,
+      label: `Projekt-Rabatt ${formatDiscountPercent(snapProjectDiscountPercent)}%`,
       amount: projectDiscount,
     });
   }

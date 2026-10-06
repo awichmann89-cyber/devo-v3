@@ -20,6 +20,7 @@ import { Prisma } from "@prisma/client";
 import { billingUnitLabel, serviceItemKindLabel, serviceRowLabel } from "@/lib/labels";
 import { daysBetween } from "@/lib/utils";
 import { parseDayFactorMap, getDayFactor } from "@/lib/settings";
+import { effectiveProjectDiscountPercent } from "@/lib/fixed-price";
 
 /** Version-Tag — bei Brüchen am Format wird hier hochgezählt. */
 export const DOCUMENT_SNAPSHOT_VERSION = 1;
@@ -357,9 +358,15 @@ export function buildSnapshotFromProject(
     servicesBereichSub -
     (servicesBereichSub * Number(project.servicesDiscountPercent)) / 100;
   const subAfterAll = materialBereichNet + servicesBereichNet;
+  // Bei Festpreis wird der projektweite Rabatt hier berechnet und eingefroren —
+  // die PDFs rechnen mit dem gespeicherten Prozentsatz weiter.
+  const projectDiscountPercent = effectiveProjectDiscountPercent(
+    subAfterAll,
+    Number(project.discountPercent),
+    project.fixedTotalNet != null ? Number(project.fixedTotalNet) : null,
+  );
   const totalNet =
-    subAfterAll -
-    (subAfterAll * Number(project.discountPercent)) / 100;
+    subAfterAll - (subAfterAll * projectDiscountPercent) / 100;
   const vatPercent = Number(settings.vatPercent) || 0;
   const vatAmount = (totalNet * vatPercent) / 100;
   const totalGross = totalNet + vatAmount;
@@ -381,7 +388,7 @@ export function buildSnapshotFromProject(
         start: p.start.toISOString(),
         end: p.end.toISOString(),
       })),
-      discountPercent: Number(project.discountPercent),
+      discountPercent: projectDiscountPercent,
       materialDiscountPercent: Number(project.materialDiscountPercent),
       servicesDiscountPercent: Number(project.servicesDiscountPercent),
     },

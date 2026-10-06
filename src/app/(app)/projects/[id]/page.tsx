@@ -10,6 +10,10 @@ import Link from "next/link";
 import { FileText, Boxes, StickyNote, Truck, CalendarRange, Wallet, Paperclip, HandCoins } from "lucide-react";
 import { formatCurrency, formatDate, daysBetween, serialize } from "@/lib/utils";
 import {
+  effectiveProjectDiscountPercent,
+  formatDiscountPercent,
+} from "@/lib/fixed-price";
+import {
   projectKindLabel,
   projectKindVariant,
   projectStatusLabel,
@@ -467,13 +471,21 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
 
   const matPct = Number(project.materialDiscountPercent ?? 0) || 0;
   const svcPct = Number(project.servicesDiscountPercent ?? 0) || 0;
-  const projPct = Number(project.discountPercent ?? 0) || 0;
+  const storedProjPct = Number(project.discountPercent ?? 0) || 0;
+  const fixedTotalNet =
+    project.fixedTotalNet != null ? Number(project.fixedTotalNet) : null;
   const materialBereichNet =
     materialNetAfterGroups - (materialNetAfterGroups * matPct) / 100;
   const servicesBereichNet =
     servicesNetAfterGroups - (servicesNetAfterGroups * svcPct) / 100;
 
   const subAfterBereichDiscounts = materialBereichNet + servicesBereichNet;
+  // Bei Festpreis automatisch berechnet, sonst der manuell gepflegte Wert.
+  const projPct = effectiveProjectDiscountPercent(
+    subAfterBereichDiscounts,
+    storedProjPct,
+    fixedTotalNet
+  );
   const projectDiscountAmount = (subAfterBereichDiscounts * projPct) / 100;
   const total = subAfterBereichDiscounts - projectDiscountAmount;
 
@@ -763,9 +775,14 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
           label="Gesamtpreis"
           value={formatCurrency(total)}
           hint={
-            Number(project.discountPercent) > 0
-              ? `inkl. ${project.discountPercent.toString()} % Rabatt`
-              : undefined
+            [
+              fixedTotalNet !== null ? "Festpreis" : null,
+              projPct > 0
+                ? `inkl. ${formatDiscountPercent(projPct)} % Rabatt`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined
           }
         />
       </StatTileGrid>
@@ -1075,7 +1092,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
                 subtotal: groupGross(g.id, g.kind as "MATERIAL" | "SERVICE"),
                 billable: g.billable,
               }))}
-            projectDiscountPercent={projPct}
+            projectDiscountPercent={storedProjPct}
+            fixedTotalNet={fixedTotalNet}
             materialDiscountPercent={matPct}
             servicesDiscountPercent={svcPct}
             invoices={project.invoices.map((inv) => ({

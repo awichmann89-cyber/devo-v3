@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   FileText,
   Receipt,
@@ -49,6 +50,7 @@ import {
   Mail,
   FileCheck,
   Send,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -56,6 +58,7 @@ import {
   updateGroupDiscount,
   updateProjectDiscount,
   updateBereichDiscount,
+  setProjectFixedTotal,
   createInvoice,
   deleteInvoice,
   createQuote,
@@ -72,6 +75,10 @@ import { toastError } from "@/lib/toast";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
 import { fillTemplate } from "@/lib/email-template";
+import {
+  effectiveProjectDiscountPercent,
+  formatDiscountPercent,
+} from "@/lib/fixed-price";
 
 export interface FinancesGroupVM {
   id: string;
@@ -171,7 +178,10 @@ interface Props {
   projectId: string;
   projectName: string;
   groups: FinancesGroupVM[];
+  /** Manuell gepflegter projektweiter Rabatt (ohne Festpreis). */
   projectDiscountPercent: number;
+  /** Festpreis (netto) — wenn gesetzt, ergibt sich der projektweite Rabatt daraus. */
+  fixedTotalNet: number | null;
   materialDiscountPercent: number;
   servicesDiscountPercent: number;
   invoices: FinancesInvoiceVM[];
@@ -203,6 +213,7 @@ export function FinancesSection({
   projectName,
   groups,
   projectDiscountPercent,
+  fixedTotalNet,
   materialDiscountPercent,
   servicesDiscountPercent,
   invoices,
@@ -295,9 +306,19 @@ export function FinancesSection({
   const services = bereich("SERVICE");
 
   const subAfterBereichDiscounts = material.net + services.net;
+  // Bei Festpreis gleicht der projektweite Rabatt Änderungen an Material und
+  // Personal aus — siehe effectiveProjectDiscountPercent.
+  const isFixed = fixedTotalNet !== null;
+  const effectiveProjectPct = effectiveProjectDiscountPercent(
+    subAfterBereichDiscounts,
+    projectDiscountPercent,
+    fixedTotalNet
+  );
   const projectDiscountAmount =
-    (subAfterBereichDiscounts * projectDiscountPercent) / 100;
+    (subAfterBereichDiscounts * effectiveProjectPct) / 100;
   const grandTotal = subAfterBereichDiscounts - projectDiscountAmount;
+  // Summe liegt unter dem Festpreis — Rabatt ist bereits 0 %, Preis sinkt mit.
+  const belowFixed = isFixed && grandTotal < fixedTotalNet - 0.005;
 
   // ----- Interne Ergebnis-Rechnung (Umsatz abzgl. Zusatzkosten) -----
   const extraCostTotal = extraPersonal + extraOther;
@@ -340,6 +361,21 @@ export function FinancesSection({
     startTransition(async () => {
       try {
         await updateProjectDiscount(projectId, v);
+      } catch (e) {
+        toastError(e, "Speichern");
+      }
+    });
+  }
+
+  function handleToggleFixed(fixed: boolean) {
+    startTransition(async () => {
+      try {
+        await setProjectFixedTotal(projectId, fixed);
+        toast.success(
+          fixed
+            ? `Preis auf ${formatCurrency(grandTotal)} netto festgesetzt`
+            : "Festpreis aufgehoben"
+        );
       } catch (e) {
         toastError(e, "Speichern");
       }
@@ -561,11 +597,23 @@ export function FinancesSection({
         </Card>
       ) : (
         <Card className="overflow-hidden">
-          <CardHeader>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
             <CardTitle className="flex items-center gap-2">
               Übersicht
               <InfoHint text="Rabatt pro Gruppe, pro Bereich (Material/Personal & Transport) und projektweit — werden in dieser Reihenfolge angewendet." />
             </CardTitle>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="fixed-total"
+                checked={isFixed}
+                onCheckedChange={(v) => handleToggleFixed(v === true)}
+                disabled={pending}
+              />
+              <Label htmlFor="fixed-total" className="cursor-pointer text-sm">
+                Preis festsetzen
+              </Label>
+              <InfoHint text="Friert das aktuelle Gesamt netto ein. Ändern sich danach Material oder Personal, wird der projektweite Rabatt automatisch so angepasst, dass der Preis gleich bleibt. Liegt die Summe unter dem Festpreis, bleibt der Rabatt bei 0 % und der Preis sinkt mit." />
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table density="dense">
@@ -601,18 +649,31 @@ export function FinancesSection({
                 <TableRow>
                   <TableCell className="text-muted-foreground">
                     Projektweiter Rabatt
+                    {isFixed && <span className="ml-2 text-xs">(automatisch)</span>}
                   </TableCell>
                   <TableCell />
                   <TableCell className="text-right">
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="100"
-                      defaultValue={safePct(projectDiscountPercent)}
-                      onBlur={(e) => handleProjectDiscount(e.target.value)}
-                      className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
-                    />
+                    {isFixed ? (
+                      <span
+                        className="num text-xs text-muted-foreground"
+                        title="Wird bei Festpreis automatisch berechnet"
+                      >
+                        {formatDiscountPercent(effectiveProjectPct)}
+                      </span>
+                    ) : (
+                      <Input
+                        // Neu mounten, wenn der Festpreis aufgehoben wird — dann
+                        // steht der zuletzt berechnete Rabatt als Wert drin.
+                        key={projectDiscountPercent}
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        defaultValue={safePct(projectDiscountPercent)}
+                        onBlur={(e) => handleProjectDiscount(e.target.value)}
+                        className="ml-auto h-7 w-[72px] px-1.5 num text-right text-xs"
+                      />
+                    )}
                   </TableCell>
                   <TableCell className="text-right num text-muted-foreground">
                     {projectDiscountAmount > 0
@@ -624,7 +685,16 @@ export function FinancesSection({
 
                 {/* Gesamt netto */}
                 <TableRow className="border-t-2 bg-muted/40">
-                  <TableCell className="font-bold text-base">Gesamt netto</TableCell>
+                  <TableCell className="font-bold text-base">
+                    <span className="flex items-center gap-2">
+                      Gesamt netto
+                      {isFixed && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          <Lock className="h-3 w-3" /> Festpreis
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell />
                   <TableCell />
                   <TableCell />
@@ -634,6 +704,13 @@ export function FinancesSection({
                 </TableRow>
               </TableBody>
             </Table>
+            {belowFixed && (
+              <p className="border-t px-2 py-1.5 text-xs font-medium text-warning">
+                Unter Festpreis ({formatCurrency(fixedTotalNet)}): Die Positionen
+                ergeben weniger als den festgesetzten Preis, der Rabatt ist
+                bereits 0 %.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
