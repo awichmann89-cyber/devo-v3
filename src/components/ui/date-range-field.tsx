@@ -5,8 +5,14 @@ import { DayPicker } from "react-day-picker";
 import { de } from "date-fns/locale";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +31,43 @@ const fmt = new Intl.DateTimeFormat("de-DE", {
   month: "2-digit",
   year: "numeric",
 });
+
+// Planungszeiten sind halbstündig genau — auf Minuten kommt es nicht an.
+const HALF_HOURS = Array.from({ length: 48 }, (_, i) =>
+  `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`
+);
+
+/**
+ * Halbstunden-Auswahl. Ein gespeicherter Wert dazwischen (Altdaten) bleibt
+ * wählbar, damit er nicht stillschweigend gerundet wird.
+ */
+function TimeSelect({
+  id,
+  value,
+  onChange,
+}: {
+  id?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const options = HALF_HOURS.includes(value)
+    ? HALF_HOURS
+    : [...HALF_HOURS, value].sort();
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="max-h-60">
+        {options.map((t) => (
+          <SelectItem key={t} value={t}>
+            {t} Uhr
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 /**
  * Zeitraum mit zwei Klicks in einem Kalender: erster Klick Start-, zweiter
@@ -63,7 +106,7 @@ export function DateRangeField({
     let e = withTime(b, et);
     // Gleicher Tag und Ende vor Start: Ende ans Tagesende schieben statt
     // einen ungültigen Zeitraum zu speichern.
-    if (e <= s) e = withTime(b, "23:59");
+    if (e <= s) e = withTime(b, "23:30");
     if (e <= s) s = withTime(a, "00:00");
     onChange(s, e);
   }
@@ -193,22 +236,20 @@ export function DateRangeField({
             <Label htmlFor={id ? `${id}-start-time` : undefined} className="text-xs">
               Start-Uhrzeit
             </Label>
-            <Input
+            <TimeSelect
               id={id ? `${id}-start-time` : undefined}
-              type="time"
               value={startTime}
-              onChange={(e) => onTimeChange("start", e.target.value)}
+              onChange={(v) => onTimeChange("start", v)}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor={id ? `${id}-end-time` : undefined} className="text-xs">
               End-Uhrzeit
             </Label>
-            <Input
+            <TimeSelect
               id={id ? `${id}-end-time` : undefined}
-              type="time"
               value={endTime}
-              onChange={(e) => onTimeChange("end", e.target.value)}
+              onChange={(v) => onTimeChange("end", v)}
             />
           </div>
         </div>
