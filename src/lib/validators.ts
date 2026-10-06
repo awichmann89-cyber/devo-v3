@@ -151,6 +151,37 @@ export const billingPeriodSchema = z
     message: "Ende muss nach Start liegen",
   });
 
+// Kalendertag in Berlin (`YYYY-MM-DD`) — Berechnungszeiträume werden tageweise
+// gegen den Planungszeitraum geprüft: ein Berechnungstag läuft 00:00–23:59,
+// der Planungszeitraum beginnt oft erst morgens.
+function berlinDay(d: Date): string {
+  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+}
+
+function checkPeriodsWithinPlanning(
+  d: {
+    planningStart?: Date;
+    planningEnd?: Date;
+    billingPeriods: { start: Date; end: Date }[];
+  },
+  ctx: z.RefinementCtx
+) {
+  if (!d.planningStart || !d.planningEnd) return;
+  const first = berlinDay(d.planningStart);
+  const last = berlinDay(d.planningEnd);
+  d.billingPeriods.forEach((p, i) => {
+    // Ende genau 00:00 zählt den Folgetag nicht mit („bis Mitternacht").
+    const end = new Date(p.end.getTime() - 60_000);
+    if (berlinDay(p.start) < first || berlinDay(end < p.start ? p.start : end) > last) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["billingPeriods", i],
+        message: "Berechnungszeitraum muss im Planungszeitraum liegen",
+      });
+    }
+  });
+}
+
 export const projectSchema = z
   .object({
     name: z.string().min(1, "Name erforderlich").max(200),
@@ -186,6 +217,7 @@ export const projectSchema = z
         message: "Mindestens ein Berechnungszeitraum erforderlich",
       });
     }
+    checkPeriodsWithinPlanning(d, ctx);
   });
 
 export const projectUpdateCoreSchema = z.object({
@@ -211,7 +243,8 @@ export const projectPeriodsSchema = z
   .refine((d) => d.planningEnd >= d.planningStart, {
     path: ["planningEnd"],
     message: "Planungs-Ende muss nach Start liegen",
-  });
+  })
+  .superRefine(checkPeriodsWithinPlanning);
 
 export const serviceItemSchema = z
   .object({
