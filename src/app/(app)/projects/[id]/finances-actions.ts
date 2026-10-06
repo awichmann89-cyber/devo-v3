@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole, CAN_WRITE } from "@/lib/auth-helpers";
 import { Prisma } from "@prisma/client";
-import { getSettings, buildInvoiceNumber, buildQuoteNumber, buildOrderConfirmationNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeOrderConfirmationNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
+import { calculateProjectTotal } from "@/lib/project-pricing";
+import { getSettings, parseDayFactorMap, buildInvoiceNumber, buildQuoteNumber, buildOrderConfirmationNumber, buildReminderNumber, recomputeInvoiceNextSequence, recomputeQuoteNextSequence, recomputeOrderConfirmationNextSequence, recomputeReminderNextSequence } from "@/lib/settings";
 import { buildSnapshotFromProject } from "@/lib/document-snapshot";
 import { companyFooterFor } from "@/lib/company-footer";
 import { buildQuotePdf } from "@/lib/quote-pdf";
@@ -100,6 +101,55 @@ export async function updateProjectDiscount(projectId: string, discountPercent: 
     select: { id: true },
   });
   revalidatePath(`/projects/${projectId}`);
+}
+
+/**
+ * Setzt den Festpreis (aktuelles Gesamt netto) bzw. hebt ihn auf. Solange er
+ * gesetzt ist, ergibt sich der projektweite Rabatt automatisch (siehe
+ * effectiveProjectDiscountPercent). Beim Aufheben wird der zuletzt berechnete
+ * Rabatt als manueller Wert übernommen, damit der Preis nicht springt.
+ */
+export async function setProjectFixedTotal(projectId: string, fixed: boolean) {
+  await requireRole(CAN_WRITE);
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      billingPeriods: true,
+      groups: { include: { billingPeriods: true } },
+      assignments: { include: { device: true } },
+      services: { include: { serviceItem: true } },
+      adHocItems: true,
+    },
+  });
+  if (!project) throw new Error("Projekt nicht gefunden");
+  const factorMap = parseDayFactorMap((await getSettings()).dayFactorMap);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  if (fixed) {
+    const total = calculateProjectTotal({ ...project, fixedTotalNet: null }, factorMap);
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { fixedTotalNet: new Prisma.Decimal(round2(total)) },
+      select: { id: true },
+    });
+  } else {
+    const total = calculateProjectTotal(project, factorMap);
+    const sub = calculateProjectTotal(
+      { ...project, discountPercent: new Prisma.Decimal(0), fixedTotalNet: null },
+      factorMap
+    );
+    const pct = sub > 0 ? Math.max(0, Math.min(100, (1 - total / sub) * 100)) : 0;
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        fixedTotalNet: null,
+        discountPercent: new Prisma.Decimal(round2(pct)),
+      },
+      select: { id: true },
+    });
+  }
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/finances/forecast");
 }
 
 export async function updateBereichDiscount(

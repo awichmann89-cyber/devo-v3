@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { daysBetween } from "@/lib/utils";
 import { DayFactorMap, getDayFactor } from "@/lib/settings";
+import { effectiveProjectDiscountPercent } from "@/lib/fixed-price";
 
 /**
  * Berechnet den Gesamtwert (netto, vor MwSt.) eines Projekts unter Berücksichtigung
@@ -111,6 +112,10 @@ export function calculateProjectTotal(
   const servicesNet = servicesSub - (servicesSub * svcPct) / 100;
 
   const sub = materialNet + servicesNet;
-  const projPct = Number(project.discountPercent ?? 0) || 0;
+  const projPct = effectiveProjectDiscountPercent(
+    sub,
+    Number(project.discountPercent ?? 0) || 0,
+    project.fixedTotalNet != null ? Number(project.fixedTotalNet) : null
+  );
   return sub - (sub * projPct) / 100;
 }

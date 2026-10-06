@@ -359,6 +359,9 @@ model Project {
   materialDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
   // Rabatt auf den gesamten Personal-&-Transport-Bereich
   servicesDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
+  // Festpreis (netto): wenn gesetzt, wird der projektweite Rabatt automatisch
+  // so berechnet, dass das Gesamt netto diesem Wert entspricht (min. 0 %).
+  fixedTotalNet           Decimal? @db.Decimal(12, 2)
   notes                   String?
 
   createdAt   DateTime  @default(now())

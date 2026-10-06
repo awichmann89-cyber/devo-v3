@@ -18,6 +18,17 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: "2026-10-06-festpreis",
+    title: "Festpreis im Finanzen-Tab",
+    intro:
+      "Du kannst den Gesamtpreis eines Projekts jetzt festsetzen. Spätere Änderungen an Material oder Personal & Transport verändern den Preis dann nicht mehr.",
+    steps: [
+      "Im Projekt unter „Finanzen“ rechts neben „Übersicht“ den Haken bei „Preis festsetzen“ setzen – das aktuelle Gesamt netto wird eingefroren.",
+      "Kommen Positionen dazu, gleicht der projektweite Rabatt das automatisch aus. Fällt die Summe unter den Festpreis, bleibt der Rabatt bei 0 % und der Preis sinkt mit.",
+      "Haken wieder entfernen hebt den Festpreis auf – der zuletzt berechnete Rabatt bleibt als normaler Wert stehen.",
+    ],
+  },
+  {
     id: "2026-10-05b-besetzung",
     title: "Besetzung im Tab „Personal & Transport“",
     intro:

@@ -97,6 +97,7 @@ export async function copyProject(
         discountPercent: source.discountPercent,
         materialDiscountPercent: source.materialDiscountPercent,
         servicesDiscountPercent: source.servicesDiscountPercent,
+        fixedTotalNet: source.fixedTotalNet,
         notes: source.notes,
         confirmedAt: null,
         packToken: null,
