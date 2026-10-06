@@ -27,7 +27,15 @@ export const metadata: Metadata = {
       { url: "/cratel_icon.svg", type: "image/svg+xml" },
     ],
     shortcut: "/cratel_icon.svg",
-    apple: "/cratel_icon.svg",
+    // iOS/macOS-Safari ignoriert SVG für „Zum Home-Bildschirm“/„Zum Dock“ —
+    // braucht ein PNG ohne Transparenz (Ecken rundet das System selbst ab).
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+  },
+  // Kurzer Name unter dem Icon. capable: false — Next würde sonst den
+  // Vollbild-Modus (ohne Browser-Leiste) aktivieren.
+  appleWebApp: {
+    title: "cratel",
+    capable: false,
   },
 };
 
