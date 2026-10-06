@@ -27,6 +27,7 @@ export function AnnouncementDialog({ announcements }: { announcements: Announcem
 
   const current = announcements[index];
   const isLast = index === announcements.length - 1;
+  const hasImages = current.steps.some((s) => typeof s !== "string");
 
   function close() {
     setOpen(false);
@@ -36,7 +37,7 @@ export function AnnouncementDialog({ announcements }: { announcements: Announcem
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent size="sm">
+      <DialogContent size={hasImages ? "lg" : "sm"}>
         <DialogHeader>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
             <Sparkles className="h-4 w-4" /> Neu
@@ -50,15 +51,29 @@ export function AnnouncementDialog({ announcements }: { announcements: Announcem
           <DialogDescription>{current.intro}</DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <ol className="space-y-2 text-sm">
-            {current.steps.map((step, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-xs font-medium text-primary">
-                  {i + 1}
-                </span>
-                <span>{step}</span>
-              </li>
-            ))}
+          <ol className={hasImages ? "space-y-5 text-sm" : "space-y-2 text-sm"}>
+            {current.steps.map((step, i) => {
+              const text = typeof step === "string" ? step : step.text;
+              return (
+                <li key={i} className="flex gap-3">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-xs font-medium text-primary">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 space-y-2">
+                    <p>{text}</p>
+                    {typeof step !== "string" && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={step.image}
+                        alt={step.alt}
+                        loading="lazy"
+                        className="w-full rounded-md border"
+                      />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </DialogBody>
         <DialogFooter>

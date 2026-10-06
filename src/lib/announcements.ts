@@ -8,15 +8,43 @@
  * wird. Mehrere am selben Tag: Buchstabe ans Datum hängen (2026-09-30b-…),
  * NICHT an den Rest der Id. Kurz halten — ein Satz Einleitung, höchstens drei
  * Schritte.
+ *
+ * Schritte können ein Beispielbild bekommen (Screenshot unter
+ * public/announcements/, Dateiname mit der Id beginnen).
  */
+export type AnnouncementStep = string | { text: string; image: string; alt: string };
+
 export interface Announcement {
   id: string;
   title: string;
   intro: string;
-  steps: string[];
+  steps: AnnouncementStep[];
 }
 
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: "2026-10-06b-zeitraeume",
+    title: "Zeiträume im Kalender wählen",
+    intro:
+      "Planungs- und Berechnungszeiträume setzt du jetzt mit wenigen Klicks direkt im Kalender – den Berechnungstag schlägt Cratel automatisch vor.",
+    steps: [
+      {
+        text: "Planungszeitraum: Feld anklicken, dann Start- und End-Tag nacheinander anklicken. Monat und Jahr stellst du oben direkt um, die Uhrzeiten sind vorbelegt.",
+        image: "/announcements/2026-10-06b-zeitraeume-1.png",
+        alt: "Kalender mit zwei Monaten, Start- und End-Tag markiert, darunter Start- und End-Uhrzeit",
+      },
+      {
+        text: "Der mittlere Tag wird automatisch Berechnungstag (bei gerader Anzahl der spätere). Im Wochenkalender schaltet ein Klick auf einen Tag ihn als Berechnungstag an oder aus – so entstehen auch mehrere Zeiträume.",
+        image: "/announcements/2026-10-06b-zeitraeume-2.png",
+        alt: "Wochenkalender, Planungszeitraum blau hinterlegt, mittlerer Tag als orangefarbener Balken „Zeitraum 1“",
+      },
+      {
+        text: "Einen orangefarbenen Balken ziehen verschiebt den Zeitraum, an seinen Enden ziehen ändert die Länge. Mit den blauen Griffen verlängerst oder verkürzt du den Planungszeitraum.",
+        image: "/announcements/2026-10-06b-zeitraeume-3.png",
+        alt: "Wochenkalender mit zwei Berechnungszeiträumen und den blauen Griffen am Planungszeitraum",
+      },
+    ],
+  },
   {
     id: "2026-10-06-festpreis",
     title: "Festpreis im Finanzen-Tab",
