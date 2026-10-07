@@ -39,9 +39,9 @@ export const ANNOUNCEMENTS: Announcement[] = [
         alt: "Wochenkalender, Planungszeitraum blau hinterlegt, mittlerer Tag als orangefarbener Balken „Zeitraum 1“",
       },
       {
-        text: "Einen orangefarbenen Balken ziehen verschiebt den Zeitraum, an seinen Enden ziehen ändert die Länge. Mit den blauen Griffen verlängerst oder verkürzt du den Planungszeitraum.",
+        text: "Balken ziehen verschiebt einen Zeitraum, an den Enden ziehen ändert die Länge, die ✂ zwischen zwei Tagen trennt ihn. In der Liste darunter stellst du Uhrzeiten ein (z. B. 18:00–02:00) – die übernimmt die Personalplanung als Einsatzzeiten.",
         image: "/announcements/2026-10-06b-zeitraeume-3.png",
-        alt: "Wochenkalender mit zwei Berechnungszeiträumen und den blauen Griffen am Planungszeitraum",
+        alt: "Wochenkalender mit zwei Berechnungszeiträumen mit Uhrzeiten, Schere zum Trennen und Liste mit Von/Bis-Auswahl",
       },
     ],
   },

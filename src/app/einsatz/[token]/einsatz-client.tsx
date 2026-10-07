@@ -82,6 +82,13 @@ function hasClockTimeIso(iso: string): boolean {
   return d.getHours() !== 0 || d.getMinutes() !== 0;
 }
 
+/** Wie hasClockTimeIso für einen Zeitraum; Ende 23:59 = ganztägiger Berechnungstag. */
+function rangeHasClockTimeIso(start: string, end: string): boolean {
+  const e = new Date(end);
+  const endOfDay = e.getHours() === 23 && e.getMinutes() === 59;
+  return hasClockTimeIso(start) || (hasClockTimeIso(end) && !endOfDay);
+}
+
 function timeLabel(a: AssignmentVM): string {
   const time = (d: Date) =>
     d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -89,7 +96,7 @@ function timeLabel(a: AssignmentVM): string {
     const start = a.periodStart ?? a.planningStart;
     const end = a.periodEnd ?? a.planningEnd;
     // Zeitraum mit eigenen Uhrzeiten → diese anzeigen, sonst ganztägig.
-    if (hasClockTimeIso(start) || hasClockTimeIso(end)) {
+    if (rangeHasClockTimeIso(start, end)) {
       const s = new Date(start);
       const e = new Date(end);
       const range =
@@ -284,7 +291,7 @@ export function EinsatzClient({
     const end = new Date(endIso);
     // Uhrzeiten aus Einsatz bzw. Zeitraum übernehmen; sonst 08:00–18:00.
     const hasTimes =
-      a.plannedStart != null || hasClockTimeIso(startIso) || hasClockTimeIso(endIso);
+      a.plannedStart != null || rangeHasClockTimeIso(startIso, endIso);
     const pad = (n: number) => String(n).padStart(2, "0");
     return {
       entryId: null,

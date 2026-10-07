@@ -38,7 +38,7 @@ import {
   candidateRange,
   dateWithTime,
   evaluateBusy,
-  hasClockTimeIso,
+  rangeHasClockTimeIso,
   isoToLocalInput,
   localInputToIso,
   periodLabel,
@@ -151,7 +151,7 @@ export function VehicleAssignmentDialog({
     if (!open || assignment?.plannedStart) return;
     const baseStart = selectedPeriod?.start ?? planningStartIso;
     const baseEnd = selectedPeriod?.end ?? planningEndIso;
-    const hasTimes = hasClockTimeIso(baseStart) || hasClockTimeIso(baseEnd);
+    const hasTimes = rangeHasClockTimeIso(baseStart, baseEnd);
     setStart(hasTimes ? isoToLocalInput(baseStart) : dateWithTime(baseStart, "08:00"));
     setEnd(hasTimes ? isoToLocalInput(baseEnd) : dateWithTime(baseEnd, "18:00"));
   }, [open, assignment, selectedPeriod, planningStartIso, planningEndIso]);

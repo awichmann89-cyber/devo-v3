@@ -10,7 +10,7 @@ import { Timeline } from "./timeline";
 import { CalendarFeedForm } from "./calendar-feed-form";
 import { getOrCreateCalendarToken } from "@/lib/settings";
 import { auth } from "@/auth";
-import { hasClockTime } from "@/lib/personnel-schedule";
+import { rangeHasClockTime } from "@/lib/personnel-schedule";
 
 export default async function CalendarPage(props: { searchParams: Promise<{ month?: string }> }) {
   const sp = await props.searchParams;
@@ -105,8 +105,10 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
     // Zeitgenau auch, wenn der zugrunde liegende Zeitraum Uhrzeiten trägt.
     timed:
       a.plannedStart !== null ||
-      hasClockTime(a.billingPeriod?.start ?? a.project.planningStart) ||
-      hasClockTime(a.billingPeriod?.end ?? a.project.planningEnd),
+      rangeHasClockTime(
+        a.billingPeriod?.start ?? a.project.planningStart,
+        a.billingPeriod?.end ?? a.project.planningEnd
+      ),
     notes: a.notes,
   }));
 

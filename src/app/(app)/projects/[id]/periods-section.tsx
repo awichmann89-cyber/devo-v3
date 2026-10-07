@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CalendarRange, Calculator, Trash2 } from "lucide-react";
+import { RowAction, RowActions } from "@/components/ui/row-actions";
+import { TimeSelect } from "@/components/ui/time-select";
+import { CalendarRange, Calculator, CopyCheck, Scissors, Trash2 } from "lucide-react";
 import { updateProjectPeriods } from "./periods-actions";
 import { useAutoSave } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
@@ -16,7 +17,12 @@ import {
   adaptPeriodsToPlanning,
   dayBounds,
   dayDiff,
+  isOvernight,
+  periodTimes,
+  splitIntoDays,
   suggestBillingDay,
+  withPeriodTimes,
+  type PeriodTimes,
 } from "@/lib/period-planning";
 import { daysBetween } from "@/lib/utils";
 
@@ -26,6 +32,14 @@ const dayFmt = new Intl.DateTimeFormat("de-DE", {
   month: "2-digit",
   year: "numeric",
 });
+
+// Vorbelegung des Endes, wenn ein ganztägiger Zeitraum eine Start-Uhrzeit
+// bekommt: acht Stunden später (18:00 → 02:00).
+function defaultEndTime(start: string): string {
+  const [h, m] = start.split(":").map(Number);
+  const mins = (h * 60 + m + 8 * 60) % (24 * 60);
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
 
 interface PeriodState {
   // id bestehender Zeiträume — bleibt beim Speichern erhalten, damit
@@ -81,6 +95,14 @@ export function PeriodsSection({
     setPeriods(periods.filter((_, idx) => idx !== i));
   }
 
+  function setTimes(i: number, times: PeriodTimes) {
+    setPeriods(periods.map((p, idx) => (idx === i ? withPeriodTimes(p, times) : p)));
+  }
+
+  function makePeriod(start: Date, end: Date): PeriodState {
+    return { id: null, start, end, notes: "" };
+  }
+
   const totalDays = periods.reduce((sum, p) => sum + daysBetween(p.start, p.end), 0);
 
   const { status: autoSaveStatus, error: autoSaveError } = useAutoSave(
@@ -128,7 +150,7 @@ export function PeriodsSection({
               {totalDays} {totalDays === 1 ? "Tag" : "Tage"}
               {periods.length > 1 && ` · ${periods.length} Zeiträume`}
             </Badge>
-            <InfoHint text="Bestimmen den Mietpreis. Mehrere Zeiträume möglich — z.B. zwei getrennte Wochenenden, ohne die Werktage dazwischen zu berechnen." />
+            <InfoHint text="Bestimmen den Mietpreis. Mehrere Zeiträume möglich — z.B. zwei getrennte Wochenenden, ohne die Werktage dazwischen zu berechnen. Uhrzeiten übernimmt die Personalplanung als Einsatzzeiten." />
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -137,7 +159,7 @@ export function PeriodsSection({
             periods={periods}
             onPlanChange={changePlan}
             onPeriodsChange={setPeriods}
-            makePeriod={(start, end) => ({ id: null, start, end, notes: "" })}
+            makePeriod={makePeriod}
             periodLabel={(p, i) => p.notes || `Zeitraum ${i + 1}`}
           />
 
@@ -145,39 +167,97 @@ export function PeriodsSection({
             {periods.map((p, i) => {
               const b = dayBounds(p.start, p.end);
               const days = daysBetween(p.start, p.end);
+              const times = periodTimes(p);
               return (
-                <li key={p.id ?? `new-${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 sm:flex-nowrap">
-                  <div className="w-24 shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Zeitraum {i + 1}
+                <li
+                  key={p.id ?? `new-${i}`}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div className="w-20 shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Zeitraum {i + 1}
+                    </div>
+                    <div className="w-[19rem] shrink-0 whitespace-nowrap text-sm">
+                      {dayDiff(b.first, b.last) === 0
+                        ? dayFmt.format(b.first)
+                        : `${dayFmt.format(b.first)} – ${dayFmt.format(b.last)}`}
+                      <span className="ml-1.5 text-muted-foreground">
+                        ({days} {days === 1 ? "Tag" : "Tage"})
+                      </span>
+                    </div>
+                    <div className="flex w-[280px] shrink-0 items-center gap-1.5">
+                      <TimeSelect
+                        aria-label={`Start-Uhrzeit Zeitraum ${i + 1}`}
+                        className="w-[124px]"
+                        value={times?.start ?? null}
+                        allDayLabel="Ganztägig"
+                        onChange={(v) =>
+                          setTimes(
+                            i,
+                            v ? { start: v, end: times?.end ?? defaultEndTime(v) } : null
+                          )
+                        }
+                      />
+                      {times && (
+                        <>
+                          <span className="text-muted-foreground">–</span>
+                          <TimeSelect
+                            aria-label={`End-Uhrzeit Zeitraum ${i + 1}`}
+                            className="w-[112px]"
+                            value={times.end}
+                            onChange={(v) => v && setTimes(i, { start: times.start, end: v })}
+                          />
+                          {isOvernight(times) && (
+                            <span
+                              className="text-xs text-muted-foreground"
+                              title="Endet am Folgetag"
+                            >
+                              +1
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="shrink-0 text-sm sm:w-64">
-                    {dayDiff(b.first, b.last) === 0
-                      ? dayFmt.format(b.first)
-                      : `${dayFmt.format(b.first)} – ${dayFmt.format(b.last)}`}
-                    <span className="ml-1.5 text-muted-foreground">
-                      ({days} {days === 1 ? "Tag" : "Tage"})
-                    </span>
+                  <div className="flex min-w-[18rem] flex-1 items-center gap-2">
+                    <Input
+                      aria-label={`Bemerkung Zeitraum ${i + 1}`}
+                      className="flex-1"
+                      value={p.notes}
+                      onChange={(e) =>
+                        setPeriods(
+                          periods.map((x, idx) => (idx === i ? { ...x, notes: e.target.value } : x))
+                        )
+                      }
+                      placeholder="Bemerkung, z.B. Konzertabend"
+                    />
+                    {/* Feste Breite, damit die Bemerkungsfelder bündig stehen. */}
+                    <RowActions density="compact" className="w-[104px]">
+                      {periods.length > 1 && (
+                        <RowAction
+                          icon={CopyCheck}
+                          label="Uhrzeiten für alle Zeiträume übernehmen"
+                          onClick={() =>
+                            setPeriods(periods.map((x) => withPeriodTimes(x, times)))
+                          }
+                        />
+                      )}
+                      {dayDiff(b.first, b.last) > 0 && (
+                        <RowAction
+                          icon={Scissors}
+                          label="In Einzeltage aufteilen"
+                          onClick={() => setPeriods(splitIntoDays(periods, i, makePeriod))}
+                        />
+                      )}
+                      <RowAction
+                        icon={Trash2}
+                        label="Zeitraum entfernen"
+                        destructive
+                        disabled={periods.length <= 1}
+                        onClick={() => removePeriod(i)}
+                      />
+                    </RowActions>
                   </div>
-                  <Input
-                    aria-label={`Bemerkung Zeitraum ${i + 1}`}
-                    value={p.notes}
-                    onChange={(e) =>
-                      setPeriods(
-                        periods.map((x, idx) => (idx === i ? { ...x, notes: e.target.value } : x))
-                      )
-                    }
-                    placeholder="Bemerkung, z.B. Konzertabend"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="iconXs"
-                    onClick={() => removePeriod(i)}
-                    disabled={periods.length <= 1}
-                    title="Zeitraum entfernen"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </li>
               );
             })}
