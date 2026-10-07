@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { Scissors } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addDays,
@@ -9,7 +10,10 @@ import {
   dayKey,
   eachDay,
   fromDayKey,
+  periodTimes,
   shiftPeriod,
+  shortTimes,
+  splitPeriodAfter,
   startOfDay,
   toggleBillingDay,
 } from "@/lib/period-planning";
@@ -17,7 +21,14 @@ import {
 type Period = { start: Date; end: Date };
 type Plan = { start: Date; end: Date };
 
-type DragAction = "plan-start" | "plan-end" | "period-move" | "period-start" | "period-end" | "day";
+type DragAction =
+  | "plan-start"
+  | "plan-end"
+  | "period-move"
+  | "period-start"
+  | "period-end"
+  | "split"
+  | "day";
 
 interface DragState {
   action: DragAction;
@@ -40,7 +51,7 @@ function mondayOf(d: Date): Date {
  *  - Klick auf einen Tag im Planungszeitraum schaltet ihn als Berechnungstag
  *    an/aus.
  *  - Balken ziehen verschiebt den Zeitraum, an den Enden ziehen ändert die
- *    Länge.
+ *    Länge. Die Schere zwischen zwei Tagen trennt ihn dort.
  *  - Die Griffe am Planungszeitraum verlängern oder verkürzen ihn.
  * Uhrzeiten bleiben beim Verschieben erhalten.
  */
@@ -119,7 +130,7 @@ export function PeriodWeekCalendar<T extends Period>({
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     const d = drag.current;
-    if (!d || d.action === "day") return;
+    if (!d || d.action === "day" || d.action === "split") return;
     const day = dayUnderPointer(e);
     if (!day) return;
     const delta = dayDiff(d.origin, day);
@@ -162,6 +173,8 @@ export function PeriodWeekCalendar<T extends Period>({
     if (d.moved) {
       if (previewPlan) onPlanChange(previewPlan);
       if (previewPeriods) onPeriodsChange(previewPeriods);
+    } else if (d.action === "split") {
+      onPeriodsChange(splitPeriodAfter(periods, d.index, d.origin, makePeriod));
     } else if (d.action !== "plan-start" && d.action !== "plan-end") {
       toggle(d.origin);
     }
@@ -224,7 +237,7 @@ export function PeriodWeekCalendar<T extends Period>({
                     }
                   }}
                   className={cn(
-                    "relative h-16 border-l px-1.5 pt-1 text-xs first:border-l-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                    "group relative h-16 border-l px-1.5 pt-1 text-xs first:border-l-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                     planned
                       ? "cursor-pointer bg-info-subtle/50 hover:bg-info-subtle"
                       : "text-faint",
@@ -280,7 +293,14 @@ export function PeriodWeekCalendar<T extends Period>({
                       )}
                     >
                       {(isFirst || col === 0) && (
-                        <span className="truncate">{periodLabel(period, pIdx)}</span>
+                        <span className="truncate">
+                          {periodLabel(period, pIdx)}
+                          {periodTimes(period) && (
+                            <span className="ml-1 font-normal opacity-90">
+                              {shortTimes(periodTimes(period))}
+                            </span>
+                          )}
+                        </span>
                       )}
                       {isFirst && (
                         <div
@@ -300,6 +320,29 @@ export function PeriodWeekCalendar<T extends Period>({
                       )}
                     </div>
                   )}
+                  {period && pIdx !== undefined && !isLast && (
+                    <button
+                      type="button"
+                      data-action="split"
+                      data-index={pIdx}
+                      title="Hier trennen"
+                      aria-label={`Zeitraum nach ${dayFmt.format(d)} trennen`}
+                      // Tastatur: Enter/Leertaste lösen click (detail 0) aus; die
+                      // Zelle soll dabei nicht zusätzlich den Tag umschalten.
+                      onKeyDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        if (e.detail === 0) {
+                          onPeriodsChange(splitPeriodAfter(periods, pIdx, d, makePeriod));
+                        }
+                      }}
+                      className={cn(
+                        "absolute bottom-2 z-20 flex h-5 w-5 items-center justify-center rounded-full border bg-background text-foreground opacity-0 shadow-sm transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100",
+                        col === 6 ? "right-0.5" : "-right-2.5"
+                      )}
+                    >
+                      <Scissors className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -308,7 +351,8 @@ export function PeriodWeekCalendar<T extends Period>({
       </div>
       <p className="text-xs text-muted-foreground">
         Klick auf einen Tag: Berechnungstag an/aus · Balken ziehen: verschieben · Enden ziehen:
-        Länge ändern · Blaue Griffe: Planungszeitraum anpassen
+        Länge ändern · Schere zwischen zwei Tagen: trennen · Blaue Griffe: Planungszeitraum
+        anpassen
       </p>
     </div>
   );

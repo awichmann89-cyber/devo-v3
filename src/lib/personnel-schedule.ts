@@ -2,9 +2,9 @@
 // Projektseite, Kalender, ICS-Feed, /einsatz und Überbuchungs-Prüfung:
 //   1) explizite Uhrzeiten (plannedStart/End)
 //   2) gewählter Berechnungszeitraum — MIT dessen Uhrzeiten, falls gepflegt
-//      (Zeiträume werden per datetime-local erfasst und tragen echte Zeiten)
 //   3) Projekt-Planungszeitraum (analog)
-// Nur Zeiträume, die auf 00:00–00:00 stehen, gelten als ganztägig.
+// Ganztägig sind Zeiträume von 00:00 bis 00:00 oder 23:59 (so speichert der
+// Wochenkalender ganztägige Berechnungstage).
 
 export interface EffectiveRangeInput {
   plannedStart: Date | null;
@@ -30,6 +30,31 @@ export function hasClockTime(d: Date): boolean {
   return hour !== "00" || get("minute") !== "00";
 }
 
+/** Wanduhrzeit `HH:MM` in Berlin. */
+function berlinTime(d: Date): string {
+  const parts = new Intl.DateTimeFormat("de-DE", {
+    timeZone: APP_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  return `${get("hour") === "24" ? "00" : get("hour")}:${get("minute")}`;
+}
+
+/**
+ * Trägt der Zeitraum echte Uhrzeiten? Ein Ende um 23:59 gilt als Tagesende
+ * (ganztägiger Berechnungstag), nicht als Uhrzeit.
+ */
+export function rangeHasClockTime(start: Date, end: Date): boolean {
+  return hasClockTime(start) || (hasClockTime(end) && berlinTime(end) !== "23:59");
+}
+
+/** Exklusives Ende eines ganztägigen Zeitraums: Beginn des Folgetags nach dem letzten Tag. */
+export function allDayExclusiveEnd(end: Date): Date {
+  return new Date(end.getTime() + (berlinTime(end) === "23:59" ? 60_000 : DAY_MS));
+}
+
 /**
  * Effektiver Zeitraum eines Einsatzes als halboffenes Intervall [start, end).
  * Zeitgenau (timed), wenn Uhrzeiten gesetzt sind ODER der zugrunde liegende
@@ -48,14 +73,10 @@ export function assignmentEffectiveRange(a: EffectiveRangeInput): {
     start: a.projectPlanningStart,
     end: a.projectPlanningEnd,
   };
-  if (hasClockTime(base.start) || hasClockTime(base.end)) {
+  if (rangeHasClockTime(base.start, base.end)) {
     return { start: base.start, end: base.end, timed: true };
   }
-  return {
-    start: base.start,
-    end: new Date(base.end.getTime() + DAY_MS),
-    timed: false,
-  };
+  return { start: base.start, end: allDayExclusiveEnd(base.end), timed: false };
 }
 
 /**

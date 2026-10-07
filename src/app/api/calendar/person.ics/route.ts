@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildIcs, IcsEvent } from "@/lib/ics";
 import { projectStatusEmoji } from "@/lib/labels";
 import { buildAssignmentCalendarDescription } from "@/lib/calendar-description";
-import { hasClockTime } from "@/lib/personnel-schedule";
+import { rangeHasClockTime } from "@/lib/personnel-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -90,8 +90,7 @@ export async function GET(req: Request) {
     };
     const timed =
       (a.plannedStart !== null && a.plannedEnd !== null) ||
-      hasClockTime(base.start) ||
-      hasClockTime(base.end);
+      rangeHasClockTime(base.start, base.end);
     const start = a.plannedStart ?? base.start;
     const end = a.plannedEnd ?? base.end;
     return {

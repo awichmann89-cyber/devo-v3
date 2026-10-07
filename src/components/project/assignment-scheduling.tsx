@@ -41,6 +41,19 @@ export function hasClockTimeIso(iso: string): boolean {
   return d.getHours() !== 0 || d.getMinutes() !== 0;
 }
 
+function isEndOfDayIso(iso: string): boolean {
+  const d = new Date(iso);
+  return d.getHours() === 23 && d.getMinutes() === 59;
+}
+
+/**
+ * Trägt der Zeitraum echte Uhrzeiten? Ein Ende um 23:59 gilt als Tagesende
+ * (ganztägiger Berechnungstag) — wie `rangeHasClockTime` auf dem Server.
+ */
+export function rangeHasClockTimeIso(start: string, end: string): boolean {
+  return hasClockTimeIso(start) || (hasClockTimeIso(end) && !isEndOfDayIso(end));
+}
+
 /**
  * Anzeige-Label eines Berechnungszeitraums — inkl. Uhrzeiten, wenn der
  * Zeitraum welche trägt: "08.08.2026, 10:00–23:00 Uhr (Veranstaltungstag 1)".
@@ -50,7 +63,7 @@ export function periodLabel(p: {
   end: string;
   notes: string | null;
 }): string {
-  const withTimes = hasClockTimeIso(p.start) || hasClockTimeIso(p.end);
+  const withTimes = rangeHasClockTimeIso(p.start, p.end);
   const time = (iso: string) =>
     new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   let range: string;
@@ -110,12 +123,13 @@ export function candidateRange({
     return { start: new Date(start), end: new Date(end) };
   }
   const base = period ?? { start: planningStartIso, end: planningEndIso };
-  if (hasClockTimeIso(base.start) || hasClockTimeIso(base.end)) {
+  if (rangeHasClockTimeIso(base.start, base.end)) {
     return { start: new Date(base.start), end: new Date(base.end) };
   }
+  const endMs = new Date(base.end).getTime();
   return {
     start: new Date(base.start),
-    end: new Date(new Date(base.end).getTime() + DAY_MS),
+    end: new Date(endMs + (isEndOfDayIso(base.end) ? 60_000 : DAY_MS)),
   };
 }
 

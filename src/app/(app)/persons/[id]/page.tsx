@@ -19,7 +19,7 @@ import {
   employmentTypeLabel,
   employmentTypeVariant,
 } from "@/lib/labels";
-import { hasClockTime } from "@/lib/personnel-schedule";
+import { rangeHasClockTime } from "@/lib/personnel-schedule";
 import { maxSeverity } from "@/lib/booking-conflicts";
 import { conflictsByBooking, loadPersonBookings } from "@/lib/booking-load";
 import { PersonLinksCard } from "./person-links-card";
@@ -115,8 +115,10 @@ export default async function PersonDetailPage(props: {
       // Zeitgenau auch, wenn der zugrunde liegende Zeitraum Uhrzeiten trägt.
       timed:
         a.plannedStart !== null ||
-        hasClockTime(a.billingPeriod?.start ?? a.project.planningStart) ||
-        hasClockTime(a.billingPeriod?.end ?? a.project.planningEnd),
+        rangeHasClockTime(
+          a.billingPeriod?.start ?? a.project.planningStart,
+          a.billingPeriod?.end ?? a.project.planningEnd
+        ),
       agreedRate: a.agreedRate != null ? Number(a.agreedRate) : null,
       invoiceReceived: a.invoiceReceived,
       notes: a.notes,

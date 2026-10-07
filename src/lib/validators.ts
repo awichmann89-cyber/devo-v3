@@ -151,11 +151,27 @@ export const billingPeriodSchema = z
     message: "Ende muss nach Start liegen",
   });
 
-// Kalendertag in Berlin (`YYYY-MM-DD`) — Berechnungszeiträume werden tageweise
+// Kalendertag und Uhrzeit in Berlin — Berechnungszeiträume werden tageweise
 // gegen den Planungszeitraum geprüft: ein Berechnungstag läuft 00:00–23:59,
 // der Planungszeitraum beginnt oft erst morgens.
-function berlinDay(d: Date): string {
-  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+function berlinParts(d: Date): { day: string; time: string } {
+  const [day, time] = d
+    .toLocaleString("sv-SE", {
+      timeZone: "Europe/Berlin",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+    .split(" ");
+  return { day, time };
+}
+
+function previousDay(day: string): string {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function checkPeriodsWithinPlanning(
@@ -167,12 +183,15 @@ function checkPeriodsWithinPlanning(
   ctx: z.RefinementCtx
 ) {
   if (!d.planningStart || !d.planningEnd) return;
-  const first = berlinDay(d.planningStart);
-  const last = berlinDay(d.planningEnd);
+  const first = berlinParts(d.planningStart).day;
+  const last = berlinParts(d.planningEnd).day;
   d.billingPeriods.forEach((p, i) => {
-    // Ende genau 00:00 zählt den Folgetag nicht mit („bis Mitternacht").
-    const end = new Date(p.end.getTime() - 60_000);
-    if (berlinDay(p.start) < first || berlinDay(end < p.start ? p.start : end) > last) {
+    // Letzter abgerechneter Tag: Liegt die End- nicht nach der Start-Uhrzeit
+    // (Nachtschicht 18:00–02:00, „bis Mitternacht"), zählt der Endtag nicht mit.
+    const s = berlinParts(p.start);
+    const e = berlinParts(p.end);
+    const lastBilled = e.day > s.day && e.time <= s.time ? previousDay(e.day) : e.day;
+    if (s.day < first || lastBilled > last) {
       ctx.addIssue({
         code: "custom",
         path: ["billingPeriods", i],

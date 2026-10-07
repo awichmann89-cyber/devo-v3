@@ -6,13 +6,7 @@ import { de } from "date-fns/locale";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
@@ -31,43 +25,6 @@ const fmt = new Intl.DateTimeFormat("de-DE", {
   month: "2-digit",
   year: "numeric",
 });
-
-// Planungszeiten sind halbstündig genau — auf Minuten kommt es nicht an.
-const HALF_HOURS = Array.from({ length: 48 }, (_, i) =>
-  `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`
-);
-
-/**
- * Halbstunden-Auswahl. Ein gespeicherter Wert dazwischen (Altdaten) bleibt
- * wählbar, damit er nicht stillschweigend gerundet wird.
- */
-function TimeSelect({
-  id,
-  value,
-  onChange,
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const options = HALF_HOURS.includes(value)
-    ? HALF_HOURS
-    : [...HALF_HOURS, value].sort();
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent className="max-h-60">
-        {options.map((t) => (
-          <SelectItem key={t} value={t}>
-            {t} Uhr
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 /**
  * Zeitraum mit zwei Klicks in einem Kalender: erster Klick Start-, zweiter
@@ -243,7 +200,7 @@ export function DateRangeField({
             <TimeSelect
               id={id ? `${id}-start-time` : undefined}
               value={startTime}
-              onChange={(v) => onTimeChange("start", v)}
+              onChange={(v) => v && onTimeChange("start", v)}
             />
           </div>
           <div className="space-y-1">
@@ -253,7 +210,7 @@ export function DateRangeField({
             <TimeSelect
               id={id ? `${id}-end-time` : undefined}
               value={endTime}
-              onChange={(v) => onTimeChange("end", v)}
+              onChange={(v) => v && onTimeChange("end", v)}
             />
           </div>
         </div>
