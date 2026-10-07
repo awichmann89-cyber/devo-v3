@@ -33,3 +33,34 @@ export function drawLabeledWrappedText(
   }
   return y;
 }
+
+/**
+ * Die jsPDF-Standardfonts (Helvetica & Co.) können nur WinAnsi/Latin-1.
+ * Zeichen außerhalb davon — z.B. der Pfeil „→" aus der Kabel-Beschreibung —
+ * rendert jsPDF nicht nur falsch, es zerreißt auch die Buchstabenabstände
+ * der ganzen Zeile. Deshalb läuft JEDER Text vor der Ausgabe hier durch.
+ */
+export function pdfText(value: string): string {
+  return (
+    value
+      .replace(/[→⇒➔]/g, "->")
+      .replace(/[←⇐]/g, "<-")
+      .replace(/[✓✔]/g, "x")
+      .replace(/[•·]/g, "·") // Bullet → WinAnsi-Mittelpunkt
+      // Was WinAnsi dann noch immer nicht kann, ersetzen wir sichtbar,
+      // statt es die Zeile zerschießen zu lassen. Erlaubt sind Latin-1
+      // plus die WinAnsi-Extras (Anführungszeichen, Gedankenstriche, …, €).
+      .replace(/[^\n\x20-\xFF–—‘’‚“”„…€]/g, "?")
+  );
+}
+
+/** Eine autoTable-Zelle: reiner Text oder {content} mit Styles. */
+export type PdfCell =
+  | string
+  | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+
+/** Wendet pdfText auf eine autoTable-Zelle an (String oder {content}). */
+export function sanitizeCell(cell: PdfCell): PdfCell {
+  if (typeof cell === "string") return pdfText(cell);
+  return { ...cell, content: pdfText(cell.content) };
+}

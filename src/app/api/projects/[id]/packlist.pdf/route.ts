@@ -4,33 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { loadProjectPackList } from "@/lib/packlist-data";
 import { buildProjectPdfFilename } from "@/lib/utils";
-
-/**
- * Die jsPDF-Standardfonts (Helvetica & Co.) können nur WinAnsi/Latin-1.
- * Zeichen außerhalb davon — z.B. der Pfeil „→" aus der Kabel-Beschreibung —
- * rendert jsPDF nicht nur falsch, es zerreißt auch die Buchstabenabstände
- * der ganzen Zeile. Deshalb läuft JEDER Text vor der Ausgabe hier durch.
- */
-function pdfText(value: string): string {
-  return (
-    value
-      .replace(/[→⇒➔]/g, "->")
-      .replace(/[←⇐]/g, "<-")
-      .replace(/[✓✔]/g, "x")
-      .replace(/[•·]/g, "·") // Bullet → WinAnsi-Mittelpunkt
-      // Was WinAnsi dann noch immer nicht kann, ersetzen wir sichtbar,
-      // statt es die Zeile zerschießen zu lassen. Erlaubt sind Latin-1
-      // plus die WinAnsi-Extras (Anführungszeichen, Gedankenstriche, …, €).
-      .replace(/[^\n\x20-\xFF–—‘’‚“”„…€]/g, "?")
-  );
-}
-
-/** Wendet pdfText auf eine autoTable-Zelle an (String oder {content}). */
-type PdfCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
-function sanitizeCell(cell: PdfCell): PdfCell {
-  if (typeof cell === "string") return pdfText(cell);
-  return { ...cell, content: pdfText(cell.content) };
-}
+import { pdfText, sanitizeCell, type PdfCell } from "@/lib/pdf-text";
 
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const session = await auth();

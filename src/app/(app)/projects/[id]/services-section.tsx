@@ -155,6 +155,7 @@ import type { ProjectGroup, ProjectGroupComment } from "@prisma/client";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
+import { DocumentDownloadButton } from "@/components/project/document-download-button";
 import { toastError } from "@/lib/toast";
 
 export interface ProjectServiceVM {
@@ -306,8 +307,6 @@ export function ServicesSection({
     groupId: string;
     assignment: VehicleAssignmentVM | null;
   } | null>(null);
-  // Einsatzplan ein-/ausklappen
-  const [planOpen, setPlanOpen] = useState(true);
   // Ausgewählte Position — deren Besetzung (Personen/Fahrzeuge) erscheint in
   // der Card unter der Hauptcard (analog zur Belegung im Material-Tab).
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -698,59 +697,9 @@ export function ServicesSection({
     servicesByGroup.set(ps.groupId, arr);
   }
 
-  // Einsatzplan: alle Personal- UND Fuhrpark-Einsätze chronologisch (nach
-  // effektivem Beginn). Eine Liste, damit die Disposition Personal und
-  // Fahrzeuge eines Tages zusammen sieht.
-  type PlanEntry = {
-    key: string;
-    person: PersonAssignmentVM | null;
-    vehicle: VehicleAssignmentVM | null;
-    serviceName: string;
-    groupName: string;
-    sortKey: number;
-  };
-  const planEntries = useMemo<PlanEntry[]>(() => {
-    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
-    const out: PlanEntry[] = [];
-    for (const ps of projectServices) {
-      const groupName = groupNameById.get(ps.groupId) ?? "";
-      for (const a of ps.personAssignments) {
-        const start = a.plannedStart ?? a.periodStart ?? planningStartIso;
-        out.push({
-          key: `person:${a.id}`,
-          person: a,
-          vehicle: null,
-          serviceName: ps.serviceItem.name,
-          groupName,
-          sortKey: +new Date(start),
-        });
-      }
-      for (const a of ps.vehicleAssignments) {
-        const start = a.plannedStart ?? a.periodStart ?? planningStartIso;
-        out.push({
-          key: `vehicle:${a.id}`,
-          person: null,
-          vehicle: a,
-          serviceName: ps.serviceItem.name,
-          groupName,
-          sortKey: +new Date(start),
-        });
-      }
-    }
-    return out.sort((x, y) => x.sortKey - y.sortKey);
-  }, [projectServices, groups, planningStartIso]);
-
-  /** Konflikt-Zähler je Stufe — speist die Badges im Kopf des Einsatzplans. */
-  const planConflicts = useMemo(() => {
-    let overlap = 0;
-    let sameDay = 0;
-    for (const e of planEntries) {
-      const severity = maxSeverity(e.person?.conflicts ?? e.vehicle?.conflicts ?? []);
-      if (severity === "OVERLAP") overlap++;
-      else if (severity === "SAME_DAY") sameDay++;
-    }
-    return { overlap, sameDay };
-  }, [planEntries]);
+  const hasPlanEntries = projectServices.some(
+    (ps) => ps.personAssignments.length > 0 || ps.vehicleAssignments.length > 0
+  );
 
   const subtotal = projectServices.reduce(
     (sum, p) =>
@@ -1178,130 +1127,16 @@ export function ServicesSection({
   return (
     <>
       {/* Einsatzplan: chronologische Übersicht aller Personal- und
-          Fuhrpark-Einsätze des Projekts. */}
-      {planEntries.length > 0 && (
-        <Card className="mb-4">
-          <CardHeader
-            className="cursor-pointer py-3"
-            onClick={() => setPlanOpen((o) => !o)}
-          >
-            <CardTitle className="flex items-center gap-2">
-              {planOpen ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-              <Users className="h-4 w-4" /> Einsatzplan
-              <span className="font-normal text-muted-foreground">
-                ({planEntries.length} Einsätze)
-              </span>
-              {planConflicts.overlap > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <AlertTriangle className="h-3 w-3" /> {planConflicts.overlap}{" "}
-                  {planConflicts.overlap === 1 ? "Überbuchung" : "Überbuchungen"}
-                </Badge>
-              )}
-              {planConflicts.sameDay > 0 && (
-                <Badge
-                  variant="warning"
-                  className="gap-1"
-                  title="Am selben Tag in einem anderen Projekt eingeplant — ohne Zeitüberschneidung"
-                >
-                  <AlertTriangle className="h-3 w-3" /> {planConflicts.sameDay}× selber Tag
-                </Badge>
-              )}
-              {projectServices.filter(isUnstaffed).length > 0 && (
-                <Badge variant="warning" className="gap-1">
-                  {projectServices.filter(isUnstaffed).length} unbesetzte{" "}
-                  {projectServices.filter(isUnstaffed).length === 1
-                    ? "Position"
-                    : "Positionen"}
-                </Badge>
-              )}
-              {projectServices.filter(isUnassignedTransport).length > 0 && (
-                <Badge variant="warning" className="gap-1">
-                  {projectServices.filter(isUnassignedTransport).length}× ohne Fahrzeug
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          {planOpen && (
-            <CardContent className="p-0">
-              <Table density="compact">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Zeit</TableHead>
-                    <TableHead>Person / Einheit</TableHead>
-                    <TableHead>Position</TableHead>
-                    <TableHead>Gruppe</TableHead>
-                    <TableHead>Hinweise</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {planEntries.map((entry) => {
-                    const { person, vehicle, serviceName, groupName } = entry;
-                    return (
-                      <TableRow key={entry.key}>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {person
-                            ? assignmentTimeLabel(person)
-                            : vehicleTimeLabel(vehicle!)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm">
-                            {person ? (
-                              <>
-                                <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="font-medium">{person.personName}</span>
-                                <Badge
-                                  variant={employmentTypeVariant(person.employmentType)}
-                                >
-                                  {employmentTypeLabel(person.employmentType)}
-                                </Badge>
-                              </>
-                            ) : (
-                              <>
-                                <Caravan className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="font-medium">
-                                  {vehicle!.vehicleName}
-                                </span>
-                                <Badge variant={vehicleKindVariant(vehicle!.vehicleKind)}>
-                                  {vehicleKindLabel(vehicle!.vehicleKind)}
-                                </Badge>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{serviceName}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {groupName}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <ConflictBadge
-                              conflicts={person?.conflicts ?? vehicle!.conflicts}
-                              resource={person ? "Die Person" : "Die Einheit"}
-                            />
-                            {vehicle?.driverName && (
-                              <Badge variant="outline" className="gap-1">
-                                <UserRound className="h-3 w-3" />
-                                {vehicle.driverName}
-                              </Badge>
-                            )}
-                            {(person?.notes ?? vehicle?.notes) && (
-                              <span>📝 {person?.notes ?? vehicle?.notes}</span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          )}
-        </Card>
-      )}
+          Fuhrpark-Einsätze — als PDF, analog zur Packliste im Material-Tab. */}
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <DocumentDownloadButton
+          href={`/api/projects/${projectId}/einsatzplan.pdf?download=1`}
+          label="Einsatzplan"
+          title="Einsatzplan herunterladen"
+          enabled={hasPlanEntries}
+          disabledTitle="Erst Personal oder Fahrzeuge einplanen"
+        />
+      </div>
 
       {/* Auf Desktop teilen sich Haupt- und Besetzungs-Card fest die
           Viewport-Höhe (abzüglich des 52px-Headers + Abstände) und clippen

@@ -31,7 +31,7 @@ export function hasClockTime(d: Date): boolean {
 }
 
 /** Wanduhrzeit `HH:MM` in Berlin. */
-function berlinTime(d: Date): string {
+export function berlinTime(d: Date): string {
   const parts = new Intl.DateTimeFormat("de-DE", {
     timeZone: APP_TZ,
     hour: "2-digit",
