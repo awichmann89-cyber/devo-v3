@@ -41,7 +41,6 @@ import {
   Pencil,
   Folder,
   FolderOpen,
-  Download,
   CalendarRange,
   X,
 } from "lucide-react";
@@ -71,6 +70,7 @@ import { cableSpecLabel } from "@/lib/labels";
 import { HorizontalSplit } from "@/components/ui/horizontal-split";
 import { useTransitionSaveStatus } from "@/lib/use-auto-save";
 import { AutoSaveIndicator } from "@/components/ui/auto-save-indicator";
+import { DocumentDownloadButton } from "@/components/project/document-download-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { groupItemsByCategory } from "@/lib/category-tree";
 import type {
@@ -232,43 +232,6 @@ type ConflictPrompt = {
   deviceName: string;
   conflicts: { projectName: string; planningStart: Date; planningEnd: Date }[];
 };
-
-/**
- * Download-Button für ein Projekt-Dokument (Packliste, Lieferschein).
- *
- * `Button asChild` rendert einen `<a>` — `disabled` greift an einem Anchor
- * nicht, deshalb zusätzlich `aria-disabled` und ein abgefangener Klick.
- */
-function DocumentDownloadButton({
-  href,
-  label,
-  title,
-  enabled,
-  variant = "default",
-}: {
-  href: string;
-  label: string;
-  title: string;
-  enabled: boolean;
-  variant?: "default" | "outline";
-}) {
-  return (
-    <Button asChild size="sm" variant={variant} disabled={!enabled}>
-      <a
-        href={href}
-        download
-        rel="noopener"
-        title={enabled ? title : "Erst Geräte oder Kabel buchen"}
-        aria-disabled={!enabled}
-        onClick={(e) => {
-          if (!enabled) e.preventDefault();
-        }}
-      >
-        <Download className="h-4 w-4" /> {label}
-      </a>
-    </Button>
-  );
-}
 
 export function AssignmentsSection({
   project,
@@ -1420,6 +1383,7 @@ export function AssignmentsSection({
           label="Lieferschein"
           title="Lieferschein herunterladen"
           enabled={hasPrintableItems}
+          disabledTitle="Erst Geräte oder Kabel buchen"
           variant="outline"
         />
         <DocumentDownloadButton
@@ -1427,6 +1391,7 @@ export function AssignmentsSection({
           label="Packliste"
           title="Packliste herunterladen"
           enabled={hasPrintableItems}
+          disabledTitle="Erst Geräte oder Kabel buchen"
         />
       </div>
       {/* Auf Desktop teilen sich Material- und Belegungs-Card fest die
