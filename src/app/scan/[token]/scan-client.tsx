@@ -541,14 +541,11 @@ export function ScanClient({
                           )}
                         </button>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">
-                            {it.kind === "PACK" ? (
-                              <>
-                                <span className="text-muted-foreground">{it.code}</span> · {it.name}
-                              </>
-                            ) : (
-                              it.name
-                            )}
+                          {/* Nur der Name, ohne PU-Nummer, und mit Umbruch statt
+                              Abschneiden — auf dem Handy muss der vollständige
+                              Artikel lesbar bleiben. */}
+                          <div className="break-words text-sm font-medium">
+                            {it.name}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {it.kind === "PACK"
