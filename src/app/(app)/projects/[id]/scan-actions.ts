@@ -217,46 +217,79 @@ export async function submitScanWithToken(
   return { ok: false, reason: "UNKNOWN_CODE" };
 }
 
+/** Position der digitalen Packliste, die per Klick abgehakt werden kann. */
+export type PackTarget =
+  | { kind: "PACK"; packUnitId: string }
+  | { kind: "LOOSE"; deviceId: string }
+  | { kind: "CABLE"; cableId: string };
+
 /**
- * Hakt ein gebuchtes Kabel auf der digitalen Packliste ab bzw. nimmt einen
- * Haken wieder zurück. Kabel tragen keinen QR-Code — der Eintrag entsteht
- * durch Antippen, `scannedCode` ist deshalb fix "MANUELL".
+ * Hakt eine Position der digitalen Packliste per Klick ab bzw. nimmt einen
+ * Haken wieder zurück — Alternative zum Scannen des QR-Codes. Kabel tragen
+ * gar keinen Code und gehen nur so. Der Eintrag ist ein ganz normaler
+ * PackingScan mit `scannedCode` = "MANUELL".
  * Auth erfolgt rein über den Token im Path-Param (wie beim Scannen).
  *
  * `delta` = +1 (abhaken) oder -1 (letzten Haken entfernen).
  */
-export async function togglePackedCableWithToken(
+export async function togglePackedItemWithToken(
   token: string,
-  cableId: string,
+  target: PackTarget,
   delta: 1 | -1
 ): Promise<{ ok: boolean }> {
-  if (!token || !cableId) return { ok: false };
+  if (!token) return { ok: false };
 
   const project = await prisma.project.findFirst({
     where: { packToken: token },
     select: {
       id: true,
-      cableAssignments: { where: { cableId }, select: { quantity: true } },
+      assignments: { select: { deviceId: true } },
+      cableAssignments: { select: { cableId: true, quantity: true } },
     },
   });
   if (!project) return { ok: false };
-  // Nur gebuchte Kabel sind abhakbar.
-  if (project.cableAssignments.length === 0) return { ok: false };
+
+  // Nur Positionen, die zum Projekt gehören, sind abhakbar — gleiche Regeln
+  // wie beim Scannen. Scans gehören immer zu genau einem der drei Felder.
+  let where: { packUnitId: string } | { deviceId: string } | { cableId: string };
+  if (target.kind === "PACK") {
+    const bookedDeviceIds = new Set(project.assignments.map((a) => a.deviceId));
+    const pu = await prisma.packUnit.findUnique({
+      where: { id: target.packUnitId },
+      select: { items: { select: { deviceId: true } } },
+    });
+    if (!pu || !pu.items.some((i) => bookedDeviceIds.has(i.deviceId))) {
+      return { ok: false };
+    }
+    where = { packUnitId: target.packUnitId };
+  } else if (target.kind === "LOOSE") {
+    if (!project.assignments.some((a) => a.deviceId === target.deviceId)) {
+      return { ok: false };
+    }
+    where = { deviceId: target.deviceId };
+  } else {
+    const cableAssignments = project.cableAssignments.filter(
+      (a) => a.cableId === target.cableId
+    );
+    if (cableAssignments.length === 0) return { ok: false };
+    if (delta === 1) {
+      // Nicht über den Bedarf hinaus abhaken.
+      const required = cableAssignments.reduce((s, a) => s + a.quantity, 0);
+      const done = await prisma.packingScan.count({
+        where: { projectId: project.id, cableId: target.cableId },
+      });
+      if (done >= required) return { ok: false };
+    }
+    where = { cableId: target.cableId };
+  }
 
   if (delta === 1) {
-    // Nicht über den Bedarf hinaus abhaken.
-    const required = project.cableAssignments.reduce((s, a) => s + a.quantity, 0);
-    const done = await prisma.packingScan.count({
-      where: { projectId: project.id, cableId },
-    });
-    if (done >= required) return { ok: false };
-
     await prisma.packingScan.create({
-      data: { projectId: project.id, cableId, scannedCode: "MANUELL" },
+      data: { projectId: project.id, ...where, scannedCode: "MANUELL" },
     });
   } else {
     const last = await prisma.packingScan.findFirst({
-      where: { projectId: project.id, cableId },
+      where: { projectId: project.id, ...where },
       orderBy: { scannedAt: "desc" },
       select: { id: true },
     });

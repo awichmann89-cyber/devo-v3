@@ -27,7 +27,8 @@ import {
   submitScanWithToken,
   resetPackingScansWithToken,
   deletePackingScanWithToken,
-  togglePackedCableWithToken,
+  togglePackedItemWithToken,
+  type PackTarget,
   type ScanResult,
 } from "../../(app)/projects/[id]/scan-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -292,11 +293,17 @@ export function ScanClient({
     });
   }
 
-  // Kabel haben keinen QR-Code — hier wird pro Tipp ein Stück abgehakt bzw.
-  // der letzte Haken wieder zurückgenommen.
-  function handleCableToggle(cableId: string, delta: 1 | -1) {
+  // Abhaken per Klick statt Scan — pro Tipp ein Stück abhaken bzw. den
+  // letzten Haken zurücknehmen. Für Kabel (ohne QR-Code) der einzige Weg.
+  function handleToggle(it: Item, delta: 1 | -1) {
+    const target: PackTarget =
+      it.kind === "PACK"
+        ? { kind: "PACK", packUnitId: it.packUnitId }
+        : it.kind === "LOOSE"
+          ? { kind: "LOOSE", deviceId: it.deviceId }
+          : { kind: "CABLE", cableId: it.cableId };
     startTransition(async () => {
-      const r = await togglePackedCableWithToken(token, cableId, delta);
+      const r = await togglePackedItemWithToken(token, target, delta);
       if (!r.ok) {
         toast.error(
           delta === 1
@@ -517,11 +524,22 @@ export function ScanClient({
                         )}
                         style={{ paddingLeft: `${1.5 + (group.depth + 1) * 1.5}rem` }}
                       >
-                        {complete ? (
-                          <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
-                        ) : (
-                          <Circle className="h-5 w-5 shrink-0 text-muted-foreground" />
-                        )}
+                        {/* Haken per Klick: offen → ein Stück abhaken,
+                            komplett → letzten Haken zurücknehmen. */}
+                        <button
+                          type="button"
+                          className="-m-2 shrink-0 rounded-full p-2 transition-colors hover:bg-muted disabled:opacity-50"
+                          disabled={pending}
+                          onClick={() => handleToggle(it, complete ? -1 : 1)}
+                          title={complete ? "Haken zurücknehmen" : "Ein Stück abhaken"}
+                          aria-label={complete ? "Haken zurücknehmen" : "Ein Stück abhaken"}
+                        >
+                          {complete ? (
+                            <CheckCircle2 className="h-6 w-6 text-success" />
+                          ) : (
+                            <Circle className="h-6 w-6 text-muted-foreground" />
+                          )}
+                        </button>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">
                             {it.kind === "PACK" ? (
@@ -538,9 +556,7 @@ export function ScanClient({
                               : it.kind === "CABLE"
                                 ? // Länge + Stecker statt nur „Kabel" — beim
                                   // Packen muss der Typ eindeutig sein.
-                                  it.spec
-                                  ? `${it.spec} · manuell abhaken`
-                                  : "Kabel · manuell abhaken"
+                                  it.spec ?? "Kabel"
                                 : "Lose"}
                           </div>
                         </div>
@@ -552,15 +568,15 @@ export function ScanClient({
                         >
                           {it.scanned} / {it.required}
                         </div>
-                        {/* Kabel tragen keinen QR-Code → +/- statt Scan */}
-                        {it.kind === "CABLE" && (
+                        {/* Bei mehreren Stück zusätzlich +/- zum Zählen */}
+                        {it.required > 1 && (
                           <div className="flex shrink-0 items-center gap-1">
                             <Button
                               variant="outline"
                               size="icon"
                               className="h-9 w-9"
-                              disabled={pending || it.scanned === 0}
-                              onClick={() => handleCableToggle(it.cableId, -1)}
+                              disabled={pending || it.scannedRaw === 0}
+                              onClick={() => handleToggle(it, -1)}
                               title="Einen Haken zurücknehmen"
                             >
                               <Minus className="h-4 w-4" />
@@ -570,7 +586,7 @@ export function ScanClient({
                               size="icon"
                               className="h-9 w-9"
                               disabled={pending || complete}
-                              onClick={() => handleCableToggle(it.cableId, 1)}
+                              onClick={() => handleToggle(it, 1)}
                               title="Ein Stück abhaken"
                             >
                               <Plus className="h-4 w-4" />

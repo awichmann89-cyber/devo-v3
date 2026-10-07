@@ -20,6 +20,7 @@ import {
   regeneratePackToken,
 } from "./scan-actions";
 import { toastError } from "@/lib/toast";
+import { isPhone } from "@/lib/is-phone";
 
 interface Props {
   projectId: string;
@@ -90,14 +91,25 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
 
   const done = totalCount > 0 && packedCount >= totalCount;
 
+  // Auf dem Handy ist der QR-Code sinnlos (man hält ja schon das Scan-Gerät
+  // in der Hand) — dort direkt in einem neuen Tab in den Pack-Modus. Rechner,
+  // iPads und Tablets bekommen weiterhin den Dialog mit QR-Code.
+  function handleOpen() {
+    if (isPhone()) {
+      window.open(`/api/projects/${projectId}/scan`, "_blank");
+      return;
+    }
+    setOpen(true);
+  }
+
   return (
     <>
       <Button
         size="sm"
         variant="outline"
-        onClick={() => setOpen(true)}
+        onClick={handleOpen}
         disabled={!hasAssignments}
-        title={hasAssignments ? "Per Handy scannen" : "Erst Geräte oder Kabel buchen"}
+        title={hasAssignments ? "Packliste digital abhaken" : "Erst Geräte oder Kabel buchen"}
       >
         <QrCode className="h-4 w-4" /> Digital Packen
         {totalCount > 0 && (
@@ -118,8 +130,8 @@ export function ScanDialog({ projectId, hasAssignments, packedCount, totalCount 
             </DialogTitle>
             <DialogDescription>
               QR-Code mit dem Handy scannen. Auf der Seite kannst du dann Packeinheiten- und
-              Geräte-Codes scannen — sie werden in der Packliste abgehakt. Kabel haben
-              keinen Code und werden dort direkt per +/- abgehakt.
+              Geräte-Codes scannen — sie werden in der Packliste abgehakt. Alternativ lässt
+              sich jede Position dort auch per Klick abhaken, ganz ohne Scan.
             </DialogDescription>
           </DialogHeader>
 
